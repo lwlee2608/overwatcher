@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"strings"
+	"log/slog"
 
 	"github.com/joho/godotenv"
 	"github.com/lwlee2608/adder"
@@ -47,8 +47,8 @@ func InitConfig() {
 	if strings.ToUpper(config.Log.Level) == LOG_LEVEL_DEBUG {
 		configJSON, err := adder.PrettyJSON(config)
 		if err == nil {
-			fmt.Println("Config loaded:")
-			fmt.Println(configJSON)
+			slog.Debug("Config loaded:")
+			slog.Debug(configJSON)
 		}
 	}
 }
