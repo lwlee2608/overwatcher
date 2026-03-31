@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"time"
 
-	internalhttp "github.com/lwlee2608/overwatcher/internal/api/http"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	internalhttp "github.com/lwlee2608/overwatcher/internal/api/http"
+	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
+	"github.com/lwlee2608/overwatcher/internal/service"
 )
 
 var AppVersion = "dev"
@@ -18,7 +20,13 @@ func main() {
 
 	slog.Info("overwatcher", "version", AppVersion)
 
-	services := &internalhttp.Services{}
+	ghClient := internalgithub.NewClient(config.GitHub.AppID, []byte(config.GitHub.PrivateKey))
+	webhookSvc := service.NewWebhookService(ghClient)
+
+	services := &internalhttp.Services{
+		WebhookService: webhookSvc,
+		WebhookSecret:  config.GitHub.WebhookSecret,
+	}
 
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
