@@ -2,3 +2,7 @@ log:
   level: debug
 http:
   port: 8080
+github:
+  app_id: 0
+  webhook_secret: ""
+  private_key: ""

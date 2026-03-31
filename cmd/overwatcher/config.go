@@ -10,9 +10,16 @@ import (
     "github.com/lwlee2608/overwatcher/internal/api/http"
 )
 
+type GitHubConfig struct {
+	AppID         int64  `mapstructure:"app_id"`
+	WebhookSecret string `mapstructure:"webhook_secret"`
+	PrivateKey    string `mapstructure:"private_key"`
+}
+
 type Config struct {
-	Log  LogConfig
-	Http http.Config
+	Log    LogConfig
+	Http   http.Config
+	GitHub GitHubConfig `mapstructure:"github"`
 }
 
 var config Config
