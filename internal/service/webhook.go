@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"strings"
 
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
 
@@ -26,7 +28,7 @@ func (s *WebhookService) HandleEvent(ctx context.Context, eventType string, deli
 
 	switch eventType {
 	case internalgithub.EventPush:
-		s.handlePush(event.(*gh.PushEvent), deliveryID)
+		s.handlePush(ctx, event.(*gh.PushEvent), deliveryID)
 	case internalgithub.EventDeployment:
 		s.handleDeployment(event.(*gh.DeploymentEvent), deliveryID)
 	case internalgithub.EventDeploymentStatus:
@@ -44,14 +46,74 @@ func (s *WebhookService) HandleEvent(ctx context.Context, eventType string, deli
 	return nil
 }
 
-func (s *WebhookService) handlePush(event *gh.PushEvent, deliveryID string) {
+func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, deliveryID string) {
+	repo := event.GetRepo().GetFullName()
+	ref := event.GetRef()
+
 	slog.Info("Push event received",
 		"delivery_id", deliveryID,
-		"repo", event.GetRepo().GetFullName(),
-		"ref", event.GetRef(),
+		"repo", repo,
+		"ref", ref,
 		"pusher", event.GetPusher().GetName(),
 		"commits", len(event.Commits),
 	)
+
+	if ref != "refs/heads/main" && ref != "refs/heads/master" {
+		return
+	}
+
+	installationID := event.GetInstallation().GetID()
+	if installationID == 0 {
+		slog.Warn("No installation ID in push event, skipping deployment creation")
+		return
+	}
+
+	client, err := s.ghClient.GetInstallationClient(ctx, installationID)
+	if err != nil {
+		slog.Error("Failed to get installation client", "error", err)
+		return
+	}
+
+	parts := strings.SplitN(repo, "/", 2)
+	owner, repoName := parts[0], parts[1]
+	sha := event.GetAfter()
+
+	// Get the head commit message for the deployment description
+	description := ""
+	if event.GetHeadCommit() != nil {
+		description = event.GetHeadCommit().GetMessage()
+		// Truncate to first line
+		if idx := strings.IndexByte(description, '\n'); idx != -1 {
+			description = description[:idx]
+		}
+	}
+
+	deployment, _, err := client.Repositories.CreateDeployment(ctx, owner, repoName, &gh.DeploymentRequest{
+		Ref:              &sha,
+		Environment:      gh.Ptr("production"),
+		Description:      &description,
+		AutoMerge:        gh.Ptr(false),
+		RequiredContexts: &[]string{},
+	})
+	if err != nil {
+		slog.Error("Failed to create deployment", "repo", repo, "sha", sha, "error", err)
+		return
+	}
+
+	slog.Info("Deployment created", "repo", repo, "deployment_id", deployment.GetID(), "sha", sha)
+
+	// Mark deployment as success
+	_, _, err = client.Repositories.CreateDeploymentStatus(ctx, owner, repoName, deployment.GetID(), &gh.DeploymentStatusRequest{
+		State:       gh.Ptr("success"),
+		Description: gh.Ptr(fmt.Sprintf("Deployed %s to production", sha[:7])),
+		Environment: gh.Ptr("production"),
+	})
+	if err != nil {
+		slog.Error("Failed to create deployment status", "repo", repo, "deployment_id", deployment.GetID(), "error", err)
+		return
+	}
+
+	slog.Info("Deployment status set to success", "repo", repo, "deployment_id", deployment.GetID())
 }
 
 func (s *WebhookService) handleDeployment(event *gh.DeploymentEvent, deliveryID string) {
