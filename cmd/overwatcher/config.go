@@ -1,19 +1,18 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/lwlee2608/adder"
-    "github.com/lwlee2608/overwatcher/internal/api/http"
+	"github.com/lwlee2608/overwatcher/internal/api/http"
 )
 
 type GitHubConfig struct {
 	AppID         int64  `mapstructure:"app_id"`
-	WebhookSecret string `mapstructure:"webhook_secret"`
-	PrivateKey    string `mapstructure:"private_key"`
+	WebhookSecret string `mapstructure:"webhook_secret" mask:"true"`
+	PrivateKey    string `mapstructure:"private_key" mask:"true"`
 }
 
 type Config struct {
@@ -41,13 +40,21 @@ func InitConfig() {
 		panic(err)
 	}
 
+	validate()
+
 	initLogger(config.Log.Level)
 
 	if strings.ToUpper(config.Log.Level) == LOG_LEVEL_DEBUG {
-		configJSON, err := json.MarshalIndent(config, "", "  ")
+		configJSON, err := adder.PrettyJSON(config)
 		if err == nil {
 			fmt.Println("Config loaded:")
-			fmt.Println(string(configJSON))
+			fmt.Println(configJSON)
 		}
+	}
+}
+
+func validate() {
+	if config.GitHub.WebhookSecret == "" {
+		panic("GITHUB_WEBHOOK_SECRET must be set")
 	}
 }
