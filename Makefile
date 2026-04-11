@@ -5,9 +5,12 @@ AGENT           := agent
 VERSION         ?= v0.1.0
 LDFLAGS         := -ldflags "-X main.AppVersion=$(VERSION)"
 
-.PHONY: all build build-agent clean run run-agent test
+.PHONY: all build build-agent clean run run-agent test dep generate
 
 all: clean build build-agent
+
+dep:
+	$(GO) install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
 
 clean:
 	$(GO) clean -testcache
@@ -22,3 +25,5 @@ run-agent:
 	$(GO) run $(LDFLAGS) cmd/$(AGENT)/*.go
 test:
 	$(GO) test -v ./...
+generate: dep
+	sqlc generate
