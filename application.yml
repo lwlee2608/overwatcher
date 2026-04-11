@@ -6,3 +6,13 @@ github:
   app_id: 0
   webhook_secret: ""
   private_key: ""
+deployments:
+  mappings: []
+  # Example mapping:
+  # mappings:
+  #   - repo: "owner/some-repo"
+  #     stack: "my-compose-stack"
+  #     services: ["app"]                 # optional; empty = restart all
+  #     environment: "production"         # optional; default "production"
+  #     image: "ghcr.io/owner/some-repo"  # optional; default ghcr.io/<lowered repo>
+  #     tag: "latest"                     # optional; default commit SHA
