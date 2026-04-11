@@ -29,14 +29,31 @@ The smallest possible agent that makes a real push actually restart a real conta
 
 ## Phase 4 — Hardening
 
-Everything that separates a demo from something trustworthy for real services.
+Everything that separates a demo from something trustworthy for real services. Too big for one PR — split into three sub-phases that can land independently.
 
-- Proper agent auth (per-agent token, or mTLS).
-- Deploy log capture — agent streams stdout back to coordinator, coordinator attaches it to the GitHub Deployment.
-- Retries, timeouts, and cancellation.
-- Concurrency guard: don't start a second deploy to the same stack while one is in flight.
-- Persistent intent storage (sqlite?) so a coordinator restart doesn't drop queued deploys.
-- Structured logging and basic metrics.
+### Phase 4a — Persistence + idempotency *(foundation)*
+
+Replace the in-memory `IntentStore` with a SQLite-backed store. Several review-surfaced gaps fall out for free: webhook redelivery dedup becomes `UNIQUE(delivery_id, stack_index)`, the queue slice-head leak disappears, and a coordinator restart no longer drops the queue or in-flight map. This is the foundation 4b builds on.
+
+### Phase 4b — Dispatch reliability
+
+Builds on 4a's persistent in-flight state.
+
+- In-flight timeout — dispatched intents stuck for >N minutes get requeued with an `attempts` counter.
+- Max attempts — after N retries, mark permanently failed and update GitHub.
+- Concurrency guard — don't dispatch a new intent to a stack that already has one in flight.
+- Coordinator graceful shutdown — `signal.NotifyContext` + `server.Shutdown(ctx)`, in-flight long-polls drain cleanly.
+- Agent report-on-shutdown with a fresh context so SIGTERM doesn't leave silently stuck intents.
+
+### Phase 4c — Per-agent auth + observability
+
+Mostly independent of 4a/4b — could be reordered.
+
+- Per-agent tokens replace the single global `AGENT_SHARED_SECRET`. Each agent has a name; coordinator stores hashed tokens; bearer middleware identifies the caller. mTLS stays Phase 5.
+- Deploy log capture — agent streams `docker compose` stdout back, coordinator attaches it via the GitHub Deployment Logs API.
+- Basic Prometheus metrics — counters for intents enqueued / dispatched / succeeded / failed, gauges for queue depth and in-flight count, deploy duration histogram.
+- Structured logging conventions.
+- Hygiene cleanups: `BearerTokenAuth` test, end-to-end poll-loop test, `postResult` URL fix, README update.
 
 ## Phase 5 — Fleet features
 
