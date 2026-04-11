@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strings"
 
@@ -62,6 +61,17 @@ func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, de
 		return
 	}
 
+	if event.GetDeleted() {
+		slog.Info("Ignoring branch-delete push", "delivery_id", deliveryID, "repo", repo, "ref", ref)
+		return
+	}
+
+	sha := event.GetAfter()
+	if sha == "" || sha == "0000000000000000000000000000000000000000" {
+		slog.Info("Ignoring push with zero SHA", "delivery_id", deliveryID, "repo", repo, "ref", ref)
+		return
+	}
+
 	installationID := event.GetInstallation().GetID()
 	if installationID == 0 {
 		slog.Warn("No installation ID in push event, skipping deployment creation")
@@ -74,9 +84,8 @@ func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, de
 		return
 	}
 
-	parts := strings.SplitN(repo, "/", 2)
-	owner, repoName := parts[0], parts[1]
-	sha := event.GetAfter()
+	owner := event.GetRepo().GetOwner().GetLogin()
+	repoName := event.GetRepo().GetName()
 
 	// Get the head commit message for the deployment description
 	description := ""
@@ -102,10 +111,10 @@ func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, de
 
 	slog.Info("Deployment created", "repo", repo, "deployment_id", deployment.GetID(), "sha", sha)
 
-	// Mark deployment as success
+	// Mark deployment as queued — the actual deploy happens in later phases
 	_, _, err = client.Repositories.CreateDeploymentStatus(ctx, owner, repoName, deployment.GetID(), &gh.DeploymentStatusRequest{
-		State:       gh.Ptr("success"),
-		Description: gh.Ptr(fmt.Sprintf("Deployed %s to production", sha[:7])),
+		State:       gh.Ptr("queued"),
+		Description: gh.Ptr("Deployment queued"),
 		Environment: gh.Ptr("production"),
 	})
 	if err != nil {
@@ -113,7 +122,7 @@ func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, de
 		return
 	}
 
-	slog.Info("Deployment status set to success", "repo", repo, "deployment_id", deployment.GetID())
+	slog.Info("Deployment queued", "repo", repo, "deployment_id", deployment.GetID())
 }
 
 func (s *WebhookService) handleDeployment(event *gh.DeploymentEvent, deliveryID string) {
