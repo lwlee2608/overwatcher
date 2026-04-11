@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -19,7 +20,10 @@ import (
 var AppVersion = "dev"
 
 func main() {
-	InitConfig()
+	if err := InitConfig(); err != nil {
+		slog.Error("config load failed", "error", err)
+		os.Exit(1)
+	}
 
 	slog.Info("overwatcher", "version", AppVersion)
 

@@ -11,7 +11,10 @@ import (
 var AppVersion = "dev"
 
 func main() {
-	InitConfig()
+	if err := InitConfig(); err != nil {
+		slog.Error("config load failed", "error", err)
+		os.Exit(1)
+	}
 
 	slog.Info("overwatcher-agent",
 		"version", AppVersion,

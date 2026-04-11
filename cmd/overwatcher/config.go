@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -24,14 +25,14 @@ type AgentConfig struct {
 type Config struct {
 	Log         LogConfig
 	Http        http.Config
-	GitHub      GitHubConfig              `mapstructure:"github"`
-	Deployments mapping.Config            `mapstructure:"deployments"`
-	Agent       AgentConfig               `mapstructure:"agent"`
+	GitHub      GitHubConfig   `mapstructure:"github"`
+	Deployments mapping.Config `mapstructure:"deployments"`
+	Agent       AgentConfig    `mapstructure:"agent"`
 }
 
 var config Config
 
-func InitConfig() {
+func InitConfig() error {
 	_ = godotenv.Load()
 
 	adder.SetConfigName("application")
@@ -41,14 +42,16 @@ func InitConfig() {
 	adder.AutomaticEnv()
 
 	if err := adder.ReadInConfig(); err != nil {
-		panic(err)
+		return fmt.Errorf("read config: %w", err)
 	}
 
 	if err := adder.Unmarshal(&config); err != nil {
-		panic(err)
+		return fmt.Errorf("unmarshal config: %w", err)
 	}
 
-	validate()
+	if err := validate(); err != nil {
+		return err
+	}
 
 	initLogger(config.Log.Level)
 
@@ -59,21 +62,24 @@ func InitConfig() {
 			slog.Debug(configJSON)
 		}
 	}
+
+	return nil
 }
 
-func validate() {
+func validate() error {
 	if config.GitHub.WebhookSecret == "" {
-		panic("GITHUB_WEBHOOK_SECRET must be set")
+		return errors.New("GITHUB_WEBHOOK_SECRET must be set")
 	}
 	if config.Agent.SharedSecret == "" {
-		panic("AGENT_SHARED_SECRET must be set")
+		return errors.New("AGENT_SHARED_SECRET must be set")
 	}
 	for i, m := range config.Deployments.Mappings {
 		if m.Repo == "" {
-			panic(fmt.Sprintf("deployments.mappings[%d]: repo is required", i))
+			return fmt.Errorf("deployments.mappings[%d]: repo is required", i)
 		}
 		if m.Stack == "" {
-			panic(fmt.Sprintf("deployments.mappings[%d]: stack is required", i))
+			return fmt.Errorf("deployments.mappings[%d]: stack is required", i)
 		}
 	}
+	return nil
 }
