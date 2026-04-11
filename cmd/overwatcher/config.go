@@ -1,12 +1,14 @@
 package main
 
 import (
-	"strings"
+	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/lwlee2608/adder"
 	"github.com/lwlee2608/overwatcher/internal/api/http"
+	"github.com/lwlee2608/overwatcher/internal/service"
 )
 
 type GitHubConfig struct {
@@ -16,9 +18,10 @@ type GitHubConfig struct {
 }
 
 type Config struct {
-	Log    LogConfig
-	Http   http.Config
-	GitHub GitHubConfig `mapstructure:"github"`
+	Log         LogConfig
+	Http        http.Config
+	GitHub      GitHubConfig              `mapstructure:"github"`
+	Deployments service.DeploymentsConfig `mapstructure:"deployments"`
 }
 
 var config Config
@@ -56,5 +59,13 @@ func InitConfig() {
 func validate() {
 	if config.GitHub.WebhookSecret == "" {
 		panic("GITHUB_WEBHOOK_SECRET must be set")
+	}
+	for i, m := range config.Deployments.Mappings {
+		if m.Repo == "" {
+			panic(fmt.Sprintf("deployments.mappings[%d]: repo is required", i))
+		}
+		if m.Stack == "" {
+			panic(fmt.Sprintf("deployments.mappings[%d]: stack is required", i))
+		}
 	}
 }

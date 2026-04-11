@@ -21,7 +21,9 @@ func main() {
 	slog.Info("overwatcher", "version", AppVersion)
 
 	ghClient := internalgithub.NewClient(config.GitHub.AppID, []byte(config.GitHub.PrivateKey))
-	webhookSvc := service.NewWebhookService(ghClient)
+	mapping := service.NewMapping(config.Deployments.Mappings)
+	intentStore := service.NewIntentStore()
+	webhookSvc := service.NewWebhookService(ghClient, mapping, intentStore)
 
 	services := &internalhttp.Services{
 		WebhookService: webhookSvc,
