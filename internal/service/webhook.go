@@ -105,7 +105,7 @@ func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, de
 		}
 	}
 
-	for _, entry := range matches {
+	for i, entry := range matches {
 		image := entry.ResolveImage(repo)
 		tag := entry.ResolveTag(sha)
 		environment := entry.ResolveEnvironment()
@@ -129,18 +129,11 @@ func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, de
 
 		slog.Info("Deployment created", "delivery_id", deliveryID, "repo", repo, "stack", entry.Stack, "deployment_id", deployment.GetID(), "sha", sha)
 
-		_, _, err = client.Repositories.CreateDeploymentStatus(ctx, owner, repoName, deployment.GetID(), &gh.DeploymentStatusRequest{
-			State:       gh.Ptr("queued"),
-			Description: gh.Ptr("Deployment queued"),
-			Environment: gh.Ptr(environment),
-		})
-		if err != nil {
-			slog.Error("Failed to create deployment status", "delivery_id", deliveryID, "repo", repo, "stack", entry.Stack, "deployment_id", deployment.GetID(), "error", err)
-			continue
-		}
-
+		// Enqueue the intent before marking the deployment queued: the intent is
+		// the source of truth, and we don't want to abandon it if the status call
+		// fails on a deployment that already exists on GitHub.
 		intent := &DeployIntent{
-			ID:           fmt.Sprintf("%s-%s", deliveryID, entry.Stack),
+			ID:           fmt.Sprintf("%s-%d", deliveryID, i),
 			CreatedAt:    time.Now(),
 			DeliveryID:   deliveryID,
 			Repo:         repo,
@@ -165,6 +158,15 @@ func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, de
 			"tag", tag,
 			"environment", environment,
 		)
+
+		_, _, err = client.Repositories.CreateDeploymentStatus(ctx, owner, repoName, deployment.GetID(), &gh.DeploymentStatusRequest{
+			State:       gh.Ptr("queued"),
+			Description: gh.Ptr(description),
+			Environment: gh.Ptr(environment),
+		})
+		if err != nil {
+			slog.Warn("Failed to mark deployment queued; intent still enqueued", "delivery_id", deliveryID, "repo", repo, "stack", entry.Stack, "deployment_id", deployment.GetID(), "error", err)
+		}
 	}
 }
 

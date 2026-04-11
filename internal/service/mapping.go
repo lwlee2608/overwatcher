@@ -55,7 +55,7 @@ func NewMapping(entries []MappingEntry) *Mapping {
 // legitimately produce multiple intents if the same repo is mapped to several
 // stacks.
 func (m *Mapping) Match(repo string) []MappingEntry {
-	var matches []MappingEntry
+	matches := make([]MappingEntry, 0, len(m.entries))
 	for _, entry := range m.entries {
 		if strings.EqualFold(entry.Repo, repo) {
 			matches = append(matches, entry)
