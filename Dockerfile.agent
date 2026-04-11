@@ -1,0 +1,34 @@
+FROM golang:1.25 AS build-env
+
+ARG VERSION=dev
+
+ENV GO111MODULE=on  \
+    CGO_ENABLED=0   \
+    GOOS=linux      \
+    GOARCH=amd64
+
+WORKDIR /build
+COPY cmd/agent/ agent/
+COPY internal/ internal/
+COPY go.mod .
+COPY go.sum .
+RUN go build -o app -ldflags "-X main.AppVersion=${VERSION}" agent/*.go
+
+
+# docker:27-cli ships the docker CLI plus the compose plugin without bundling
+# the daemon. The agent talks to the host daemon via the mounted socket.
+#
+# Required runtime mounts:
+#   -v /var/run/docker.sock:/var/run/docker.sock
+#   -v /opt/stacks:/opt/stacks   (or wherever the configured compose files live)
+#
+# Required env: AGENT_SHARED_SECRET
+# Required config: application-agent.yml in /go/bin (or bind-mount your own)
+FROM docker:27-cli
+
+WORKDIR /go/bin
+COPY application-agent.yml /go/bin/application-agent.yml
+COPY --from=build-env /build/app .
+RUN chmod +x app
+
+ENTRYPOINT ["/go/bin/app"]

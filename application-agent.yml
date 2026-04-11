@@ -1,0 +1,17 @@
+log:
+  level: info
+agent:
+  coordinator_url: "http://localhost:8080"
+  shared_secret: ""        # override with AGENT_SHARED_SECRET
+  poll_timeout: 30s        # client-side timeout; must exceed coordinator's 25s long-poll
+  stacks: {}
+  # Example stack mapping (key = stack name configured on coordinator side):
+  # stacks:
+  #   my-compose-stack: /opt/stacks/my-compose-stack/docker-compose.yml
+  #
+  # The agent invokes `docker compose pull` and `docker compose up -d` with
+  # IMAGE and IMAGE_TAG env vars set from the intent. Compose files should
+  # interpolate them, e.g.:
+  #   services:
+  #     app:
+  #       image: ${IMAGE}:${IMAGE_TAG}

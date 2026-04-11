@@ -133,19 +133,20 @@ func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, de
 		// the source of truth, and we don't want to abandon it if the status call
 		// fails on a deployment that already exists on GitHub.
 		intent := &DeployIntent{
-			ID:           fmt.Sprintf("%s-%d", deliveryID, i),
-			CreatedAt:    time.Now(),
-			DeliveryID:   deliveryID,
-			Repo:         repo,
-			Ref:          ref,
-			SHA:          sha,
-			Image:        image,
-			Tag:          tag,
-			Stack:        entry.Stack,
-			Services:     entry.Services,
-			Environment:  environment,
-			DeploymentID: deployment.GetID(),
-			Status:       IntentCreated,
+			ID:             fmt.Sprintf("%s-%d", deliveryID, i),
+			CreatedAt:      time.Now(),
+			DeliveryID:     deliveryID,
+			Repo:           repo,
+			Ref:            ref,
+			SHA:            sha,
+			Image:          image,
+			Tag:            tag,
+			Stack:          entry.Stack,
+			Services:       entry.Services,
+			Environment:    environment,
+			DeploymentID:   deployment.GetID(),
+			InstallationID: installationID,
+			Status:         IntentCreated,
 		}
 		s.intentStore.Enqueue(intent)
 

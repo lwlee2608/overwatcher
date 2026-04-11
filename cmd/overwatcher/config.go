@@ -17,11 +17,16 @@ type GitHubConfig struct {
 	PrivateKey    string `mapstructure:"private_key" mask:"true"`
 }
 
+type AgentConfig struct {
+	SharedSecret string `mapstructure:"shared_secret" mask:"true"`
+}
+
 type Config struct {
 	Log         LogConfig
 	Http        http.Config
 	GitHub      GitHubConfig              `mapstructure:"github"`
 	Deployments service.DeploymentsConfig `mapstructure:"deployments"`
+	Agent       AgentConfig               `mapstructure:"agent"`
 }
 
 var config Config
@@ -59,6 +64,9 @@ func InitConfig() {
 func validate() {
 	if config.GitHub.WebhookSecret == "" {
 		panic("GITHUB_WEBHOOK_SECRET must be set")
+	}
+	if config.Agent.SharedSecret == "" {
+		panic("AGENT_SHARED_SECRET must be set")
 	}
 	for i, m := range config.Deployments.Mappings {
 		if m.Repo == "" {

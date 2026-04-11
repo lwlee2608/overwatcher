@@ -12,8 +12,10 @@ type Config struct {
 }
 
 type Services struct {
-	WebhookService *service.WebhookService
-	WebhookSecret  string
+	WebhookService    *service.WebhookService
+	DispatchService   *service.DispatchService
+	WebhookSecret     string
+	AgentSharedSecret string
 }
 
 func SetupRoute(engine *gin.Engine, srvs *Services) {
@@ -22,6 +24,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 
 	healthHandler := handler.NewHealthHandler()
 	webhookHandler := handler.NewWebhookHandler(srvs.WebhookService)
+	deployHandler := handler.NewDeployHandler(srvs.DispatchService)
 
 	engine.GET("/health", healthHandler.Check)
 
@@ -31,6 +34,13 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 		githubGroup.Use(middleware.WebhookSignatureVerifier(srvs.WebhookSecret))
 		{
 			githubGroup.POST("/webhook", webhookHandler.HandleWebhook)
+		}
+
+		deployGroup := apis.Group("/deploy")
+		deployGroup.Use(middleware.BearerTokenAuth(srvs.AgentSharedSecret))
+		{
+			deployGroup.GET("/next", deployHandler.Next)
+			deployGroup.POST("/:id/result", deployHandler.Result)
 		}
 	}
 }
