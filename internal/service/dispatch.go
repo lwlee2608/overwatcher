@@ -10,9 +10,10 @@ import (
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
 )
 
-// statusUpdater is the slice of GitHub API DispatchService needs. It exists so
-// tests can substitute a fake without spinning up a real installation client.
-type statusUpdater interface {
+// StatusUpdater is the slice of GitHub API DispatchService needs. It is
+// exported so cross-package tests can substitute a fake without spinning up a
+// real installation client.
+type StatusUpdater interface {
 	UpdateDeploymentStatus(ctx context.Context, installationID int64, owner, repo string, deploymentID int64, state, description string) error
 }
 
@@ -33,12 +34,20 @@ func (g *ghStatusUpdater) UpdateDeploymentStatus(ctx context.Context, installati
 	return err
 }
 
+// noopStatusUpdater drops every call. Used by NewDispatchServiceForTest so
+// handler-level tests don't need to fake the full GitHub API surface.
+type noopStatusUpdater struct{}
+
+func (noopStatusUpdater) UpdateDeploymentStatus(context.Context, int64, string, string, int64, string, string) error {
+	return nil
+}
+
 // DispatchService consumes intents from the IntentStore and reports their
 // outcome back to GitHub. It is the counterpart to WebhookService, which
 // produces intents.
 type DispatchService struct {
 	store   *IntentStore
-	updater statusUpdater
+	updater StatusUpdater
 }
 
 func NewDispatchService(ghClient *internalgithub.Client, store *IntentStore) *DispatchService {
@@ -46,6 +55,13 @@ func NewDispatchService(ghClient *internalgithub.Client, store *IntentStore) *Di
 		store:   store,
 		updater: &ghStatusUpdater{client: ghClient},
 	}
+}
+
+// NewDispatchServiceForTest constructs a DispatchService with a no-op
+// StatusUpdater. Intended only for tests in other packages that need to
+// exercise the dispatch flow without faking GitHub.
+func NewDispatchServiceForTest(store *IntentStore) *DispatchService {
+	return &DispatchService{store: store, updater: noopStatusUpdater{}}
 }
 
 // Next blocks until an intent is available or ctx is cancelled. On success it

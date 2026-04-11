@@ -12,15 +12,15 @@ import (
 )
 
 // stubDocker writes a fake `docker` script onto PATH that records every
-// invocation's argv into a log file. Subsequent runs of `docker ...` write a
-// newline-delimited record per call.
+// invocation's argv plus the IMAGE/IMAGE_TAG env vars into a log file. Each
+// invocation writes one line: `<args>|IMAGE=<v>|IMAGE_TAG=<v>`.
 func stubDocker(t *testing.T, exitCode int) (logPath string, restore func()) {
 	t.Helper()
 	dir := t.TempDir()
 	logPath = filepath.Join(dir, "calls.log")
 
 	script := "#!/bin/sh\n" +
-		"echo \"$@\" >> " + logPath + "\n" +
+		"echo \"$@|IMAGE=${IMAGE}|IMAGE_TAG=${IMAGE_TAG}\" >> " + logPath + "\n" +
 		"exit " + strconv.Itoa(exitCode) + "\n"
 	dockerPath := filepath.Join(dir, "docker")
 	if err := os.WriteFile(dockerPath, []byte(script), 0755); err != nil {
@@ -44,7 +44,12 @@ func TestRunner_Run_HappyPath(t *testing.T) {
 	defer restore()
 
 	r := NewRunner(map[string]string{"foo": composeFile})
-	intent := &dto.DeployIntentResponse{Stack: "foo", Services: []string{"app"}}
+	intent := &dto.DeployIntentResponse{
+		Stack:    "foo",
+		Services: []string{"app"},
+		Image:    "ghcr.io/owner/repo",
+		Tag:      "abc1234",
+	}
 
 	if err := r.Run(context.Background(), intent); err != nil {
 		t.Fatalf("Run: %v", err)
@@ -56,8 +61,8 @@ func TestRunner_Run_HappyPath(t *testing.T) {
 	}
 	got := strings.TrimSpace(string(out))
 	wantLines := []string{
-		"compose -f " + composeFile + " pull",
-		"compose -f " + composeFile + " up -d app",
+		"compose -f " + composeFile + " pull|IMAGE=ghcr.io/owner/repo|IMAGE_TAG=abc1234",
+		"compose -f " + composeFile + " up -d app|IMAGE=ghcr.io/owner/repo|IMAGE_TAG=abc1234",
 	}
 	if got != strings.Join(wantLines, "\n") {
 		t.Errorf("docker invocations:\n got:  %q\n want: %q", got, strings.Join(wantLines, "\n"))
@@ -77,7 +82,8 @@ func TestRunner_Run_NoServicesUsesWholeStack(t *testing.T) {
 	}
 
 	out, _ := os.ReadFile(logPath)
-	if !strings.Contains(string(out), "up -d\n") {
+	// `up -d` followed by `|` (the env separator) — no service args between.
+	if !strings.Contains(string(out), "up -d|") {
 		t.Errorf("expected `up -d` with no service args, got: %q", string(out))
 	}
 }

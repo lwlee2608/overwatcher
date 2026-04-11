@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log/slog"
+	"os"
 	"os/signal"
 	"syscall"
 )
@@ -25,7 +26,7 @@ func main() {
 	poller, err := NewPoller(config.Agent, runner)
 	if err != nil {
 		slog.Error("failed to construct poller", "error", err)
-		return
+		os.Exit(1)
 	}
 
 	slog.Info("agent started, polling for intents")

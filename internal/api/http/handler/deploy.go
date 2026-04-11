@@ -5,11 +5,18 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 	"github.com/lwlee2608/overwatcher/internal/service"
 )
+
+// longPollTimeout caps how long Next holds an idle request. Sits comfortably
+// under typical 30s proxy/LB idle timeouts and the agent's 30s client timeout
+// so the 204 always reaches the agent before either fires. var, not const,
+// so tests can shrink it.
+var longPollTimeout = 25 * time.Second
 
 type DeployHandler struct {
 	dispatchService *service.DispatchService
@@ -19,12 +26,15 @@ func NewDeployHandler(dispatchService *service.DispatchService) *DeployHandler {
 	return &DeployHandler{dispatchService: dispatchService}
 }
 
-// Next is a long-poll. It blocks inside DispatchService.Next until an intent
-// is available or the request context is cancelled (client disconnect or
-// server shutdown). On context cancellation it returns 204 so the agent can
-// re-poll cleanly without treating it as an error.
+// Next is a long-poll. It blocks inside DispatchService.Next for up to
+// longPollTimeout, or until the request context is cancelled (agent
+// disconnect). On either, it returns 204 so the agent can re-poll cleanly
+// without treating it as a transport error.
 func (h *DeployHandler) Next(c *gin.Context) {
-	intent, err := h.dispatchService.Next(c.Request.Context())
+	ctx, cancel := context.WithTimeout(c.Request.Context(), longPollTimeout)
+	defer cancel()
+
+	intent, err := h.dispatchService.Next(ctx)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			c.Status(http.StatusNoContent)
