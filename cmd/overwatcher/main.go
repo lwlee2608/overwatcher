@@ -24,10 +24,13 @@ func main() {
 	mapping := service.NewMapping(config.Deployments.Mappings)
 	intentStore := service.NewIntentStore()
 	webhookSvc := service.NewWebhookService(ghClient, mapping, intentStore)
+	dispatchSvc := service.NewDispatchService(ghClient, intentStore)
 
 	services := &internalhttp.Services{
-		WebhookService: webhookSvc,
-		WebhookSecret:  config.GitHub.WebhookSecret,
+		WebhookService:    webhookSvc,
+		DispatchService:   dispatchSvc,
+		WebhookSecret:     config.GitHub.WebhookSecret,
+		AgentSharedSecret: config.Agent.SharedSecret,
 	}
 
 	gin.SetMode(gin.ReleaseMode)

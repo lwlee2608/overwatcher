@@ -16,3 +16,5 @@ deployments:
   #     environment: "production"         # optional; default "production"
   #     image: "ghcr.io/owner/some-repo"  # optional; default ghcr.io/<lowered repo>
   #     tag: "latest"                     # optional; default commit SHA
+agent:
+  shared_secret: ""  # override with AGENT_SHARED_SECRET; required for /api/v1/deploy/* endpoints
