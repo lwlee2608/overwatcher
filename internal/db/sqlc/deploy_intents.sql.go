@@ -21,6 +21,7 @@ INSERT INTO deploy_intents (
     $6, $7, $8, $9, $10,
     $11, $12
 )
+ON CONFLICT (delivery_id, stack_index) DO NOTHING
 RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at
 `
 
@@ -39,6 +40,9 @@ type CreateDeployIntentParams struct {
 	InstallationID int64    `json:"installation_id"`
 }
 
+// Webhook redeliveries dedup on (delivery_id, stack_index): on conflict the
+// insert is skipped and sqlc returns pgx.ErrNoRows, which callers treat as
+// "already enqueued, do nothing".
 func (q *Queries) CreateDeployIntent(ctx context.Context, arg CreateDeployIntentParams) (DeployIntent, error) {
 	row := q.db.QueryRow(ctx, createDeployIntent,
 		arg.DeliveryID,

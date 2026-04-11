@@ -11,6 +11,9 @@ import (
 )
 
 type Querier interface {
+	// Webhook redeliveries dedup on (delivery_id, stack_index): on conflict the
+	// insert is skipped and sqlc returns pgx.ErrNoRows, which callers treat as
+	// "already enqueued, do nothing".
 	CreateDeployIntent(ctx context.Context, arg CreateDeployIntentParams) (DeployIntent, error)
 	DeleteDeployIntent(ctx context.Context, id pgtype.UUID) error
 	GetDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error)

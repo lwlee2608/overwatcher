@@ -26,6 +26,11 @@ func RunMigrations(dbURL, schema string) error {
 	}
 	defer db.Close()
 
+	// Pin to one connection so SET search_path persists across every
+	// subsequent Exec/Query (including goose's own calls). Otherwise the
+	// pool may hand goose a fresh conn that defaults back to "public".
+	db.SetMaxOpenConns(1)
+
 	if err := ensureSchemaExists(db, schema); err != nil {
 		return err
 	}

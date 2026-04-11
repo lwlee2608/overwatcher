@@ -1,4 +1,7 @@
 -- name: CreateDeployIntent :one
+-- Webhook redeliveries dedup on (delivery_id, stack_index): on conflict the
+-- insert is skipped and sqlc returns pgx.ErrNoRows, which callers treat as
+-- "already enqueued, do nothing".
 INSERT INTO deploy_intents (
     delivery_id, stack_index, repo, git_ref, sha,
     image, tag, stack, services, environment,
@@ -8,6 +11,7 @@ INSERT INTO deploy_intents (
     $6, $7, $8, $9, $10,
     $11, $12
 )
+ON CONFLICT (delivery_id, stack_index) DO NOTHING
 RETURNING *;
 
 -- name: GetDeployIntent :one

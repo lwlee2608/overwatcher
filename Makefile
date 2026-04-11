@@ -11,7 +11,6 @@ all: clean build build-agent
 
 dep:
 	$(GO) install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.29.0
-
 clean:
 	$(GO) clean -testcache
 	$(RM) -rf bin/*
@@ -25,5 +24,5 @@ run-agent:
 	$(GO) run $(LDFLAGS) cmd/$(AGENT)/*.go
 test:
 	$(GO) test -v ./...
-generate: dep
+generate:
 	sqlc generate
