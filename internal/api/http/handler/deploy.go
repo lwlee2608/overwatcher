@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
-	"github.com/lwlee2608/overwatcher/internal/service"
+	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 )
 
 // longPollTimeout caps how long Next holds an idle request. Sits comfortably
@@ -19,10 +19,10 @@ import (
 var longPollTimeout = 25 * time.Second
 
 type DeployHandler struct {
-	dispatchService *service.DispatchService
+	dispatchService *dispatch.Service
 }
 
-func NewDeployHandler(dispatchService *service.DispatchService) *DeployHandler {
+func NewDeployHandler(dispatchService *dispatch.Service) *DeployHandler {
 	return &DeployHandler{dispatchService: dispatchService}
 }
 

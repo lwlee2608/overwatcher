@@ -3,7 +3,7 @@ package dto
 import "time"
 
 // DeployIntentResponse is the wire shape returned to agents on /deploy/next.
-// It is a subset of service.DeployIntent — internal fields like InstallationID
+// It is a subset of intent.DeployIntent — internal fields like InstallationID
 // and Status are deliberately omitted.
 type DeployIntentResponse struct {
 	ID           string    `json:"id"`

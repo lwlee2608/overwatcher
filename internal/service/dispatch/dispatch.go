@@ -1,4 +1,4 @@
-package service
+package dispatch
 
 import (
 	"context"
@@ -8,9 +8,10 @@ import (
 	gh "github.com/google/go-github/v84/github"
 
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
+	"github.com/lwlee2608/overwatcher/internal/service/intent"
 )
 
-// StatusUpdater is the slice of GitHub API DispatchService needs. It is
+// StatusUpdater is the slice of GitHub API dispatch.Service needs. It is
 // exported so cross-package tests can substitute a fake without spinning up a
 // real installation client.
 type StatusUpdater interface {
@@ -34,69 +35,69 @@ func (g *ghStatusUpdater) UpdateDeploymentStatus(ctx context.Context, installati
 	return err
 }
 
-// noopStatusUpdater drops every call. Used by NewDispatchServiceForTest so
-// handler-level tests don't need to fake the full GitHub API surface.
+// noopStatusUpdater drops every call. Used by NewForTest so handler-level
+// tests don't need to fake the full GitHub API surface.
 type noopStatusUpdater struct{}
 
 func (noopStatusUpdater) UpdateDeploymentStatus(context.Context, int64, string, string, int64, string, string) error {
 	return nil
 }
 
-// DispatchService consumes intents from the IntentStore and reports their
-// outcome back to GitHub. It is the counterpart to WebhookService, which
-// produces intents.
-type DispatchService struct {
-	store   *IntentStore
+// Service consumes intents from the intent.Store and reports their outcome
+// back to GitHub. It is the counterpart to webhook.Service, which produces
+// intents.
+type Service struct {
+	store   *intent.Store
 	updater StatusUpdater
 }
 
-func NewDispatchService(ghClient *internalgithub.Client, store *IntentStore) *DispatchService {
-	return &DispatchService{
+func New(ghClient *internalgithub.Client, store *intent.Store) *Service {
+	return &Service{
 		store:   store,
 		updater: &ghStatusUpdater{client: ghClient},
 	}
 }
 
-// NewDispatchServiceForTest constructs a DispatchService with a no-op
-// StatusUpdater. Intended only for tests in other packages that need to
-// exercise the dispatch flow without faking GitHub.
-func NewDispatchServiceForTest(store *IntentStore) *DispatchService {
-	return &DispatchService{store: store, updater: noopStatusUpdater{}}
+// NewForTest constructs a Service with a no-op StatusUpdater. Intended only
+// for tests in other packages that need to exercise the dispatch flow without
+// faking GitHub.
+func NewForTest(store *intent.Store) *Service {
+	return &Service{store: store, updater: noopStatusUpdater{}}
 }
 
 // Next blocks until an intent is available or ctx is cancelled. On success it
 // flips the GitHub Deployment to in_progress (best-effort — failures here are
 // logged but the intent is still returned, matching Phase 2's source-of-truth
 // principle) and returns the intent.
-func (d *DispatchService) Next(ctx context.Context) (*DeployIntent, error) {
-	intent, err := d.store.TakeNext(ctx)
+func (d *Service) Next(ctx context.Context) (*intent.DeployIntent, error) {
+	i, err := d.store.TakeNext(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	owner, repoName := splitRepo(intent.Repo)
-	if err := d.updater.UpdateDeploymentStatus(ctx, intent.InstallationID, owner, repoName, intent.DeploymentID, "in_progress", "Deploy in progress"); err != nil {
+	owner, repoName := splitRepo(i.Repo)
+	if err := d.updater.UpdateDeploymentStatus(ctx, i.InstallationID, owner, repoName, i.DeploymentID, "in_progress", "Deploy in progress"); err != nil {
 		slog.Warn("Failed to mark deployment in_progress; intent still dispatched",
-			"intent_id", intent.ID,
-			"deployment_id", intent.DeploymentID,
+			"intent_id", i.ID,
+			"deployment_id", i.DeploymentID,
 			"error", err,
 		)
 	}
 
 	slog.Info("Intent dispatched to agent",
-		"intent_id", intent.ID,
-		"repo", intent.Repo,
-		"stack", intent.Stack,
-		"sha", intent.SHA,
+		"intent_id", i.ID,
+		"repo", i.Repo,
+		"stack", i.Stack,
+		"sha", i.SHA,
 	)
-	return intent, nil
+	return i, nil
 }
 
 // Report records an agent's deploy result, removes the intent from the
 // in-flight map, and updates the GitHub Deployment to success/failure. Returns
 // false if the id is unknown.
-func (d *DispatchService) Report(ctx context.Context, id string, success bool, errMsg string) bool {
-	intent, ok := d.store.Complete(id, success)
+func (d *Service) Report(ctx context.Context, id string, success bool, errMsg string) bool {
+	i, ok := d.store.Complete(id, success)
 	if !ok {
 		return false
 	}
@@ -111,8 +112,8 @@ func (d *DispatchService) Report(ctx context.Context, id string, success bool, e
 		}
 	}
 
-	owner, repoName := splitRepo(intent.Repo)
-	if err := d.updater.UpdateDeploymentStatus(ctx, intent.InstallationID, owner, repoName, intent.DeploymentID, state, description); err != nil {
+	owner, repoName := splitRepo(i.Repo)
+	if err := d.updater.UpdateDeploymentStatus(ctx, i.InstallationID, owner, repoName, i.DeploymentID, state, description); err != nil {
 		slog.Warn("Failed to update deployment status",
 			"intent_id", id,
 			"state", state,
@@ -122,8 +123,8 @@ func (d *DispatchService) Report(ctx context.Context, id string, success bool, e
 
 	slog.Info("Intent completed",
 		"intent_id", id,
-		"repo", intent.Repo,
-		"stack", intent.Stack,
+		"repo", i.Repo,
+		"stack", i.Stack,
 		"state", state,
 	)
 	return true

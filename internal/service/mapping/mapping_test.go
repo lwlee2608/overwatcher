@@ -1,16 +1,16 @@
-package service
+package mapping
 
 import "testing"
 
-func TestMappingEntry_ResolveImage(t *testing.T) {
+func TestEntry_ResolveImage(t *testing.T) {
 	tests := []struct {
 		name  string
-		entry MappingEntry
+		entry Entry
 		repo  string
 		want  string
 	}{
-		{"default convention lowers repo", MappingEntry{}, "Owner/Some-Repo", "ghcr.io/owner/some-repo"},
-		{"override wins", MappingEntry{Image: "registry.example.com/app"}, "Owner/Some-Repo", "registry.example.com/app"},
+		{"default convention lowers repo", Entry{}, "Owner/Some-Repo", "ghcr.io/owner/some-repo"},
+		{"override wins", Entry{Image: "registry.example.com/app"}, "Owner/Some-Repo", "registry.example.com/app"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -21,15 +21,15 @@ func TestMappingEntry_ResolveImage(t *testing.T) {
 	}
 }
 
-func TestMappingEntry_ResolveTag(t *testing.T) {
+func TestEntry_ResolveTag(t *testing.T) {
 	tests := []struct {
 		name  string
-		entry MappingEntry
+		entry Entry
 		sha   string
 		want  string
 	}{
-		{"default is sha", MappingEntry{}, "abc123", "abc123"},
-		{"override wins", MappingEntry{Tag: "latest"}, "abc123", "latest"},
+		{"default is sha", Entry{}, "abc123", "abc123"},
+		{"override wins", Entry{Tag: "latest"}, "abc123", "latest"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -40,22 +40,22 @@ func TestMappingEntry_ResolveTag(t *testing.T) {
 	}
 }
 
-func TestMappingEntry_ResolveEnvironment(t *testing.T) {
-	if got := (MappingEntry{}).ResolveEnvironment(); got != "production" {
+func TestEntry_ResolveEnvironment(t *testing.T) {
+	if got := (Entry{}).ResolveEnvironment(); got != "production" {
 		t.Errorf("default env = %q, want production", got)
 	}
-	if got := (MappingEntry{Environment: "staging"}).ResolveEnvironment(); got != "staging" {
+	if got := (Entry{Environment: "staging"}).ResolveEnvironment(); got != "staging" {
 		t.Errorf("override env = %q, want staging", got)
 	}
 }
 
 func TestMapping_Match(t *testing.T) {
-	entries := []MappingEntry{
+	entries := []Entry{
 		{Repo: "owner/foo", Stack: "foo-stack"},
 		{Repo: "Owner/Bar", Stack: "bar-stack"},
 		{Repo: "owner/foo", Stack: "foo-stack-canary"},
 	}
-	m := NewMapping(entries)
+	m := New(entries)
 
 	t.Run("case-insensitive match", func(t *testing.T) {
 		got := m.Match("OWNER/BAR")
@@ -81,7 +81,7 @@ func TestMapping_Match(t *testing.T) {
 	})
 
 	t.Run("empty mapping", func(t *testing.T) {
-		if got := NewMapping(nil).Match("owner/foo"); len(got) != 0 {
+		if got := New(nil).Match("owner/foo"); len(got) != 0 {
 			t.Errorf("got %+v, want empty", got)
 		}
 	})

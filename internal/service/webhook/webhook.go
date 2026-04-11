@@ -1,4 +1,4 @@
-package service
+package webhook
 
 import (
 	"context"
@@ -7,22 +7,24 @@ import (
 	"strings"
 	"time"
 
-	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
-
 	gh "github.com/google/go-github/v84/github"
+
+	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
+	"github.com/lwlee2608/overwatcher/internal/service/intent"
+	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 )
 
-type WebhookService struct {
-	ghClient    *internalgithub.Client
-	mapping     *Mapping
-	intentStore *IntentStore
+type Service struct {
+	ghClient *internalgithub.Client
+	mapping  *mapping.Mapping
+	store    *intent.Store
 }
 
-func NewWebhookService(ghClient *internalgithub.Client, mapping *Mapping, store *IntentStore) *WebhookService {
-	return &WebhookService{ghClient: ghClient, mapping: mapping, intentStore: store}
+func New(ghClient *internalgithub.Client, m *mapping.Mapping, store *intent.Store) *Service {
+	return &Service{ghClient: ghClient, mapping: m, store: store}
 }
 
-func (s *WebhookService) HandleEvent(ctx context.Context, eventType string, deliveryID string, payload []byte) error {
+func (s *Service) HandleEvent(ctx context.Context, eventType string, deliveryID string, payload []byte) error {
 	event, err := gh.ParseWebHook(eventType, payload)
 	if err != nil {
 		slog.Error("Failed to parse webhook payload", "event", eventType, "delivery_id", deliveryID, "error", err)
@@ -49,7 +51,7 @@ func (s *WebhookService) HandleEvent(ctx context.Context, eventType string, deli
 	return nil
 }
 
-func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, deliveryID string) {
+func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryID string) {
 	repo := event.GetRepo().GetFullName()
 	ref := event.GetRef()
 
@@ -132,7 +134,7 @@ func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, de
 		// Enqueue the intent before marking the deployment queued: the intent is
 		// the source of truth, and we don't want to abandon it if the status call
 		// fails on a deployment that already exists on GitHub.
-		intent := &DeployIntent{
+		di := &intent.DeployIntent{
 			ID:             fmt.Sprintf("%s-%d", deliveryID, i),
 			CreatedAt:      time.Now(),
 			DeliveryID:     deliveryID,
@@ -146,13 +148,13 @@ func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, de
 			Environment:    environment,
 			DeploymentID:   deployment.GetID(),
 			InstallationID: installationID,
-			Status:         IntentCreated,
+			Status:         intent.StatusCreated,
 		}
-		s.intentStore.Enqueue(intent)
+		s.store.Enqueue(di)
 
 		slog.Info("Deploy intent enqueued",
 			"delivery_id", deliveryID,
-			"intent_id", intent.ID,
+			"intent_id", di.ID,
 			"repo", repo,
 			"stack", entry.Stack,
 			"image", image,
@@ -171,7 +173,7 @@ func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, de
 	}
 }
 
-func (s *WebhookService) handleDeployment(event *gh.DeploymentEvent, deliveryID string) {
+func (s *Service) handleDeployment(event *gh.DeploymentEvent, deliveryID string) {
 	slog.Info("Deployment event received",
 		"delivery_id", deliveryID,
 		"repo", event.GetRepo().GetFullName(),
@@ -180,7 +182,7 @@ func (s *WebhookService) handleDeployment(event *gh.DeploymentEvent, deliveryID 
 	)
 }
 
-func (s *WebhookService) handleDeploymentStatus(event *gh.DeploymentStatusEvent, deliveryID string) {
+func (s *Service) handleDeploymentStatus(event *gh.DeploymentStatusEvent, deliveryID string) {
 	slog.Info("Deployment status event received",
 		"delivery_id", deliveryID,
 		"repo", event.GetRepo().GetFullName(),
@@ -189,7 +191,7 @@ func (s *WebhookService) handleDeploymentStatus(event *gh.DeploymentStatusEvent,
 	)
 }
 
-func (s *WebhookService) handleWorkflowRun(event *gh.WorkflowRunEvent, deliveryID string) {
+func (s *Service) handleWorkflowRun(event *gh.WorkflowRunEvent, deliveryID string) {
 	slog.Info("Workflow run event received",
 		"delivery_id", deliveryID,
 		"repo", event.GetRepo().GetFullName(),
@@ -199,7 +201,7 @@ func (s *WebhookService) handleWorkflowRun(event *gh.WorkflowRunEvent, deliveryI
 	)
 }
 
-func (s *WebhookService) handleCheckRun(event *gh.CheckRunEvent, deliveryID string) {
+func (s *Service) handleCheckRun(event *gh.CheckRunEvent, deliveryID string) {
 	slog.Info("Check run event received",
 		"delivery_id", deliveryID,
 		"repo", event.GetRepo().GetFullName(),
@@ -209,7 +211,7 @@ func (s *WebhookService) handleCheckRun(event *gh.CheckRunEvent, deliveryID stri
 	)
 }
 
-func (s *WebhookService) handleCheckSuite(event *gh.CheckSuiteEvent, deliveryID string) {
+func (s *Service) handleCheckSuite(event *gh.CheckSuiteEvent, deliveryID string) {
 	slog.Info("Check suite event received",
 		"delivery_id", deliveryID,
 		"repo", event.GetRepo().GetFullName(),

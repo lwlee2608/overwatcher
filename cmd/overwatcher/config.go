@@ -8,7 +8,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/lwlee2608/adder"
 	"github.com/lwlee2608/overwatcher/internal/api/http"
-	"github.com/lwlee2608/overwatcher/internal/service"
+	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 )
 
 type GitHubConfig struct {
@@ -25,7 +25,7 @@ type Config struct {
 	Log         LogConfig
 	Http        http.Config
 	GitHub      GitHubConfig              `mapstructure:"github"`
-	Deployments service.DeploymentsConfig `mapstructure:"deployments"`
+	Deployments mapping.Config            `mapstructure:"deployments"`
 	Agent       AgentConfig               `mapstructure:"agent"`
 }
 

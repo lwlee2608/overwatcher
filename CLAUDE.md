@@ -25,12 +25,12 @@ Overwatcher is a GitHub App that receives webhook events and takes automated act
 
 - `cmd/overwatcher/` - Entrypoint, config loading, logger setup
 - `internal/api/http/` - Gin router, handlers, middleware (request logging, error handling, webhook signature verification)
-- `internal/service/` - Business logic for processing webhook events
+- `internal/service/` - Business logic, split into sub-packages: `intent/` (shared queue + in-flight store), `mapping/` (repo→stack config), `webhook/` (produces intents from push events), `dispatch/` (consumes intents, long-poll transport to agents)
 - `internal/github/` - GitHub API client wrapper (App installation auth)
 
 ### Request Flow
 
-GitHub webhook -> signature verification middleware -> `WebhookHandler` -> `WebhookService.HandleEvent()` -> event-specific handler (e.g., `handlePush` creates a deployment)
+GitHub webhook -> signature verification middleware -> `WebhookHandler` -> `webhook.Service.HandleEvent()` -> event-specific handler (e.g., `handlePush` creates a deployment)
 
 ## Git Conventions
 

@@ -1,10 +1,12 @@
-package service
+package dispatch
 
 import (
 	"context"
 	"errors"
 	"sync"
 	"testing"
+
+	"github.com/lwlee2608/overwatcher/internal/service/intent"
 )
 
 type fakeStatusUpdater struct {
@@ -37,22 +39,22 @@ func (f *fakeStatusUpdater) snapshot() []statusCall {
 	return out
 }
 
-func newTestDispatch() (*DispatchService, *IntentStore, *fakeStatusUpdater) {
-	store := NewIntentStore()
+func newTestDispatch() (*Service, *intent.Store, *fakeStatusUpdater) {
+	store := intent.NewStore()
 	upd := &fakeStatusUpdater{}
-	return &DispatchService{store: store, updater: upd}, store, upd
+	return &Service{store: store, updater: upd}, store, upd
 }
 
-func TestDispatchService_Next_HappyPath(t *testing.T) {
+func TestService_Next_HappyPath(t *testing.T) {
 	d, store, upd := newTestDispatch()
 
-	store.Enqueue(&DeployIntent{
+	store.Enqueue(&intent.DeployIntent{
 		ID:             "i1",
 		Repo:           "owner/repo",
 		Stack:          "foo",
 		DeploymentID:   42,
 		InstallationID: 7,
-		Status:         IntentCreated,
+		Status:         intent.StatusCreated,
 	})
 
 	got, err := d.Next(context.Background())
@@ -62,8 +64,8 @@ func TestDispatchService_Next_HappyPath(t *testing.T) {
 	if got.ID != "i1" {
 		t.Errorf("got id %q, want i1", got.ID)
 	}
-	if got.Status != IntentDispatched {
-		t.Errorf("status = %q, want IntentDispatched", got.Status)
+	if got.Status != intent.StatusDispatched {
+		t.Errorf("status = %q, want StatusDispatched", got.Status)
 	}
 
 	calls := upd.snapshot()
@@ -82,11 +84,11 @@ func TestDispatchService_Next_HappyPath(t *testing.T) {
 	}
 }
 
-func TestDispatchService_Next_StatusFailureStillReturnsIntent(t *testing.T) {
+func TestService_Next_StatusFailureStillReturnsIntent(t *testing.T) {
 	d, store, upd := newTestDispatch()
 	upd.err = errors.New("github 503")
 
-	store.Enqueue(&DeployIntent{ID: "i1", Repo: "o/r", InstallationID: 1})
+	store.Enqueue(&intent.DeployIntent{ID: "i1", Repo: "o/r", InstallationID: 1})
 
 	got, err := d.Next(context.Background())
 	if err != nil {
@@ -101,7 +103,7 @@ func TestDispatchService_Next_StatusFailureStillReturnsIntent(t *testing.T) {
 	}
 }
 
-func TestDispatchService_Next_CtxCancelled(t *testing.T) {
+func TestService_Next_CtxCancelled(t *testing.T) {
 	d, _, _ := newTestDispatch()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -112,9 +114,9 @@ func TestDispatchService_Next_CtxCancelled(t *testing.T) {
 	}
 }
 
-func TestDispatchService_Report_HappyPath(t *testing.T) {
+func TestService_Report_HappyPath(t *testing.T) {
 	d, store, upd := newTestDispatch()
-	store.Enqueue(&DeployIntent{ID: "i1", Repo: "o/r", DeploymentID: 99, InstallationID: 3})
+	store.Enqueue(&intent.DeployIntent{ID: "i1", Repo: "o/r", DeploymentID: 99, InstallationID: 3})
 	if _, err := d.Next(context.Background()); err != nil {
 		t.Fatalf("Next: %v", err)
 	}
@@ -139,9 +141,9 @@ func TestDispatchService_Report_HappyPath(t *testing.T) {
 	}
 }
 
-func TestDispatchService_Report_FailureCarriesErrorMsg(t *testing.T) {
+func TestService_Report_FailureCarriesErrorMsg(t *testing.T) {
 	d, store, upd := newTestDispatch()
-	store.Enqueue(&DeployIntent{ID: "i1", Repo: "o/r"})
+	store.Enqueue(&intent.DeployIntent{ID: "i1", Repo: "o/r"})
 	_, _ = d.Next(context.Background())
 
 	if !d.Report(context.Background(), "i1", false, "compose pull exit 1") {
@@ -158,7 +160,7 @@ func TestDispatchService_Report_FailureCarriesErrorMsg(t *testing.T) {
 	}
 }
 
-func TestDispatchService_Report_UnknownID(t *testing.T) {
+func TestService_Report_UnknownID(t *testing.T) {
 	d, _, _ := newTestDispatch()
 
 	if d.Report(context.Background(), "ghost", true, "") {
