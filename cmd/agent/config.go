@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -36,7 +37,7 @@ const (
 
 var config Config
 
-func InitConfig() {
+func InitConfig() error {
 	_ = godotenv.Load()
 
 	adder.SetConfigName("application-agent")
@@ -46,18 +47,20 @@ func InitConfig() {
 	adder.AutomaticEnv()
 
 	if err := adder.ReadInConfig(); err != nil {
-		panic(err)
+		return fmt.Errorf("read config: %w", err)
 	}
 
 	if err := adder.Unmarshal(&config); err != nil {
-		panic(err)
+		return fmt.Errorf("unmarshal config: %w", err)
 	}
 
 	if config.Agent.PollTimeout == 0 {
 		config.Agent.PollTimeout = 30 * time.Second
 	}
 
-	validate()
+	if err := validate(); err != nil {
+		return err
+	}
 
 	initLogger(config.Log.Level)
 
@@ -68,26 +71,29 @@ func InitConfig() {
 			slog.Debug(configJSON)
 		}
 	}
+
+	return nil
 }
 
-func validate() {
+func validate() error {
 	if config.Agent.CoordinatorURL == "" {
-		panic("agent.coordinator_url must be set")
+		return errors.New("agent.coordinator_url must be set")
 	}
 	if config.Agent.SharedSecret == "" {
-		panic("AGENT_SHARED_SECRET must be set")
+		return errors.New("AGENT_SHARED_SECRET must be set")
 	}
 	if len(config.Agent.Stacks) == 0 {
-		panic("agent.stacks must declare at least one stack -> compose-file mapping")
+		return errors.New("agent.stacks must declare at least one stack -> compose-file mapping")
 	}
 	for name, path := range config.Agent.Stacks {
 		if path == "" {
-			panic(fmt.Sprintf("agent.stacks[%q]: compose file path is empty", name))
+			return fmt.Errorf("agent.stacks[%q]: compose file path is empty", name)
 		}
 		if _, err := os.Stat(path); err != nil {
-			panic(fmt.Sprintf("agent.stacks[%q]: compose file %q not accessible: %v", name, path, err))
+			return fmt.Errorf("agent.stacks[%q]: compose file %q not accessible: %w", name, path, err)
 		}
 	}
+	return nil
 }
 
 func initLogger(logLevel string) {

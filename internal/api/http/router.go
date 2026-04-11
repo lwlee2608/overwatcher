@@ -4,7 +4,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/handler"
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
-	"github.com/lwlee2608/overwatcher/internal/service"
+	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
+	"github.com/lwlee2608/overwatcher/internal/service/webhook"
 )
 
 type Config struct {
@@ -12,8 +13,8 @@ type Config struct {
 }
 
 type Services struct {
-	WebhookService    *service.WebhookService
-	DispatchService   *service.DispatchService
+	WebhookService    *webhook.Service
+	DispatchService   *dispatch.Service
 	WebhookSecret     string
 	AgentSharedSecret string
 }

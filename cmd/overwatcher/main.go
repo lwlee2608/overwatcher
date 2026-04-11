@@ -4,27 +4,34 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	internalhttp "github.com/lwlee2608/overwatcher/internal/api/http"
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
-	"github.com/lwlee2608/overwatcher/internal/service"
+	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
+	"github.com/lwlee2608/overwatcher/internal/service/intent"
+	"github.com/lwlee2608/overwatcher/internal/service/mapping"
+	"github.com/lwlee2608/overwatcher/internal/service/webhook"
 )
 
 var AppVersion = "dev"
 
 func main() {
-	InitConfig()
+	if err := InitConfig(); err != nil {
+		slog.Error("config load failed", "error", err)
+		os.Exit(1)
+	}
 
 	slog.Info("overwatcher", "version", AppVersion)
 
 	ghClient := internalgithub.NewClient(config.GitHub.AppID, []byte(config.GitHub.PrivateKey))
-	mapping := service.NewMapping(config.Deployments.Mappings)
-	intentStore := service.NewIntentStore()
-	webhookSvc := service.NewWebhookService(ghClient, mapping, intentStore)
-	dispatchSvc := service.NewDispatchService(ghClient, intentStore)
+	mappingIdx := mapping.New(config.Deployments.Mappings)
+	intentStore := intent.NewStore()
+	webhookSvc := webhook.New(ghClient, mappingIdx, intentStore)
+	dispatchSvc := dispatch.New(ghClient, intentStore)
 
 	services := &internalhttp.Services{
 		WebhookService:    webhookSvc,

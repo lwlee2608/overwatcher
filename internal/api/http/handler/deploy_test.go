@@ -7,15 +7,16 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/lwlee2608/overwatcher/internal/service"
+	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
+	"github.com/lwlee2608/overwatcher/internal/service/intent"
 )
 
-func newDeployTestRouter(t *testing.T) (*gin.Engine, *service.IntentStore) {
+func newDeployTestRouter(t *testing.T) (*gin.Engine, *intent.Store) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	store := service.NewIntentStore()
-	dispatch := service.NewDispatchServiceForTest(store)
-	h := NewDeployHandler(dispatch)
+	store := intent.NewStore()
+	svc := dispatch.NewForTest(store)
+	h := NewDeployHandler(svc)
 
 	r := gin.New()
 	r.GET("/api/v1/deploy/next", h.Next)
@@ -46,7 +47,7 @@ func TestDeployHandler_Next_LongPollTimeoutReturns204(t *testing.T) {
 
 func TestDeployHandler_Next_ReturnsIntentWhenAvailable(t *testing.T) {
 	r, store := newDeployTestRouter(t)
-	store.Enqueue(&service.DeployIntent{ID: "i1", Repo: "o/r", Stack: "foo", DeploymentID: 1})
+	store.Enqueue(&intent.DeployIntent{ID: "i1", Repo: "o/r", Stack: "foo", DeploymentID: 1})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/deploy/next", nil)
 	w := httptest.NewRecorder()

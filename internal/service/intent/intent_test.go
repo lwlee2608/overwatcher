@@ -1,4 +1,4 @@
-package service
+package intent
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-func TestIntentStore_EnqueueAndLen(t *testing.T) {
-	s := NewIntentStore()
+func TestStore_EnqueueAndLen(t *testing.T) {
+	s := NewStore()
 	if s.Len() != 0 {
 		t.Fatalf("new store Len = %d, want 0", s.Len())
 	}
@@ -24,8 +24,8 @@ func TestIntentStore_EnqueueAndLen(t *testing.T) {
 	}
 }
 
-func TestIntentStore_ListReturnsCopy(t *testing.T) {
-	s := NewIntentStore()
+func TestStore_ListReturnsCopy(t *testing.T) {
+	s := NewStore()
 	s.Enqueue(&DeployIntent{ID: "a"})
 
 	list := s.List()
@@ -36,8 +36,8 @@ func TestIntentStore_ListReturnsCopy(t *testing.T) {
 	}
 }
 
-func TestIntentStore_ConcurrentEnqueue(t *testing.T) {
-	s := NewIntentStore()
+func TestStore_ConcurrentEnqueue(t *testing.T) {
+	s := NewStore()
 	const workers = 50
 	const perWorker = 20
 
@@ -58,8 +58,8 @@ func TestIntentStore_ConcurrentEnqueue(t *testing.T) {
 	}
 }
 
-func TestIntentStore_TakeNext_FIFO(t *testing.T) {
-	s := NewIntentStore()
+func TestStore_TakeNext_FIFO(t *testing.T) {
+	s := NewStore()
 	s.Enqueue(&DeployIntent{ID: "a"})
 	s.Enqueue(&DeployIntent{ID: "b"})
 	s.Enqueue(&DeployIntent{ID: "c"})
@@ -73,8 +73,8 @@ func TestIntentStore_TakeNext_FIFO(t *testing.T) {
 		if got.ID != want {
 			t.Errorf("got %q, want %q", got.ID, want)
 		}
-		if got.Status != IntentDispatched {
-			t.Errorf("status = %q, want IntentDispatched", got.Status)
+		if got.Status != StatusDispatched {
+			t.Errorf("status = %q, want StatusDispatched", got.Status)
 		}
 	}
 
@@ -86,8 +86,8 @@ func TestIntentStore_TakeNext_FIFO(t *testing.T) {
 	}
 }
 
-func TestIntentStore_TakeNext_BlocksUntilEnqueue(t *testing.T) {
-	s := NewIntentStore()
+func TestStore_TakeNext_BlocksUntilEnqueue(t *testing.T) {
+	s := NewStore()
 
 	type result struct {
 		intent *DeployIntent
@@ -95,8 +95,8 @@ func TestIntentStore_TakeNext_BlocksUntilEnqueue(t *testing.T) {
 	}
 	done := make(chan result, 1)
 	go func() {
-		intent, err := s.TakeNext(context.Background())
-		done <- result{intent, err}
+		i, err := s.TakeNext(context.Background())
+		done <- result{i, err}
 	}()
 
 	// Give the goroutine time to park on the notify channel.
@@ -121,8 +121,8 @@ func TestIntentStore_TakeNext_BlocksUntilEnqueue(t *testing.T) {
 	}
 }
 
-func TestIntentStore_TakeNext_CtxCancellation(t *testing.T) {
-	s := NewIntentStore()
+func TestStore_TakeNext_CtxCancellation(t *testing.T) {
+	s := NewStore()
 	ctx, cancel := context.WithCancel(context.Background())
 
 	done := make(chan error, 1)
@@ -143,8 +143,8 @@ func TestIntentStore_TakeNext_CtxCancellation(t *testing.T) {
 	}
 }
 
-func TestIntentStore_Complete(t *testing.T) {
-	s := NewIntentStore()
+func TestStore_Complete(t *testing.T) {
+	s := NewStore()
 	s.Enqueue(&DeployIntent{ID: "a"})
 
 	taken, err := s.TakeNext(context.Background())
@@ -152,13 +152,13 @@ func TestIntentStore_Complete(t *testing.T) {
 		t.Fatalf("TakeNext: %v", err)
 	}
 
-	t.Run("success transitions to IntentSucceeded", func(t *testing.T) {
-		intent, ok := s.Complete(taken.ID, true)
+	t.Run("success transitions to StatusSucceeded", func(t *testing.T) {
+		i, ok := s.Complete(taken.ID, true)
 		if !ok {
 			t.Fatal("Complete returned not found")
 		}
-		if intent.Status != IntentSucceeded {
-			t.Errorf("status = %q, want IntentSucceeded", intent.Status)
+		if i.Status != StatusSucceeded {
+			t.Errorf("status = %q, want StatusSucceeded", i.Status)
 		}
 		if got := len(s.InFlight()); got != 0 {
 			t.Errorf("InFlight len = %d, want 0", got)
@@ -171,21 +171,21 @@ func TestIntentStore_Complete(t *testing.T) {
 		}
 	})
 
-	t.Run("failure transitions to IntentFailed", func(t *testing.T) {
+	t.Run("failure transitions to StatusFailed", func(t *testing.T) {
 		s.Enqueue(&DeployIntent{ID: "b"})
 		_, _ = s.TakeNext(context.Background())
-		intent, ok := s.Complete("b", false)
+		i, ok := s.Complete("b", false)
 		if !ok {
 			t.Fatal("Complete returned not found")
 		}
-		if intent.Status != IntentFailed {
-			t.Errorf("status = %q, want IntentFailed", intent.Status)
+		if i.Status != StatusFailed {
+			t.Errorf("status = %q, want StatusFailed", i.Status)
 		}
 	})
 }
 
-func TestIntentStore_ConcurrentTakeAndComplete(t *testing.T) {
-	s := NewIntentStore()
+func TestStore_ConcurrentTakeAndComplete(t *testing.T) {
+	s := NewStore()
 	const total = 200
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -211,12 +211,12 @@ func TestIntentStore_ConcurrentTakeAndComplete(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for {
-				intent, err := s.TakeNext(ctx)
+				i, err := s.TakeNext(ctx)
 				if err != nil {
 					return
 				}
-				if _, ok := s.Complete(intent.ID, true); !ok {
-					t.Errorf("Complete returned not found for %s", intent.ID)
+				if _, ok := s.Complete(i.ID, true); !ok {
+					t.Errorf("Complete returned not found for %s", i.ID)
 					return
 				}
 				if atomic.AddInt64(&taken, 1) >= total {

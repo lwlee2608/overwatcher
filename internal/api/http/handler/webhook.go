@@ -5,14 +5,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
-	"github.com/lwlee2608/overwatcher/internal/service"
+	"github.com/lwlee2608/overwatcher/internal/service/webhook"
 )
 
 type WebhookHandler struct {
-	webhookService *service.WebhookService
+	webhookService *webhook.Service
 }
 
-func NewWebhookHandler(webhookService *service.WebhookService) *WebhookHandler {
+func NewWebhookHandler(webhookService *webhook.Service) *WebhookHandler {
 	return &WebhookHandler{webhookService: webhookService}
 }
 

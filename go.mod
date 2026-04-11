@@ -8,7 +8,7 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/go-github/v84 v84.0.0
 	github.com/joho/godotenv v1.5.1
-	github.com/lwlee2608/adder v0.3.2
+	github.com/lwlee2608/adder v0.4.0
 )
 
 require (

@@ -1,14 +1,14 @@
-package service
+package mapping
 
 import "strings"
 
-// DeploymentsConfig holds the repo->stack mapping loaded from application.yml.
-type DeploymentsConfig struct {
-	Mappings []MappingEntry `mapstructure:"mappings"`
+// Config holds the repo->stack mapping loaded from application.yml.
+type Config struct {
+	Mappings []Entry `mapstructure:"mappings"`
 }
 
-// MappingEntry declares that pushes to Repo should trigger deploys on Stack.
-type MappingEntry struct {
+// Entry declares that pushes to Repo should trigger deploys on Stack.
+type Entry struct {
 	Repo        string   `mapstructure:"repo"`        // "owner/name" - required
 	Stack       string   `mapstructure:"stack"`       // compose stack name - required
 	Services    []string `mapstructure:"services"`    // optional; empty = whole stack
@@ -19,7 +19,7 @@ type MappingEntry struct {
 
 // ResolveImage returns the explicit override if set, otherwise the default
 // convention ghcr.io/<lowered-repo>.
-func (e MappingEntry) ResolveImage(repo string) string {
+func (e Entry) ResolveImage(repo string) string {
 	if e.Image != "" {
 		return e.Image
 	}
@@ -27,7 +27,7 @@ func (e MappingEntry) ResolveImage(repo string) string {
 }
 
 // ResolveTag returns the explicit override if set, otherwise the commit SHA.
-func (e MappingEntry) ResolveTag(sha string) string {
+func (e Entry) ResolveTag(sha string) string {
 	if e.Tag != "" {
 		return e.Tag
 	}
@@ -35,7 +35,7 @@ func (e MappingEntry) ResolveTag(sha string) string {
 }
 
 // ResolveEnvironment returns the explicit environment if set, otherwise "production".
-func (e MappingEntry) ResolveEnvironment() string {
+func (e Entry) ResolveEnvironment() string {
 	if e.Environment != "" {
 		return e.Environment
 	}
@@ -44,18 +44,18 @@ func (e MappingEntry) ResolveEnvironment() string {
 
 // Mapping is the in-memory index of configured repo->stack entries.
 type Mapping struct {
-	entries []MappingEntry
+	entries []Entry
 }
 
-func NewMapping(entries []MappingEntry) *Mapping {
+func New(entries []Entry) *Mapping {
 	return &Mapping{entries: entries}
 }
 
 // Match returns every entry whose Repo matches (case-insensitive). A push can
 // legitimately produce multiple intents if the same repo is mapped to several
 // stacks.
-func (m *Mapping) Match(repo string) []MappingEntry {
-	matches := make([]MappingEntry, 0, len(m.entries))
+func (m *Mapping) Match(repo string) []Entry {
+	matches := make([]Entry, 0, len(m.entries))
 	for _, entry := range m.entries {
 		if strings.EqualFold(entry.Repo, repo) {
 			matches = append(matches, entry)
