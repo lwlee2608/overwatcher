@@ -62,13 +62,13 @@ func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, de
 	}
 
 	if event.GetDeleted() {
-		slog.Info("Ignoring branch-delete push", "repo", repo, "ref", ref)
+		slog.Info("Ignoring branch-delete push", "delivery_id", deliveryID, "repo", repo, "ref", ref)
 		return
 	}
 
 	sha := event.GetAfter()
 	if sha == "" || sha == "0000000000000000000000000000000000000000" {
-		slog.Info("Ignoring push with zero SHA", "repo", repo, "ref", ref)
+		slog.Info("Ignoring push with zero SHA", "delivery_id", deliveryID, "repo", repo, "ref", ref)
 		return
 	}
 
@@ -84,12 +84,8 @@ func (s *WebhookService) handlePush(ctx context.Context, event *gh.PushEvent, de
 		return
 	}
 
-	parts := strings.SplitN(repo, "/", 2)
-	if len(parts) != 2 {
-		slog.Warn("Malformed repo full name, skipping deployment creation", "repo", repo)
-		return
-	}
-	owner, repoName := parts[0], parts[1]
+	owner := event.GetRepo().GetOwner().GetLogin()
+	repoName := event.GetRepo().GetName()
 
 	// Get the head commit message for the deployment description
 	description := ""
