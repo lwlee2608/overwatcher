@@ -72,10 +72,7 @@ The agent mounts `/var/run/docker.sock` and is single-threaded by design (one de
 
 ## Intent Store
 
-The `Store` interface has two implementations:
-
-- **`MemoryStore`** -- In-process queue + in-flight map. Fast, no dependencies. State lost on restart.
-- **`DBStore`** -- PostgreSQL-backed. Survives restarts, deduplicates webhook redeliveries via `UNIQUE(delivery_id, stack_index)`. Opt-in via `database.url` config.
+Deploy intents are persisted in PostgreSQL. The `DBStore` uses sqlc-generated queries with atomic `FOR UPDATE SKIP LOCKED` for dispatch and `UNIQUE(delivery_id, stack_index)` for webhook redelivery dedup. Intents survive coordinator restarts.
 
 ## Configuration
 
@@ -100,9 +97,9 @@ deployments:
       tag: "latest" # optional; default commit SHA
 agent:
   shared_secret: "" # env: AGENT_SHARED_SECRET
-# database:
-#   url: "postgres://user:pass@localhost:5432/overwatcher?sslmode=disable"
-#   schema: "overwatcher"
+database:
+  url: "" # required; env: DATABASE_URL
+  schema: "" # optional; defaults to "public"
 ```
 
 ### Agent (`application-agent.yml`)

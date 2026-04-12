@@ -97,6 +97,9 @@ func validate() error {
 	if config.Agent.SharedSecret == "" {
 		return errors.New("AGENT_SHARED_SECRET must be set")
 	}
+	if config.Database.URL == "" {
+		return errors.New("database.url must be set")
+	}
 	for i, m := range config.Deployments.Mappings {
 		if m.Repo == "" {
 			return fmt.Errorf("deployments.mappings[%d]: repo is required", i)

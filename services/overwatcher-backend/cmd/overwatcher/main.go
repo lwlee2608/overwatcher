@@ -34,24 +34,17 @@ func main() {
 	ghClient := internalgithub.NewClient(config.GitHub.AppID, []byte(config.GitHub.PrivateKey))
 	mappingIdx := mapping.New(config.Deployments.Mappings)
 
-	var intentStore intent.Store
-	if config.Database.URL != "" {
-		if err := db.RunMigrations(config.Database.URL, config.Database.Schema); err != nil {
-			slog.Error("migration failed", "error", err)
-			os.Exit(1)
-		}
-		pool, err := db.InitDB(context.Background(), config.Database)
-		if err != nil {
-			slog.Error("database init failed", "error", err)
-			os.Exit(1)
-		}
-		defer pool.Close()
-		intentStore = intent.NewDBStore(pool)
-		slog.Info("Using PostgreSQL intent store")
-	} else {
-		intentStore = intent.NewMemoryStore()
-		slog.Info("Using in-memory intent store")
+	if err := db.RunMigrations(config.Database.URL, config.Database.Schema); err != nil {
+		slog.Error("migration failed", "error", err)
+		os.Exit(1)
 	}
+	pool, err := db.InitDB(context.Background(), config.Database)
+	if err != nil {
+		slog.Error("database init failed", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+	intentStore := intent.NewDBStore(pool)
 
 	webhookSvc := webhook.New(ghClient, mappingIdx, intentStore)
 	dispatchSvc := dispatch.New(ghClient, intentStore)
