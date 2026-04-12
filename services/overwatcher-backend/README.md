@@ -41,7 +41,7 @@ The central HTTP server. Receives GitHub webhooks, manages the deploy intent que
 | `internal/api/http/handler/`    | HTTP handlers: webhook ingress, deploy long-poll, result reporting                                    |
 | `internal/api/http/middleware/` | Webhook signature verification, bearer token auth, request logging                                    |
 | `internal/service/webhook/`     | Parses push events, looks up repo-to-stack mapping, creates GitHub Deployments, enqueues intents      |
-| `internal/service/intent/`      | `Store` interface with two implementations: `MemoryStore` (in-process) and `DBStore` (PostgreSQL)     |
+| `internal/service/intent/`      | `Store` interface backed by `DBStore` (PostgreSQL). `MemoryStore` exists for tests only               |
 | `internal/service/dispatch/`    | Consumes intents via long-poll, updates GitHub Deployment status, owns the `Reaper` for timeout/retry |
 | `internal/service/mapping/`     | In-memory index mapping repos to target stacks, resolves image and tag conventions                    |
 | `internal/github/`              | GitHub App client wrapper (ghinstallation auth)                                                       |
