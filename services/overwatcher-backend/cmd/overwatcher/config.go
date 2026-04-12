@@ -10,6 +10,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/lwlee2608/adder"
 	"github.com/lwlee2608/overwatcher/internal/api/http"
+	"github.com/lwlee2608/overwatcher/internal/db"
 	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 )
 
@@ -37,6 +38,7 @@ type Config struct {
 	Deployments mapping.Config `mapstructure:"deployments"`
 	Agent       AgentConfig    `mapstructure:"agent"`
 	Dispatch    DispatchConfig `mapstructure:"dispatch"`
+	Database    db.Config      `mapstructure:"database"`
 }
 
 var config Config

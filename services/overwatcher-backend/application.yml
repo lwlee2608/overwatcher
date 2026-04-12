@@ -18,3 +18,6 @@ deployments:
   #     tag: "latest"                     # optional; default commit SHA
 agent:
   shared_secret: ""  # override with AGENT_SHARED_SECRET; required for /api/v1/deploy/* endpoints
+# database:
+#   url: "postgres://user:pass@localhost:5432/overwatcher?sslmode=disable"
+#   schema: "overwatcher"

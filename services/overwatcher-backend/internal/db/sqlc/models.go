@@ -26,4 +26,5 @@ type DeployIntent struct {
 	Attempts       int32            `json:"attempts"`
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
 	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
+	DispatchedAt   pgtype.Timestamp `json:"dispatched_at"`
 }

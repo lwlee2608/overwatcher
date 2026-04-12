@@ -11,6 +11,56 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const completeDeployIntent = `-- name: CompleteDeployIntent :one
+UPDATE deploy_intents
+SET status = $1,
+    updated_at = NOW()
+WHERE id = $2 AND status = 'dispatched'
+RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at
+`
+
+type CompleteDeployIntentParams struct {
+	Status string      `json:"status"`
+	ID     pgtype.UUID `json:"id"`
+}
+
+func (q *Queries) CompleteDeployIntent(ctx context.Context, arg CompleteDeployIntentParams) (DeployIntent, error) {
+	row := q.db.QueryRow(ctx, completeDeployIntent, arg.Status, arg.ID)
+	var i DeployIntent
+	err := row.Scan(
+		&i.ID,
+		&i.DeliveryID,
+		&i.StackIndex,
+		&i.Repo,
+		&i.GitRef,
+		&i.Sha,
+		&i.Image,
+		&i.Tag,
+		&i.Stack,
+		&i.Services,
+		&i.Environment,
+		&i.DeploymentID,
+		&i.InstallationID,
+		&i.Status,
+		&i.Attempts,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DispatchedAt,
+	)
+	return i, err
+}
+
+const countDeployIntentsByStatus = `-- name: CountDeployIntentsByStatus :one
+SELECT count(*) FROM deploy_intents WHERE status = $1
+`
+
+func (q *Queries) CountDeployIntentsByStatus(ctx context.Context, status string) (int64, error) {
+	row := q.db.QueryRow(ctx, countDeployIntentsByStatus, status)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createDeployIntent = `-- name: CreateDeployIntent :one
 INSERT INTO deploy_intents (
     delivery_id, stack_index, repo, git_ref, sha,
@@ -22,7 +72,7 @@ INSERT INTO deploy_intents (
     $11, $12
 )
 ON CONFLICT (delivery_id, stack_index) DO NOTHING
-RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at
+RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at
 `
 
 type CreateDeployIntentParams struct {
@@ -77,6 +127,7 @@ func (q *Queries) CreateDeployIntent(ctx context.Context, arg CreateDeployIntent
 		&i.Attempts,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DispatchedAt,
 	)
 	return i, err
 }
@@ -91,8 +142,62 @@ func (q *Queries) DeleteDeployIntent(ctx context.Context, id pgtype.UUID) error 
 	return err
 }
 
+const failTimedOutIntents = `-- name: FailTimedOutIntents :many
+UPDATE deploy_intents
+SET status = 'permanently_failed',
+    updated_at = NOW()
+WHERE status = 'dispatched'
+  AND dispatched_at < $1
+  AND attempts >= $2
+RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at
+`
+
+type FailTimedOutIntentsParams struct {
+	Cutoff      pgtype.Timestamp `json:"cutoff"`
+	MaxAttempts int32            `json:"max_attempts"`
+}
+
+func (q *Queries) FailTimedOutIntents(ctx context.Context, arg FailTimedOutIntentsParams) ([]DeployIntent, error) {
+	rows, err := q.db.Query(ctx, failTimedOutIntents, arg.Cutoff, arg.MaxAttempts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DeployIntent{}
+	for rows.Next() {
+		var i DeployIntent
+		if err := rows.Scan(
+			&i.ID,
+			&i.DeliveryID,
+			&i.StackIndex,
+			&i.Repo,
+			&i.GitRef,
+			&i.Sha,
+			&i.Image,
+			&i.Tag,
+			&i.Stack,
+			&i.Services,
+			&i.Environment,
+			&i.DeploymentID,
+			&i.InstallationID,
+			&i.Status,
+			&i.Attempts,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DispatchedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDeployIntent = `-- name: GetDeployIntent :one
-SELECT id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at FROM deploy_intents
+SELECT id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at FROM deploy_intents
 WHERE id = $1 LIMIT 1
 `
 
@@ -117,6 +222,7 @@ func (q *Queries) GetDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIn
 		&i.Attempts,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DispatchedAt,
 	)
 	return i, err
 }
@@ -125,7 +231,7 @@ const incrementDeployIntentAttempts = `-- name: IncrementDeployIntentAttempts :o
 UPDATE deploy_intents
 SET attempts = attempts + 1, updated_at = NOW()
 WHERE id = $1
-RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at
+RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at
 `
 
 func (q *Queries) IncrementDeployIntentAttempts(ctx context.Context, id pgtype.UUID) (DeployIntent, error) {
@@ -149,12 +255,13 @@ func (q *Queries) IncrementDeployIntentAttempts(ctx context.Context, id pgtype.U
 		&i.Attempts,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DispatchedAt,
 	)
 	return i, err
 }
 
 const listDeployIntentsByStatus = `-- name: ListDeployIntentsByStatus :many
-SELECT id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at FROM deploy_intents
+SELECT id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at FROM deploy_intents
 WHERE status = $1
 ORDER BY created_at ASC
 `
@@ -186,6 +293,7 @@ func (q *Queries) ListDeployIntentsByStatus(ctx context.Context, status string) 
 			&i.Attempts,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DispatchedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -197,11 +305,152 @@ func (q *Queries) ListDeployIntentsByStatus(ctx context.Context, status string) 
 	return items, nil
 }
 
+const requeueDeployIntent = `-- name: RequeueDeployIntent :one
+UPDATE deploy_intents
+SET status = 'created',
+    dispatched_at = NULL,
+    updated_at = NOW()
+WHERE id = $1 AND status = 'dispatched'
+RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at
+`
+
+func (q *Queries) RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error) {
+	row := q.db.QueryRow(ctx, requeueDeployIntent, id)
+	var i DeployIntent
+	err := row.Scan(
+		&i.ID,
+		&i.DeliveryID,
+		&i.StackIndex,
+		&i.Repo,
+		&i.GitRef,
+		&i.Sha,
+		&i.Image,
+		&i.Tag,
+		&i.Stack,
+		&i.Services,
+		&i.Environment,
+		&i.DeploymentID,
+		&i.InstallationID,
+		&i.Status,
+		&i.Attempts,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DispatchedAt,
+	)
+	return i, err
+}
+
+const requeueTimedOutIntents = `-- name: RequeueTimedOutIntents :many
+UPDATE deploy_intents
+SET status = 'created',
+    dispatched_at = NULL,
+    updated_at = NOW()
+WHERE status = 'dispatched'
+  AND dispatched_at < $1
+  AND attempts < $2
+RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at
+`
+
+type RequeueTimedOutIntentsParams struct {
+	Cutoff      pgtype.Timestamp `json:"cutoff"`
+	MaxAttempts int32            `json:"max_attempts"`
+}
+
+func (q *Queries) RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOutIntentsParams) ([]DeployIntent, error) {
+	rows, err := q.db.Query(ctx, requeueTimedOutIntents, arg.Cutoff, arg.MaxAttempts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DeployIntent{}
+	for rows.Next() {
+		var i DeployIntent
+		if err := rows.Scan(
+			&i.ID,
+			&i.DeliveryID,
+			&i.StackIndex,
+			&i.Repo,
+			&i.GitRef,
+			&i.Sha,
+			&i.Image,
+			&i.Tag,
+			&i.Stack,
+			&i.Services,
+			&i.Environment,
+			&i.DeploymentID,
+			&i.InstallationID,
+			&i.Status,
+			&i.Attempts,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DispatchedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const takeNextDeployIntent = `-- name: TakeNextDeployIntent :one
+WITH candidate AS (
+    SELECT id
+    FROM deploy_intents
+    WHERE status = 'created'
+      AND stack NOT IN (
+          SELECT DISTINCT stack FROM deploy_intents WHERE status = 'dispatched'
+      )
+    ORDER BY created_at ASC
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE deploy_intents di
+SET status = 'dispatched',
+    attempts = attempts + 1,
+    dispatched_at = NOW(),
+    updated_at = NOW()
+FROM candidate c
+WHERE di.id = c.id
+RETURNING di.id, di.delivery_id, di.stack_index, di.repo, di.git_ref, di.sha, di.image, di.tag, di.stack, di.services, di.environment, di.deployment_id, di.installation_id, di.status, di.attempts, di.created_at, di.updated_at, di.dispatched_at
+`
+
+// Atomically claim the oldest dispatchable intent. The CTE skips stacks that
+// already have a dispatched intent (concurrency guard) and uses FOR UPDATE
+// SKIP LOCKED so concurrent callers don't block each other.
+func (q *Queries) TakeNextDeployIntent(ctx context.Context) (DeployIntent, error) {
+	row := q.db.QueryRow(ctx, takeNextDeployIntent)
+	var i DeployIntent
+	err := row.Scan(
+		&i.ID,
+		&i.DeliveryID,
+		&i.StackIndex,
+		&i.Repo,
+		&i.GitRef,
+		&i.Sha,
+		&i.Image,
+		&i.Tag,
+		&i.Stack,
+		&i.Services,
+		&i.Environment,
+		&i.DeploymentID,
+		&i.InstallationID,
+		&i.Status,
+		&i.Attempts,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DispatchedAt,
+	)
+	return i, err
+}
+
 const updateDeployIntentStatus = `-- name: UpdateDeployIntentStatus :one
 UPDATE deploy_intents
 SET status = $2, updated_at = NOW()
 WHERE id = $1
-RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at
+RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at
 `
 
 type UpdateDeployIntentStatusParams struct {
@@ -230,6 +479,7 @@ func (q *Queries) UpdateDeployIntentStatus(ctx context.Context, arg UpdateDeploy
 		&i.Attempts,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DispatchedAt,
 	)
 	return i, err
 }

@@ -39,8 +39,8 @@ func (f *fakeStatusUpdater) snapshot() []statusCall {
 	return out
 }
 
-func newTestDispatch() (*Service, *intent.Store, *fakeStatusUpdater) {
-	store := intent.NewStore()
+func newTestDispatch() (*Service, *intent.MemoryStore, *fakeStatusUpdater) {
+	store := intent.NewMemoryStore()
 	upd := &fakeStatusUpdater{}
 	return &Service{store: store, updater: upd}, store, upd
 }

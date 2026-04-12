@@ -11,7 +11,7 @@ import (
 )
 
 func TestStore_EnqueueAndLen(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	if s.Len() != 0 {
 		t.Fatalf("new store Len = %d, want 0", s.Len())
 	}
@@ -25,7 +25,7 @@ func TestStore_EnqueueAndLen(t *testing.T) {
 }
 
 func TestStore_ListReturnsCopy(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	s.Enqueue(&DeployIntent{ID: "a"})
 
 	list := s.List()
@@ -37,7 +37,7 @@ func TestStore_ListReturnsCopy(t *testing.T) {
 }
 
 func TestStore_ConcurrentEnqueue(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	const workers = 50
 	const perWorker = 20
 
@@ -59,7 +59,7 @@ func TestStore_ConcurrentEnqueue(t *testing.T) {
 }
 
 func TestStore_TakeNext_FIFO(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
 	s.Enqueue(&DeployIntent{ID: "b", Stack: "s2"})
 	s.Enqueue(&DeployIntent{ID: "c", Stack: "s3"})
@@ -87,7 +87,7 @@ func TestStore_TakeNext_FIFO(t *testing.T) {
 }
 
 func TestStore_TakeNext_BlocksUntilEnqueue(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 
 	type result struct {
 		intent *DeployIntent
@@ -122,7 +122,7 @@ func TestStore_TakeNext_BlocksUntilEnqueue(t *testing.T) {
 }
 
 func TestStore_TakeNext_CtxCancellation(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	ctx, cancel := context.WithCancel(context.Background())
 
 	done := make(chan error, 1)
@@ -144,7 +144,7 @@ func TestStore_TakeNext_CtxCancellation(t *testing.T) {
 }
 
 func TestStore_Complete(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
 
 	taken, err := s.TakeNext(context.Background())
@@ -185,7 +185,7 @@ func TestStore_Complete(t *testing.T) {
 }
 
 func TestStore_TakeNext_SetsAttemptsAndDispatchedAt(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
 
 	i, err := s.TakeNext(context.Background())
@@ -201,7 +201,7 @@ func TestStore_TakeNext_SetsAttemptsAndDispatchedAt(t *testing.T) {
 }
 
 func TestStore_TakeNext_ConcurrencyGuard_SameStack(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
 	s.Enqueue(&DeployIntent{ID: "b", Stack: "s1"})
 
@@ -234,7 +234,7 @@ func TestStore_TakeNext_ConcurrencyGuard_SameStack(t *testing.T) {
 }
 
 func TestStore_TakeNext_ConcurrencyGuard_DifferentStacks(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
 	s.Enqueue(&DeployIntent{ID: "b", Stack: "s2"})
 
@@ -252,7 +252,7 @@ func TestStore_TakeNext_ConcurrencyGuard_DifferentStacks(t *testing.T) {
 }
 
 func TestStore_Complete_WakesTakeNext(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
 	s.Enqueue(&DeployIntent{ID: "b", Stack: "s1"})
 
@@ -279,7 +279,7 @@ func TestStore_Complete_WakesTakeNext(t *testing.T) {
 }
 
 func TestStore_Requeue(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
 	s.Enqueue(&DeployIntent{ID: "b", Stack: "s2"})
 
@@ -307,7 +307,7 @@ func TestStore_Requeue(t *testing.T) {
 }
 
 func TestStore_SweepTimedOut_Requeue(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
 	i, _ := s.TakeNext(context.Background())
 
@@ -332,7 +332,7 @@ func TestStore_SweepTimedOut_Requeue(t *testing.T) {
 }
 
 func TestStore_SweepTimedOut_PermanentFailure(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
 	i, _ := s.TakeNext(context.Background())
 
@@ -355,7 +355,7 @@ func TestStore_SweepTimedOut_PermanentFailure(t *testing.T) {
 }
 
 func TestStore_SweepTimedOut_NotYetTimedOut(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
 	s.TakeNext(context.Background())
 
@@ -369,7 +369,7 @@ func TestStore_SweepTimedOut_NotYetTimedOut(t *testing.T) {
 }
 
 func TestStore_ConcurrentTakeAndComplete(t *testing.T) {
-	s := NewStore()
+	s := NewMemoryStore()
 	const total = 200
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

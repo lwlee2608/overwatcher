@@ -11,14 +11,23 @@ import (
 )
 
 type Querier interface {
+	CompleteDeployIntent(ctx context.Context, arg CompleteDeployIntentParams) (DeployIntent, error)
+	CountDeployIntentsByStatus(ctx context.Context, status string) (int64, error)
 	// Webhook redeliveries dedup on (delivery_id, stack_index): on conflict the
 	// insert is skipped and sqlc returns pgx.ErrNoRows, which callers treat as
 	// "already enqueued, do nothing".
 	CreateDeployIntent(ctx context.Context, arg CreateDeployIntentParams) (DeployIntent, error)
 	DeleteDeployIntent(ctx context.Context, id pgtype.UUID) error
+	FailTimedOutIntents(ctx context.Context, arg FailTimedOutIntentsParams) ([]DeployIntent, error)
 	GetDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	IncrementDeployIntentAttempts(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	ListDeployIntentsByStatus(ctx context.Context, status string) ([]DeployIntent, error)
+	RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
+	RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOutIntentsParams) ([]DeployIntent, error)
+	// Atomically claim the oldest dispatchable intent. The CTE skips stacks that
+	// already have a dispatched intent (concurrency guard) and uses FOR UPDATE
+	// SKIP LOCKED so concurrent callers don't block each other.
+	TakeNextDeployIntent(ctx context.Context) (DeployIntent, error)
 	UpdateDeployIntentStatus(ctx context.Context, arg UpdateDeployIntentStatusParams) (DeployIntent, error)
 }
 

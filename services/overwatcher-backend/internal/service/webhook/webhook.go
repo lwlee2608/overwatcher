@@ -17,10 +17,10 @@ import (
 type Service struct {
 	ghClient *internalgithub.Client
 	mapping  *mapping.Mapping
-	store    *intent.Store
+	store    intent.Store
 }
 
-func New(ghClient *internalgithub.Client, m *mapping.Mapping, store *intent.Store) *Service {
+func New(ghClient *internalgithub.Client, m *mapping.Mapping, store intent.Store) *Service {
 	return &Service{ghClient: ghClient, mapping: m, store: store}
 }
 
@@ -138,6 +138,7 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 			ID:             fmt.Sprintf("%s-%d", deliveryID, i),
 			CreatedAt:      time.Now(),
 			DeliveryID:     deliveryID,
+			StackIndex:     i,
 			Repo:           repo,
 			Ref:            ref,
 			SHA:            sha,

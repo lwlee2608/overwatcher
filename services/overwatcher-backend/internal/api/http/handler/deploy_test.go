@@ -11,10 +11,10 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
 )
 
-func newDeployTestRouter(t *testing.T) (*gin.Engine, *intent.Store) {
+func newDeployTestRouter(t *testing.T) (*gin.Engine, *intent.MemoryStore) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
-	store := intent.NewStore()
+	store := intent.NewMemoryStore()
 	svc := dispatch.NewForTest(store)
 	h := NewDeployHandler(svc)
 
