@@ -40,7 +40,7 @@ func (f *fakeUpdater) getCalls() []fakeCall {
 }
 
 func TestReaper_SweepsAndUpdatesGitHub(t *testing.T) {
-	store := intent.NewStore()
+	store := intent.NewMemoryStore()
 	updater := &fakeUpdater{}
 
 	store.Enqueue(&intent.DeployIntent{
@@ -81,7 +81,7 @@ func TestReaper_SweepsAndUpdatesGitHub(t *testing.T) {
 }
 
 func TestReaper_StopsOnContextCancel(t *testing.T) {
-	store := intent.NewStore()
+	store := intent.NewMemoryStore()
 	updater := &fakeUpdater{}
 	reaper := NewReaper(store, updater, time.Minute, 3, time.Hour)
 

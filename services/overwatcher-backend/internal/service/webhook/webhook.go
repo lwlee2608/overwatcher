@@ -17,10 +17,10 @@ import (
 type Service struct {
 	ghClient *internalgithub.Client
 	mapping  *mapping.Mapping
-	store    *intent.Store
+	store    intent.Store
 }
 
-func New(ghClient *internalgithub.Client, m *mapping.Mapping, store *intent.Store) *Service {
+func New(ghClient *internalgithub.Client, m *mapping.Mapping, store intent.Store) *Service {
 	return &Service{ghClient: ghClient, mapping: m, store: store}
 }
 
@@ -34,16 +34,6 @@ func (s *Service) HandleEvent(ctx context.Context, eventType string, deliveryID 
 	switch eventType {
 	case internalgithub.EventPush:
 		s.handlePush(ctx, event.(*gh.PushEvent), deliveryID)
-	case internalgithub.EventDeployment:
-		s.handleDeployment(event.(*gh.DeploymentEvent), deliveryID)
-	case internalgithub.EventDeploymentStatus:
-		s.handleDeploymentStatus(event.(*gh.DeploymentStatusEvent), deliveryID)
-	case internalgithub.EventWorkflowRun:
-		s.handleWorkflowRun(event.(*gh.WorkflowRunEvent), deliveryID)
-	case internalgithub.EventCheckRun:
-		s.handleCheckRun(event.(*gh.CheckRunEvent), deliveryID)
-	case internalgithub.EventCheckSuite:
-		s.handleCheckSuite(event.(*gh.CheckSuiteEvent), deliveryID)
 	default:
 		slog.Info("Unhandled webhook event", "event", eventType, "delivery_id", deliveryID)
 	}
@@ -138,6 +128,7 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 			ID:             fmt.Sprintf("%s-%d", deliveryID, i),
 			CreatedAt:      time.Now(),
 			DeliveryID:     deliveryID,
+			StackIndex:     i,
 			Repo:           repo,
 			Ref:            ref,
 			SHA:            sha,
@@ -171,52 +162,4 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 			slog.Warn("Failed to mark deployment queued; intent still enqueued", "delivery_id", deliveryID, "repo", repo, "stack", entry.Stack, "deployment_id", deployment.GetID(), "error", err)
 		}
 	}
-}
-
-func (s *Service) handleDeployment(event *gh.DeploymentEvent, deliveryID string) {
-	slog.Info("Deployment event received",
-		"delivery_id", deliveryID,
-		"repo", event.GetRepo().GetFullName(),
-		"environment", event.GetDeployment().GetEnvironment(),
-		"ref", event.GetDeployment().GetRef(),
-	)
-}
-
-func (s *Service) handleDeploymentStatus(event *gh.DeploymentStatusEvent, deliveryID string) {
-	slog.Info("Deployment status event received",
-		"delivery_id", deliveryID,
-		"repo", event.GetRepo().GetFullName(),
-		"environment", event.GetDeployment().GetEnvironment(),
-		"state", event.GetDeploymentStatus().GetState(),
-	)
-}
-
-func (s *Service) handleWorkflowRun(event *gh.WorkflowRunEvent, deliveryID string) {
-	slog.Info("Workflow run event received",
-		"delivery_id", deliveryID,
-		"repo", event.GetRepo().GetFullName(),
-		"workflow", event.GetWorkflow().GetName(),
-		"action", event.GetAction(),
-		"conclusion", event.GetWorkflowRun().GetConclusion(),
-	)
-}
-
-func (s *Service) handleCheckRun(event *gh.CheckRunEvent, deliveryID string) {
-	slog.Info("Check run event received",
-		"delivery_id", deliveryID,
-		"repo", event.GetRepo().GetFullName(),
-		"name", event.GetCheckRun().GetName(),
-		"action", event.GetAction(),
-		"status", event.GetCheckRun().GetStatus(),
-	)
-}
-
-func (s *Service) handleCheckSuite(event *gh.CheckSuiteEvent, deliveryID string) {
-	slog.Info("Check suite event received",
-		"delivery_id", deliveryID,
-		"repo", event.GetRepo().GetFullName(),
-		"action", event.GetAction(),
-		"status", event.GetCheckSuite().GetStatus(),
-		"conclusion", event.GetCheckSuite().GetConclusion(),
-	)
 }

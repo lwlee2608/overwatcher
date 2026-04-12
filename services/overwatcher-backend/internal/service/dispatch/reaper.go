@@ -13,7 +13,7 @@ import (
 // timeout. Timed-out intents are either requeued (under maxAttempts) or
 // permanently failed (at or above maxAttempts), with GitHub updated accordingly.
 type Reaper struct {
-	store       *intent.Store
+	store       intent.Store
 	updater     StatusUpdater
 	timeout     time.Duration
 	maxAttempts int
@@ -21,7 +21,7 @@ type Reaper struct {
 }
 
 // NewReaper constructs a Reaper. Call Run in a goroutine.
-func NewReaper(store *intent.Store, updater StatusUpdater, timeout time.Duration, maxAttempts int, interval time.Duration) *Reaper {
+func NewReaper(store intent.Store, updater StatusUpdater, timeout time.Duration, maxAttempts int, interval time.Duration) *Reaper {
 	return &Reaper{
 		store:       store,
 		updater:     updater,

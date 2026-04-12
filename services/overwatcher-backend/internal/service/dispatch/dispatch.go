@@ -48,11 +48,11 @@ func (noopStatusUpdater) UpdateDeploymentStatus(context.Context, int64, string, 
 // back to GitHub. It is the counterpart to webhook.Service, which produces
 // intents.
 type Service struct {
-	store   *intent.Store
+	store   intent.Store
 	updater StatusUpdater
 }
 
-func New(ghClient *internalgithub.Client, store *intent.Store) *Service {
+func New(ghClient *internalgithub.Client, store intent.Store) *Service {
 	return &Service{
 		store:   store,
 		updater: &ghStatusUpdater{client: ghClient},
@@ -62,14 +62,13 @@ func New(ghClient *internalgithub.Client, store *intent.Store) *Service {
 // NewForTest constructs a Service with a no-op StatusUpdater. Intended only
 // for tests in other packages that need to exercise the dispatch flow without
 // faking GitHub.
-func NewForTest(store *intent.Store) *Service {
+func NewForTest(store intent.Store) *Service {
 	return &Service{store: store, updater: noopStatusUpdater{}}
 }
 
 // Next blocks until an intent is available or ctx is cancelled. On success it
-// flips the GitHub Deployment to in_progress (best-effort — failures here are
-// logged but the intent is still returned, matching Phase 2's source-of-truth
-// principle) and returns the intent.
+// flips the GitHub Deployment to in_progress (best-effort — failures are logged
+// but the intent is still returned) and returns the intent.
 func (d *Service) Next(ctx context.Context) (*intent.DeployIntent, error) {
 	i, err := d.store.TakeNext(ctx)
 	if err != nil {
