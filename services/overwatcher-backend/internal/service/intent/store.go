@@ -5,9 +5,8 @@ import (
 	"time"
 )
 
-// Store is the interface for managing deploy intents. It is implemented by
-// MemoryStore (in-process, for tests and simple deployments) and DBStore
-// (PostgreSQL-backed, for persistence across restarts).
+// Store is the interface for managing deploy intents. Production uses DBStore
+// (PostgreSQL-backed). MemoryStore exists for tests.
 type Store interface {
 	Enqueue(i *DeployIntent)
 	TakeNext(ctx context.Context) (*DeployIntent, error)

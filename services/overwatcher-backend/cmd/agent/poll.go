@@ -17,8 +17,7 @@ import (
 )
 
 // Poller pulls one intent at a time from the coordinator and feeds it to the
-// runner. The loop is single-threaded by design — Phase 3 is one VM, one
-// stack, one deploy at a time. Concurrent deploys are Phase 4.
+// runner. The loop is single-threaded by design — one deploy at a time.
 type Poller struct {
 	httpClient *http.Client
 	cfg        AgentConfig
