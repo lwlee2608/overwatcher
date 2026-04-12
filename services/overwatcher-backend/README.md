@@ -9,13 +9,15 @@ Overwatcher automates the CD half of the pipeline for projects deployed as Docke
 │  GitHub  │       │              Coordinator                    │
 │          │       │                                             │
 │  push to ├──────>│  Webhook ──> Mapping ──> Intent Store       │
-│  main    │  POST │  Service     Index       (queue)            │
+│  main    │  POST │  Service     Index       (PostgreSQL)       │
 │          │       │                              │              │
 │          │       │              Reaper          │  TakeNext    │
 │          │       │          (sweep timeouts)    │  (long-poll) │
 │          │       │                              ▼              │
 │Deployment│<──────│  Dispatch <── Deploy  <── /deploy/next      │
 │  Status  │  API  │  Service     Handler                        │
+│          │       │                                             │
+│          │       │  Agent Tracker <── Heartbeat Middleware     │
 └──────────┘       └──────────────────────────────┬──────────────┘
                                                   │
                                            long-poll (HTTP)
@@ -38,12 +40,14 @@ The central HTTP server. Receives GitHub webhooks, manages the deploy intent que
 
 | Package                         | Role                                                                                                  |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `internal/api/http/handler/`    | HTTP handlers: webhook ingress, deploy long-poll, result reporting                                    |
-| `internal/api/http/middleware/` | Webhook signature verification, bearer token auth, request logging                                    |
+| `internal/api/http/handler/`    | HTTP handlers: webhook ingress, deploy long-poll, result reporting, agent listing                     |
+| `internal/api/http/middleware/` | Webhook signature verification, bearer token auth, agent heartbeat tracking, request logging          |
+| `internal/api/http/dto/`        | Request/response DTOs for deploy, webhook, agent, and health endpoints                                |
 | `internal/service/webhook/`     | Parses push events, looks up repo-to-stack mapping, creates GitHub Deployments, enqueues intents      |
 | `internal/service/intent/`      | `Store` interface backed by `DBStore` (PostgreSQL). `MemoryStore` exists for tests only               |
 | `internal/service/dispatch/`    | Consumes intents via long-poll, updates GitHub Deployment status, owns the `Reaper` for timeout/retry |
 | `internal/service/mapping/`     | In-memory index mapping repos to target stacks, resolves image and tag conventions                    |
+| `internal/service/agent/`       | In-memory agent tracker with heartbeat TTL, exposes connection status                                 |
 | `internal/github/`              | GitHub App client wrapper (ghinstallation auth)                                                       |
 | `internal/db/`                  | PostgreSQL pool init, goose migrations, sqlc-generated queries                                        |
 
@@ -74,6 +78,8 @@ The agent mounts `/var/run/docker.sock` and is single-threaded by design (one de
 
 Deploy intents are persisted in PostgreSQL. The `DBStore` uses sqlc-generated queries with atomic `FOR UPDATE SKIP LOCKED` for dispatch and `UNIQUE(delivery_id, stack_index)` for webhook redelivery dedup. Intents survive coordinator restarts.
 
+Only one intent per stack is dispatched at a time (concurrency guard), preventing duplicate deployments to the same stack.
+
 ## Configuration
 
 ### Coordinator (`application.yml`)
@@ -100,6 +106,11 @@ agent:
 database:
   url: "" # required; env: DATABASE_URL
   schema: "" # optional; defaults to "public"
+dispatch:
+  in_flight_timeout: 10m # reaper timeout threshold
+  max_attempts: 3 # max retries before permanent failure
+  sweep_interval: 1m # reaper scan frequency
+  shutdown_timeout: 30s # graceful shutdown deadline
 ```
 
 ### Agent (`application-agent.yml`)
@@ -108,9 +119,10 @@ database:
 log:
   level: info
 agent:
+  name: "" # optional; defaults to hostname
   coordinator_url: "http://coordinator:8080"
   shared_secret: "" # env: AGENT_SHARED_SECRET
-  poll_timeout: 30s
+  poll_timeout: 30s # must exceed coordinator's 25s long-poll
   stacks:
     my-stack: /opt/stacks/my-stack/docker-compose.yml
 ```
