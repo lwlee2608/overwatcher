@@ -15,6 +15,7 @@ import (
 	internalhttp "github.com/lwlee2608/overwatcher/internal/api/http"
 	"github.com/lwlee2608/overwatcher/internal/db"
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
+	"github.com/lwlee2608/overwatcher/internal/service/agent"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
 	"github.com/lwlee2608/overwatcher/internal/service/mapping"
@@ -48,10 +49,12 @@ func main() {
 
 	webhookSvc := webhook.New(ghClient, mappingIdx, intentStore)
 	dispatchSvc := dispatch.New(ghClient, intentStore)
+	agentTracker := agent.NewTracker(60 * time.Second)
 
 	services := &internalhttp.Services{
 		WebhookService:    webhookSvc,
 		DispatchService:   dispatchSvc,
+		AgentTracker:      agentTracker,
 		WebhookSecret:     config.GitHub.WebhookSecret,
 		AgentSharedSecret: config.Agent.SharedSecret,
 	}

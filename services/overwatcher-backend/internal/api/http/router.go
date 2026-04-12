@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/handler"
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
+	"github.com/lwlee2608/overwatcher/internal/service/agent"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/webhook"
 )
@@ -15,6 +16,7 @@ type Config struct {
 type Services struct {
 	WebhookService    *webhook.Service
 	DispatchService   *dispatch.Service
+	AgentTracker      *agent.Tracker
 	WebhookSecret     string
 	AgentSharedSecret string
 }
@@ -26,6 +28,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	healthHandler := handler.NewHealthHandler()
 	webhookHandler := handler.NewWebhookHandler(srvs.WebhookService)
 	deployHandler := handler.NewDeployHandler(srvs.DispatchService)
+	agentHandler := handler.NewAgentHandler(srvs.AgentTracker)
 
 	engine.GET("/health", healthHandler.Check)
 
@@ -39,9 +42,12 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 
 		deployGroup := apis.Group("/deploy")
 		deployGroup.Use(middleware.BearerTokenAuth(srvs.AgentSharedSecret))
+		deployGroup.Use(middleware.AgentHeartbeat(srvs.AgentTracker))
 		{
 			deployGroup.GET("/next", deployHandler.Next)
 			deployGroup.POST("/:id/result", deployHandler.Result)
 		}
+
+		apis.GET("/agents", agentHandler.List)
 	}
 }

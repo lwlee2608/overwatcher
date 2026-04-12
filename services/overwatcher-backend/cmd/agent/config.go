@@ -17,6 +17,7 @@ type LogConfig struct {
 }
 
 type AgentConfig struct {
+	Name           string            `mapstructure:"name"`
 	CoordinatorURL string            `mapstructure:"coordinator_url"`
 	SharedSecret   string            `mapstructure:"shared_secret" mask:"true"`
 	PollTimeout    time.Duration     `mapstructure:"poll_timeout"`
@@ -56,6 +57,14 @@ func InitConfig() error {
 
 	if config.Agent.PollTimeout == 0 {
 		config.Agent.PollTimeout = 30 * time.Second
+	}
+
+	if config.Agent.Name == "" {
+		if h, err := os.Hostname(); err == nil {
+			config.Agent.Name = h
+		} else {
+			config.Agent.Name = "unknown"
+		}
 	}
 
 	if err := validate(); err != nil {
