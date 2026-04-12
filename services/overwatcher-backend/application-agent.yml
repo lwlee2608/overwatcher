@@ -1,6 +1,7 @@
 log:
   level: info
 agent:
+  name: ""                   # optional; defaults to hostname
   coordinator_url: "http://localhost:8080"
   shared_secret: ""        # override with AGENT_SHARED_SECRET
   poll_timeout: 30s        # client-side timeout; must exceed coordinator's 25s long-poll
