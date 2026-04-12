@@ -14,30 +14,10 @@ INSERT INTO deploy_intents (
 ON CONFLICT (delivery_id, stack_index) DO NOTHING
 RETURNING *;
 
--- name: GetDeployIntent :one
-SELECT * FROM deploy_intents
-WHERE id = $1 LIMIT 1;
-
 -- name: ListDeployIntentsByStatus :many
 SELECT * FROM deploy_intents
 WHERE status = $1
 ORDER BY created_at ASC;
-
--- name: UpdateDeployIntentStatus :one
-UPDATE deploy_intents
-SET status = $2, updated_at = NOW()
-WHERE id = $1
-RETURNING *;
-
--- name: IncrementDeployIntentAttempts :one
-UPDATE deploy_intents
-SET attempts = attempts + 1, updated_at = NOW()
-WHERE id = $1
-RETURNING *;
-
--- name: DeleteDeployIntent :exec
-DELETE FROM deploy_intents
-WHERE id = $1;
 
 -- name: TakeNextDeployIntent :one
 -- Atomically claim the oldest dispatchable intent. The CTE skips stacks that

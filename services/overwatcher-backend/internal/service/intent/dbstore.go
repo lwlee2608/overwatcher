@@ -3,10 +3,10 @@ package intent
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -241,57 +241,17 @@ func fromRow(row sqlc.DeployIntent) *DeployIntent {
 }
 
 func parseUUID(s string) pgtype.UUID {
-	var u pgtype.UUID
-	// pgtype.UUID is [16]byte; parse from standard UUID string format.
-	parsed, err := parseUUIDBytes(s)
+	u, err := uuid.Parse(s)
 	if err != nil {
 		slog.Error("Invalid UUID", "id", s, "error", err)
-		return u
+		return pgtype.UUID{}
 	}
-	u.Bytes = parsed
-	u.Valid = true
-	return u
+	return pgtype.UUID{Bytes: u, Valid: true}
 }
 
 func uuidToString(u pgtype.UUID) string {
 	if !u.Valid {
 		return ""
 	}
-	b := u.Bytes
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-}
-
-// parseUUIDBytes parses a standard UUID string into a [16]byte.
-func parseUUIDBytes(s string) ([16]byte, error) {
-	var b [16]byte
-	if len(s) != 36 {
-		return b, fmt.Errorf("invalid UUID length: %d", len(s))
-	}
-	// Remove hyphens: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-	hex := s[0:8] + s[9:13] + s[14:18] + s[19:23] + s[24:36]
-	if len(hex) != 32 {
-		return b, fmt.Errorf("invalid UUID format")
-	}
-	for i := 0; i < 16; i++ {
-		hi, ok1 := hexVal(hex[i*2])
-		lo, ok2 := hexVal(hex[i*2+1])
-		if !ok1 || !ok2 {
-			return b, fmt.Errorf("invalid hex in UUID at position %d", i*2)
-		}
-		b[i] = hi<<4 | lo
-	}
-	return b, nil
-}
-
-func hexVal(c byte) (byte, bool) {
-	switch {
-	case c >= '0' && c <= '9':
-		return c - '0', true
-	case c >= 'a' && c <= 'f':
-		return c - 'a' + 10, true
-	case c >= 'A' && c <= 'F':
-		return c - 'A' + 10, true
-	}
-	return 0, false
+	return uuid.UUID(u.Bytes).String()
 }

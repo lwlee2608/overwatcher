@@ -10,10 +10,10 @@ import (
 )
 
 type Config struct {
-	URL      string `mask:"true"`
-	Schema   string
-	MaxConns int32
-	MinConns int32
+	URL      string `mapstructure:"url" mask:"true"`
+	Schema   string `mapstructure:"schema"`
+	MaxConns int32  `mapstructure:"max_conns"`
+	MinConns int32  `mapstructure:"min_conns"`
 }
 
 func InitDB(ctx context.Context, cfg Config) (*pgxpool.Pool, error) {
