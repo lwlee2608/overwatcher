@@ -10,10 +10,11 @@ import (
 type Status string
 
 const (
-	StatusCreated    Status = "created"
-	StatusDispatched Status = "dispatched"
-	StatusSucceeded  Status = "succeeded"
-	StatusFailed     Status = "failed"
+	StatusCreated           Status = "created"
+	StatusDispatched        Status = "dispatched"
+	StatusSucceeded         Status = "succeeded"
+	StatusFailed            Status = "failed"
+	StatusPermanentlyFailed Status = "permanently_failed"
 )
 
 // DeployIntent is everything an agent needs to perform a deploy. It is produced
@@ -33,6 +34,8 @@ type DeployIntent struct {
 	DeploymentID   int64
 	InstallationID int64
 	Status         Status
+	Attempts       int
+	DispatchedAt   time.Time
 }
 
 // Store is an in-memory, thread-safe queue of DeployIntents plus an in-flight
@@ -66,38 +69,55 @@ func (s *Store) Enqueue(i *DeployIntent) {
 	}
 }
 
-// TakeNext blocks until an intent is available or ctx is cancelled. On success
-// the intent is moved from the queue to the in-flight map and its status is
-// flipped to StatusDispatched.
+// TakeNext blocks until a dispatchable intent is available or ctx is cancelled.
+// An intent is dispatchable when no other intent for the same stack is already
+// in flight (concurrency guard). On success the intent is moved from the queue
+// to the in-flight map, its status is flipped to StatusDispatched, Attempts is
+// incremented, and DispatchedAt is set.
 func (s *Store) TakeNext(ctx context.Context) (*DeployIntent, error) {
 	for {
 		s.mu.Lock()
-		if len(s.queue) > 0 {
-			i := s.queue[0]
-			s.queue = s.queue[1:]
-			i.Status = StatusDispatched
-			s.inFlight[i.ID] = i
-			s.mu.Unlock()
-			return i, nil
+		for idx, i := range s.queue {
+			if !s.stackInFlight(i.Stack) {
+				s.queue = append(s.queue[:idx], s.queue[idx+1:]...)
+				i.Status = StatusDispatched
+				i.Attempts++
+				i.DispatchedAt = time.Now()
+				s.inFlight[i.ID] = i
+				s.mu.Unlock()
+				return i, nil
+			}
 		}
 		s.mu.Unlock()
 
 		select {
 		case <-s.notify:
-			// loop and re-check
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
 	}
 }
 
+// stackInFlight reports whether any in-flight intent targets the given stack.
+// Must be called with s.mu held.
+func (s *Store) stackInFlight(stack string) bool {
+	for _, i := range s.inFlight {
+		if i.Stack == stack {
+			return true
+		}
+	}
+	return false
+}
+
 // Complete removes an intent from the in-flight map and returns it together
-// with a found flag. The caller is responsible for any GitHub side effects.
+// with a found flag. It also wakes any blocked TakeNext callers so the
+// concurrency guard can re-evaluate the queue. The caller is responsible for
+// any GitHub side effects.
 func (s *Store) Complete(id string, success bool) (*DeployIntent, bool) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	i, ok := s.inFlight[id]
 	if !ok {
+		s.mu.Unlock()
 		return nil, false
 	}
 	delete(s.inFlight, id)
@@ -106,7 +126,67 @@ func (s *Store) Complete(id string, success bool) (*DeployIntent, bool) {
 	} else {
 		i.Status = StatusFailed
 	}
+	s.mu.Unlock()
+
+	// Wake blocked TakeNext callers — a stack slot just freed up.
+	select {
+	case s.notify <- struct{}{}:
+	default:
+	}
 	return i, true
+}
+
+// Requeue moves an intent from in-flight back to the front of the queue with
+// StatusCreated. Returns false if the id is not in flight.
+func (s *Store) Requeue(id string) (*DeployIntent, bool) {
+	s.mu.Lock()
+	i, ok := s.inFlight[id]
+	if !ok {
+		s.mu.Unlock()
+		return nil, false
+	}
+	delete(s.inFlight, id)
+	i.Status = StatusCreated
+	s.queue = append([]*DeployIntent{i}, s.queue...)
+	s.mu.Unlock()
+
+	select {
+	case s.notify <- struct{}{}:
+	default:
+	}
+	return i, true
+}
+
+// SweepTimedOut checks all in-flight intents. Those dispatched longer than
+// timeout ago are either requeued (if Attempts < maxAttempts) or permanently
+// failed. Returns the two sets so the caller can update GitHub accordingly.
+func (s *Store) SweepTimedOut(timeout time.Duration, maxAttempts int) (requeued, failed []*DeployIntent) {
+	now := time.Now()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for id, i := range s.inFlight {
+		if now.Sub(i.DispatchedAt) <= timeout {
+			continue
+		}
+		delete(s.inFlight, id)
+		if i.Attempts >= maxAttempts {
+			i.Status = StatusPermanentlyFailed
+			failed = append(failed, i)
+		} else {
+			i.Status = StatusCreated
+			s.queue = append([]*DeployIntent{i}, s.queue...)
+			requeued = append(requeued, i)
+		}
+	}
+
+	if len(requeued) > 0 {
+		select {
+		case s.notify <- struct{}{}:
+		default:
+		}
+	}
+	return requeued, failed
 }
 
 // List returns a shallow copy of the queued intents (not in-flight).
@@ -127,6 +207,16 @@ func (s *Store) InFlight() []*DeployIntent {
 		out = append(out, i)
 	}
 	return out
+}
+
+// TestSetInFlight mutates an in-flight intent under the lock. Intended only
+// for tests that need to backdate DispatchedAt or adjust Attempts.
+func (s *Store) TestSetInFlight(id string, fn func(*DeployIntent)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if i, ok := s.inFlight[id]; ok {
+		fn(i)
+	}
 }
 
 func (s *Store) Len() int {

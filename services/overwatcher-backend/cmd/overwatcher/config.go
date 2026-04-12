@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/lwlee2608/adder"
@@ -22,12 +23,20 @@ type AgentConfig struct {
 	SharedSecret string `mapstructure:"shared_secret" mask:"true"`
 }
 
+type DispatchConfig struct {
+	InFlightTimeout time.Duration `mapstructure:"in_flight_timeout"`
+	MaxAttempts     int           `mapstructure:"max_attempts"`
+	SweepInterval   time.Duration `mapstructure:"sweep_interval"`
+	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
+}
+
 type Config struct {
 	Log         LogConfig
 	Http        http.Config
 	GitHub      GitHubConfig   `mapstructure:"github"`
 	Deployments mapping.Config `mapstructure:"deployments"`
 	Agent       AgentConfig    `mapstructure:"agent"`
+	Dispatch    DispatchConfig `mapstructure:"dispatch"`
 }
 
 var config Config
@@ -47,6 +56,19 @@ func InitConfig() error {
 
 	if err := adder.Unmarshal(&config); err != nil {
 		return fmt.Errorf("unmarshal config: %w", err)
+	}
+
+	if config.Dispatch.InFlightTimeout == 0 {
+		config.Dispatch.InFlightTimeout = 10 * time.Minute
+	}
+	if config.Dispatch.MaxAttempts == 0 {
+		config.Dispatch.MaxAttempts = 3
+	}
+	if config.Dispatch.SweepInterval == 0 {
+		config.Dispatch.SweepInterval = time.Minute
+	}
+	if config.Dispatch.ShutdownTimeout == 0 {
+		config.Dispatch.ShutdownTimeout = 30 * time.Second
 	}
 
 	if err := validate(); err != nil {

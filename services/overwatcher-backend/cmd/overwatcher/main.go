@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -40,6 +43,16 @@ func main() {
 		AgentSharedSecret: config.Agent.SharedSecret,
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	reaper := dispatchSvc.NewReaper(
+		config.Dispatch.InFlightTimeout,
+		config.Dispatch.MaxAttempts,
+		config.Dispatch.SweepInterval,
+	)
+	go reaper.Run(ctx)
+
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
 	engine.Use(cors.New(cors.Config{
@@ -58,8 +71,23 @@ func main() {
 		Handler: engine,
 	}
 
-	slog.Info("Starting HTTP server", "address", server.Addr)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		slog.Error("HTTP server error", "error", err)
+	go func() {
+		slog.Info("Starting HTTP server", "address", server.Addr)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("HTTP server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	<-ctx.Done()
+	stop()
+
+	slog.Info("Shutting down gracefully", "timeout", config.Dispatch.ShutdownTimeout)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), config.Dispatch.ShutdownTimeout)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		slog.Error("HTTP server shutdown error", "error", err)
 	}
+	slog.Info("Shutdown complete")
 }
