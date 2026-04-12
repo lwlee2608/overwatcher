@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"strings"
+	"time"
 
 	gh "github.com/google/go-github/v84/github"
 
@@ -128,6 +129,12 @@ func (d *Service) Report(ctx context.Context, id string, success bool, errMsg st
 		"state", state,
 	)
 	return true
+}
+
+// NewReaper creates a Reaper that shares this service's store and status
+// updater. The caller should run it in a goroutine.
+func (d *Service) NewReaper(timeout time.Duration, maxAttempts int, interval time.Duration) *Reaper {
+	return NewReaper(d.store, d.updater, timeout, maxAttempts, interval)
 }
 
 func splitRepo(full string) (owner, repo string) {

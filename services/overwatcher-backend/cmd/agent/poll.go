@@ -129,10 +129,12 @@ func (p *Poller) handleIntent(ctx context.Context, intent *dto.DeployIntentRespo
 		slog.Info("deploy succeeded", "intent_id", intent.ID)
 	}
 
-	if err := p.postResult(ctx, intent.ID, success, errMsg); err != nil {
-		// Result reporting is best-effort: if it fails the intent stays in
-		// the coordinator's in-flight map until an operator drains it.
-		// Phase 4 will add proper retry/timeout.
+	// Use a fresh context so SIGTERM doesn't prevent the result from reaching
+	// the coordinator. The reaper will eventually clean up if this still fails.
+	reportCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := p.postResult(reportCtx, intent.ID, success, errMsg); err != nil {
 		slog.Error("post result failed", "intent_id", intent.ID, "error", err)
 	}
 }
