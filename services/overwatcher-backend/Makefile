@@ -1,5 +1,7 @@
 GO = $(shell which go 2>/dev/null)
+DOCKER = $(shell which docker 2>/dev/null)
 
+REGISTRY        ?= lwlee2608/
 APP             := overwatcher
 AGENT           := agent
 VERSION         ?= v0.1.0
@@ -26,3 +28,12 @@ test:
 	$(GO) test -v ./...
 generate:
 	sqlc generate
+
+docker:
+	$(DOCKER) build --build-arg APP=$(APP) --build-arg VERSION=$(VERSION) -t $(REGISTRY)$(APP):$(VERSION) -t $(REGISTRY)$(APP):latest .
+docker-agent:
+	$(DOCKER) build -f Dockerfile.agent --build-arg VERSION=$(VERSION) -t $(REGISTRY)$(AGENT):$(VERSION) -t $(REGISTRY)$(AGENT):latest .
+push:
+	$(DOCKER) push $(REGISTRY)$(APP):latest
+push-agent:
+	$(DOCKER) push $(REGISTRY)$(AGENT):latest
