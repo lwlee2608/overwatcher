@@ -1,0 +1,18 @@
+# Example: run the overwatcher agent via Docker.
+#
+# The agent needs access to the host Docker daemon so it can run
+# `docker compose pull/up` on the stacks it manages.
+#
+# Usage:
+#   AGENT_SHARED_SECRET=<secret> AGENT_COORDINATOR_URL=<url> docker compose up -d
+#
+services:
+  agent:
+    image: lwlee2608/agent:latest
+    environment:
+      - AGENT_SHARED_SECRET=${AGENT_SHARED_SECRET}
+      - AGENT_COORDINATOR_URL=${AGENT_COORDINATOR_URL}
+      - AGENT_NAME=${AGENT_NAME:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/stacks:/opt/stacks
