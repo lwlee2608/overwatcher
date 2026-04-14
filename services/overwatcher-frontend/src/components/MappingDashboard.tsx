@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { AgentStatus } from "../types/agent";
 import type { DeployMappingResponse } from "../types/mapping";
 import { fetchAgents } from "../api/agents";
@@ -34,39 +34,25 @@ export function MappingDashboard() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [m, a] = await Promise.all([fetchMappings(), fetchAgents()]);
+      setMappings(m.mappings ?? []);
+      setAgents(a.agents ?? []);
+      setError(null);
+      setLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch");
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let active = true;
-
-    async function poll() {
-      try {
-        const [m, a] = await Promise.all([fetchMappings(), fetchAgents()]);
-        if (active) {
-          setMappings(m.mappings ?? []);
-          setAgents(a.agents ?? []);
-          setError(null);
-          setLoading(false);
-        }
-      } catch (err) {
-        if (active) {
-          setError(err instanceof Error ? err.message : "Failed to fetch");
-          setLoading(false);
-        }
-      }
-    }
-
-    poll();
-    const id = setInterval(poll, 10_000);
-    return () => {
-      active = false;
-      clearInterval(id);
-    };
-  }, [refreshKey]);
-
-  function refresh() {
-    setRefreshKey((k) => k + 1);
-  }
+    loadData();
+    const id = setInterval(loadData, 10_000);
+    return () => clearInterval(id);
+  }, [loadData]);
 
   function openCreate() {
     setEditingId(null);
@@ -121,7 +107,7 @@ export function MappingDashboard() {
         });
       }
       closeForm();
-      refresh();
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -133,7 +119,7 @@ export function MappingDashboard() {
     if (!window.confirm("Delete this mapping?")) return;
     try {
       await deleteMapping(id);
-      refresh();
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
     }
