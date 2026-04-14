@@ -210,12 +210,12 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	if err := uid.Scan(id); err != nil {
 		return err
 	}
-	// Check existence first since DELETE doesn't report "not found".
-	if _, err := s.q.GetDeployMapping(ctx, uid); err != nil {
+	_, err := s.q.DeleteDeployMapping(ctx, uid)
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
 		return err
 	}
-	return s.q.DeleteDeployMapping(ctx, uid)
+	return nil
 }

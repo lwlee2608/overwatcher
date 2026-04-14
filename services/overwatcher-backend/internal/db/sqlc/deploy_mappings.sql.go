@@ -47,13 +47,24 @@ func (q *Queries) CreateDeployMapping(ctx context.Context, arg CreateDeployMappi
 	return i, err
 }
 
-const deleteDeployMapping = `-- name: DeleteDeployMapping :exec
-DELETE FROM deploy_mappings WHERE id = $1
+const deleteDeployMapping = `-- name: DeleteDeployMapping :one
+DELETE FROM deploy_mappings WHERE id = $1 RETURNING id, repo, agent_id, services, environment, enabled, created_at, updated_at
 `
 
-func (q *Queries) DeleteDeployMapping(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteDeployMapping, id)
-	return err
+func (q *Queries) DeleteDeployMapping(ctx context.Context, id pgtype.UUID) (DeployMapping, error) {
+	row := q.db.QueryRow(ctx, deleteDeployMapping, id)
+	var i DeployMapping
+	err := row.Scan(
+		&i.ID,
+		&i.Repo,
+		&i.AgentID,
+		&i.Services,
+		&i.Environment,
+		&i.Enabled,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getDeployMapping = `-- name: GetDeployMapping :one

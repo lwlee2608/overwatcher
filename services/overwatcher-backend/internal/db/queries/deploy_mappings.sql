@@ -28,8 +28,8 @@ SET repo        = $2,
 WHERE id = $1
 RETURNING *;
 
--- name: DeleteDeployMapping :exec
-DELETE FROM deploy_mappings WHERE id = $1;
+-- name: DeleteDeployMapping :one
+DELETE FROM deploy_mappings WHERE id = $1 RETURNING *;
 
 -- name: ListEnabledMappingsByRepo :many
 SELECT dm.*,
