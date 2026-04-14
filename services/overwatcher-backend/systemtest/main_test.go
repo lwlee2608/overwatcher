@@ -49,7 +49,7 @@ func TestSystemIntegration(t *testing.T) {
 
 	agentSvc := agent.NewService(queries, 60*time.Second)
 	mappingSvc := mapping.NewService(queries)
-	intentStore := intent.NewMemoryStore()
+	intentStore := intent.NewDBStore(pool)
 	dispatchSvc := dispatch.NewForTest(intentStore)
 	webhookSvc := webhook.New(nil, mappingSvc, intentStore)
 
@@ -69,4 +69,5 @@ func TestSystemIntegration(t *testing.T) {
 	t.Run("HealthCheck", func(t *testing.T) { tests.TestHealthCheck(t, engine) })
 	t.Run("Agents", func(t *testing.T) { tests.TestAgents(t, engine, agentSvc) })
 	t.Run("Mappings", func(t *testing.T) { tests.TestMappings(t, engine, agentSvc) })
+	t.Run("Deploy", func(t *testing.T) { tests.TestDeploy(t, engine, intentStore, services.AgentSharedSecret) })
 }
