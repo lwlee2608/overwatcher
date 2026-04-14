@@ -1,7 +1,4 @@
 log:
   level: info
 agent:
-  stacks:
-    # Map stack names to their compose file paths inside the container.
-    # The key must match the stack name configured on the coordinator.
-    my-stack: /opt/stacks/my-stack/docker-compose.yml
+  compose_file: /opt/stacks/my-stack/docker-compose.yml

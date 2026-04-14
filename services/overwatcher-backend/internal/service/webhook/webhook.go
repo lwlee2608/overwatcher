@@ -16,11 +16,11 @@ import (
 
 type Service struct {
 	ghClient *internalgithub.Client
-	mapping  *mapping.Mapping
+	mapping  *mapping.Service
 	store    intent.Store
 }
 
-func New(ghClient *internalgithub.Client, m *mapping.Mapping, store intent.Store) *Service {
+func New(ghClient *internalgithub.Client, m *mapping.Service, store intent.Store) *Service {
 	return &Service{ghClient: ghClient, mapping: m, store: store}
 }
 
@@ -68,7 +68,11 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 		return
 	}
 
-	matches := s.mapping.Match(repo)
+	matches, err := s.mapping.Match(ctx, repo)
+	if err != nil {
+		slog.Error("Failed to match mappings", "delivery_id", deliveryID, "repo", repo, "error", err)
+		return
+	}
 	if len(matches) == 0 {
 		slog.Info("No mapping for repo, skipping", "delivery_id", deliveryID, "repo", repo)
 		return
@@ -98,11 +102,11 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 	}
 
 	for i, entry := range matches {
-		image := entry.ResolveImage(repo)
-		tag := entry.ResolveTag(sha)
-		environment := entry.ResolveEnvironment()
+		image := mapping.ResolveImage(repo)
+		tag := mapping.ResolveTag(sha)
+		environment := entry.Environment
 
-		description := fmt.Sprintf("Deployment queued for stack %s", entry.Stack)
+		description := fmt.Sprintf("Deployment queued for agent %s", entry.AgentName)
 		if commitMsg != "" {
 			description = fmt.Sprintf("%s: %s", description, commitMsg)
 		}
@@ -115,15 +119,12 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 			RequiredContexts: &[]string{},
 		})
 		if err != nil {
-			slog.Error("Failed to create deployment", "delivery_id", deliveryID, "repo", repo, "stack", entry.Stack, "sha", sha, "error", err)
+			slog.Error("Failed to create deployment", "delivery_id", deliveryID, "repo", repo, "agent", entry.AgentName, "sha", sha, "error", err)
 			continue
 		}
 
-		slog.Info("Deployment created", "delivery_id", deliveryID, "repo", repo, "stack", entry.Stack, "deployment_id", deployment.GetID(), "sha", sha)
+		slog.Info("Deployment created", "delivery_id", deliveryID, "repo", repo, "agent", entry.AgentName, "deployment_id", deployment.GetID(), "sha", sha)
 
-		// Enqueue the intent before marking the deployment queued: the intent is
-		// the source of truth, and we don't want to abandon it if the status call
-		// fails on a deployment that already exists on GitHub.
 		di := &intent.DeployIntent{
 			ID:             fmt.Sprintf("%s-%d", deliveryID, i),
 			CreatedAt:      time.Now(),
@@ -134,7 +135,7 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 			SHA:            sha,
 			Image:          image,
 			Tag:            tag,
-			Stack:          entry.Stack,
+			Stack:          entry.AgentName,
 			Services:       entry.Services,
 			Environment:    environment,
 			DeploymentID:   deployment.GetID(),
@@ -147,7 +148,7 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 			"delivery_id", deliveryID,
 			"intent_id", di.ID,
 			"repo", repo,
-			"stack", entry.Stack,
+			"agent", entry.AgentName,
 			"image", image,
 			"tag", tag,
 			"environment", environment,
@@ -159,7 +160,7 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 			Environment: gh.Ptr(environment),
 		})
 		if err != nil {
-			slog.Warn("Failed to mark deployment queued; intent still enqueued", "delivery_id", deliveryID, "repo", repo, "stack", entry.Stack, "deployment_id", deployment.GetID(), "error", err)
+			slog.Warn("Failed to mark deployment queued; intent still enqueued", "delivery_id", deliveryID, "repo", repo, "agent", entry.AgentName, "deployment_id", deployment.GetID(), "error", err)
 		}
 	}
 }

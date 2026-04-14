@@ -3,11 +3,12 @@ package dto
 import "time"
 
 type AgentStatusResponse struct {
-	Name      string    `json:"name"`
-	Stacks    []string  `json:"stacks"`
-	LastSeen  time.Time `json:"last_seen"`
-	RemoteIP  string    `json:"remote_ip"`
-	Connected bool      `json:"connected"`
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	ComposeFile string    `json:"compose_file"`
+	LastSeen    time.Time `json:"last_seen"`
+	RemoteIP    string    `json:"remote_ip"`
+	Connected   bool      `json:"connected"`
 }
 
 type AgentListResponse struct {

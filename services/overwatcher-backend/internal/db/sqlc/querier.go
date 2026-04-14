@@ -17,14 +17,23 @@ type Querier interface {
 	// insert is skipped and sqlc returns pgx.ErrNoRows, which callers treat as
 	// "already enqueued, do nothing".
 	CreateDeployIntent(ctx context.Context, arg CreateDeployIntentParams) (DeployIntent, error)
+	CreateDeployMapping(ctx context.Context, arg CreateDeployMappingParams) (DeployMapping, error)
+	DeleteDeployMapping(ctx context.Context, id pgtype.UUID) (DeployMapping, error)
 	FailTimedOutIntents(ctx context.Context, arg FailTimedOutIntentsParams) ([]DeployIntent, error)
+	GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error)
+	GetDeployMapping(ctx context.Context, id pgtype.UUID) (GetDeployMappingRow, error)
+	ListAgents(ctx context.Context) ([]Agent, error)
 	ListDeployIntentsByStatus(ctx context.Context, status string) ([]DeployIntent, error)
+	ListDeployMappings(ctx context.Context) ([]ListDeployMappingsRow, error)
+	ListEnabledMappingsByRepo(ctx context.Context, lower string) ([]ListEnabledMappingsByRepoRow, error)
 	RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOutIntentsParams) ([]DeployIntent, error)
 	// Atomically claim the oldest dispatchable intent. The CTE skips stacks that
 	// already have a dispatched intent (concurrency guard) and uses FOR UPDATE
 	// SKIP LOCKED so concurrent callers don't block each other.
 	TakeNextDeployIntent(ctx context.Context) (DeployIntent, error)
+	UpdateDeployMapping(ctx context.Context, arg UpdateDeployMappingParams) (DeployMapping, error)
+	UpsertAgent(ctx context.Context, arg UpsertAgentParams) (Agent, error)
 }
 
 var _ Querier = (*Queries)(nil)

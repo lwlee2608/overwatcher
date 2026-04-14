@@ -19,13 +19,13 @@ func main() {
 	slog.Info("overwatcher-agent",
 		"version", AppVersion,
 		"coordinator", config.Agent.CoordinatorURL,
-		"stacks", len(config.Agent.Stacks),
+		"compose_file", config.Agent.ComposeFile,
 	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	runner := NewRunner(config.Agent.Stacks)
+	runner := NewRunner(config.Agent.ComposeFile)
 	poller, err := NewPoller(config.Agent, runner)
 	if err != nil {
 		slog.Error("failed to construct poller", "error", err)

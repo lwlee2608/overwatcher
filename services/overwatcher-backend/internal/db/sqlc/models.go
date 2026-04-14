@@ -8,6 +8,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Agent struct {
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	ComposeFile string             `json:"compose_file"`
+	RemoteIp    string             `json:"remote_ip"`
+	LastSeenAt  pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type DeployIntent struct {
 	ID             pgtype.UUID      `json:"id"`
 	DeliveryID     string           `json:"delivery_id"`
@@ -27,4 +37,15 @@ type DeployIntent struct {
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
 	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
 	DispatchedAt   pgtype.Timestamp `json:"dispatched_at"`
+}
+
+type DeployMapping struct {
+	ID          pgtype.UUID        `json:"id"`
+	Repo        string             `json:"repo"`
+	AgentID     pgtype.UUID        `json:"agent_id"`
+	Services    []string           `json:"services"`
+	Environment string             `json:"environment"`
+	Enabled     bool               `json:"enabled"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
