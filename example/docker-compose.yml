@@ -1,0 +1,24 @@
+# Example: run the overwatcher agent via Docker.
+#
+# The agent needs access to the host Docker daemon so it can run
+# `docker compose pull/up` on the stacks it manages.
+#
+# Prerequisites:
+#   1. Create an application-agent.yml (see example below) that maps stack
+#      names to their compose file paths inside the container.
+#   2. Mount the deployment directory so the agent can access the compose file.
+#
+# Usage:
+#   AGENT_SHARED_SECRET=<secret> docker compose up -d
+#
+services:
+  agent:
+    image: lwlee2608/agent:latest
+    environment:
+      - AGENT_SHARED_SECRET=${AGENT_SHARED_SECRET}
+      - AGENT_COORDINATOR_URL=https://your-coordinator.example.com
+      - AGENT_NAME=${AGENT_NAME:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /path/to/your/deployment:/opt/stacks/my-stack
+      - ./application-agent.yml:/go/bin/application-agent.yml
