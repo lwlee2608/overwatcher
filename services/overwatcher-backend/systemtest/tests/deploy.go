@@ -242,7 +242,9 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 		}
 		assert.Equal(t, 1, count, "duplicate webhook delivery should be deduped")
 
-		i, err := store.TakeNext(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		i, err := store.TakeNext(ctx)
 		require.NoError(t, err)
 		store.Complete(i.ID, true)
 	})
@@ -263,7 +265,9 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 			InstallationID: 1,
 		})
 
-		taken, err := store.TakeNext(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		taken, err := store.TakeNext(ctx)
 		require.NoError(t, err)
 
 		// Let dispatched_at age past the sweep cutoff.
@@ -274,7 +278,9 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 		assert.Equal(t, taken.ID, requeued[0].ID)
 
 		// Intent is back in the queue — clean up.
-		i, err := store.TakeNext(context.Background())
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel2()
+		i, err := store.TakeNext(ctx2)
 		require.NoError(t, err)
 		store.Complete(i.ID, true)
 	})
@@ -296,7 +302,9 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 		})
 
 		// TakeNext sets attempts=1.
-		_, err := store.TakeNext(context.Background())
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := store.TakeNext(ctx)
 		require.NoError(t, err)
 
 		// Sweep with maxAttempts=1 → permanently failed.
