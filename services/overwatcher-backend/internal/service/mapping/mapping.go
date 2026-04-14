@@ -2,12 +2,21 @@ package mapping
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
+	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
+	"github.com/lwlee2608/overwatcher/internal/util"
 )
+
+// ErrNotFound is returned when a mapping does not exist.
+var ErrNotFound = errors.New("mapping not found")
+
+// ErrAgentNotFound is returned when the referenced agent does not exist.
+var ErrAgentNotFound = errors.New("agent not found")
 
 // Entry is a resolved mapping row used by the webhook handler.
 type Entry struct {
@@ -17,6 +26,9 @@ type Entry struct {
 	AgentName   string
 	Services    []string
 	Environment string
+	Enabled     bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // ResolveImage returns the default convention ghcr.io/<lowered-repo>.
@@ -47,12 +59,15 @@ func (s *Service) Match(ctx context.Context, repo string) ([]Entry, error) {
 	entries := make([]Entry, len(rows))
 	for i, r := range rows {
 		entries[i] = Entry{
-			ID:          uuidToString(r.ID),
+			ID:          util.UUIDToString(r.ID),
 			Repo:        r.Repo,
-			AgentID:     uuidToString(r.AgentID),
+			AgentID:     util.UUIDToString(r.AgentID),
 			AgentName:   r.AgentName,
 			Services:    r.Services,
 			Environment: r.Environment,
+			Enabled:     r.Enabled,
+			CreatedAt:   r.CreatedAt.Time,
+			UpdatedAt:   r.UpdatedAt.Time,
 		}
 	}
 	return entries, nil
@@ -67,12 +82,15 @@ func (s *Service) List(ctx context.Context) ([]Entry, error) {
 	entries := make([]Entry, len(rows))
 	for i, r := range rows {
 		entries[i] = Entry{
-			ID:          uuidToString(r.ID),
+			ID:          util.UUIDToString(r.ID),
 			Repo:        r.Repo,
-			AgentID:     uuidToString(r.AgentID),
+			AgentID:     util.UUIDToString(r.AgentID),
 			AgentName:   r.AgentName,
 			Services:    r.Services,
 			Environment: r.Environment,
+			Enabled:     r.Enabled,
+			CreatedAt:   r.CreatedAt.Time,
+			UpdatedAt:   r.UpdatedAt.Time,
 		}
 	}
 	return entries, nil
@@ -86,15 +104,21 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Entry, error) {
 	}
 	r, err := s.q.GetDeployMapping(ctx, uid)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	return &Entry{
-		ID:          uuidToString(r.ID),
+		ID:          util.UUIDToString(r.ID),
 		Repo:        r.Repo,
-		AgentID:     uuidToString(r.AgentID),
+		AgentID:     util.UUIDToString(r.AgentID),
 		AgentName:   r.AgentName,
 		Services:    r.Services,
 		Environment: r.Environment,
+		Enabled:     r.Enabled,
+		CreatedAt:   r.CreatedAt.Time,
+		UpdatedAt:   r.UpdatedAt.Time,
 	}, nil
 }
 
@@ -106,10 +130,16 @@ type CreateParams struct {
 	Enabled     bool
 }
 
-// Create inserts a new mapping.
+// Create inserts a new mapping. Returns ErrAgentNotFound if the agent_id doesn't exist.
 func (s *Service) Create(ctx context.Context, p CreateParams) (*Entry, error) {
 	agentUID := pgtype.UUID{}
 	if err := agentUID.Scan(p.AgentID); err != nil {
+		return nil, err
+	}
+	if _, err := s.q.GetAgent(ctx, agentUID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrAgentNotFound
+		}
 		return nil, err
 	}
 	env := p.Environment
@@ -126,8 +156,7 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (*Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	// CreateDeployMapping returns without agent_name (no JOIN), so fetch it.
-	return s.GetByID(ctx, uuidToString(r.ID))
+	return s.GetByID(ctx, util.UUIDToString(r.ID))
 }
 
 type UpdateParams struct {
@@ -138,7 +167,7 @@ type UpdateParams struct {
 	Enabled     bool
 }
 
-// Update modifies an existing mapping.
+// Update modifies an existing mapping. Returns ErrAgentNotFound if the agent_id doesn't exist.
 func (s *Service) Update(ctx context.Context, id string, p UpdateParams) (*Entry, error) {
 	uid := pgtype.UUID{}
 	if err := uid.Scan(id); err != nil {
@@ -146,6 +175,12 @@ func (s *Service) Update(ctx context.Context, id string, p UpdateParams) (*Entry
 	}
 	agentUID := pgtype.UUID{}
 	if err := agentUID.Scan(p.AgentID); err != nil {
+		return nil, err
+	}
+	if _, err := s.q.GetAgent(ctx, agentUID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrAgentNotFound
+		}
 		return nil, err
 	}
 	env := p.Environment
@@ -161,25 +196,26 @@ func (s *Service) Update(ctx context.Context, id string, p UpdateParams) (*Entry
 		Enabled:     p.Enabled,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	return s.GetByID(ctx, id)
 }
 
-// Delete removes a mapping.
+// Delete removes a mapping. Returns ErrNotFound if the mapping doesn't exist.
 func (s *Service) Delete(ctx context.Context, id string) error {
 	uid := pgtype.UUID{}
 	if err := uid.Scan(id); err != nil {
 		return err
 	}
-	return s.q.DeleteDeployMapping(ctx, uid)
-}
-
-func uuidToString(u pgtype.UUID) string {
-	if !u.Valid {
-		return ""
+	// Check existence first since DELETE doesn't report "not found".
+	if _, err := s.q.GetDeployMapping(ctx, uid); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
 	}
-	b := u.Bytes
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+	return s.q.DeleteDeployMapping(ctx, uid)
 }

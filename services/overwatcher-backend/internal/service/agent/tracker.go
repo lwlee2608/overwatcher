@@ -2,11 +2,11 @@ package agent
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
+	"github.com/lwlee2608/overwatcher/internal/util"
 )
 
 // AgentStatus is a point-in-time snapshot of a registered agent.
@@ -71,7 +71,7 @@ func (s *Service) GetByID(ctx context.Context, id string) (*AgentStatus, error) 
 func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
 	lastSeen := a.LastSeenAt.Time
 	return AgentStatus{
-		ID:          uuidToString(a.ID),
+		ID:          util.UUIDToString(a.ID),
 		Name:        a.Name,
 		ComposeFile: a.ComposeFile,
 		LastSeen:    lastSeen,
@@ -80,11 +80,3 @@ func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
 	}
 }
 
-func uuidToString(u pgtype.UUID) string {
-	if !u.Valid {
-		return ""
-	}
-	b := u.Bytes
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-}

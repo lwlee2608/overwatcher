@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 )
@@ -58,6 +57,10 @@ func (h *MappingHandler) Create(c *gin.Context) {
 		Enabled:     enabled,
 	})
 	if err != nil {
+		if errors.Is(err, mapping.ErrAgentNotFound) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "agent not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -90,8 +93,12 @@ func (h *MappingHandler) Update(c *gin.Context) {
 		Enabled:     enabled,
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, mapping.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "mapping not found"})
+			return
+		}
+		if errors.Is(err, mapping.ErrAgentNotFound) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "agent not found"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -104,6 +111,10 @@ func (h *MappingHandler) Update(c *gin.Context) {
 func (h *MappingHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 	if err := h.mappingService.Delete(c.Request.Context(), id); err != nil {
+		if errors.Is(err, mapping.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "mapping not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -118,5 +129,8 @@ func entryToResponse(e mapping.Entry) dto.DeployMappingResponse {
 		AgentName:   e.AgentName,
 		Services:    e.Services,
 		Environment: e.Environment,
+		Enabled:     e.Enabled,
+		CreatedAt:   e.CreatedAt,
+		UpdatedAt:   e.UpdatedAt,
 	}
 }
