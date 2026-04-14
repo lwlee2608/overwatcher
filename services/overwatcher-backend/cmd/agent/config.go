@@ -17,11 +17,11 @@ type LogConfig struct {
 }
 
 type AgentConfig struct {
-	Name           string            `mapstructure:"name"`
-	CoordinatorURL string            `mapstructure:"coordinator_url"`
-	SharedSecret   string            `mapstructure:"shared_secret" mask:"true"`
-	PollTimeout    time.Duration     `mapstructure:"poll_timeout"`
-	Stacks         map[string]string `mapstructure:"stacks"`
+	Name           string        `mapstructure:"name"`
+	CoordinatorURL string        `mapstructure:"coordinator_url"`
+	SharedSecret   string        `mapstructure:"shared_secret" mask:"true"`
+	PollTimeout    time.Duration `mapstructure:"poll_timeout"`
+	ComposeFile    string        `mapstructure:"compose_file"`
 }
 
 type Config struct {
@@ -91,16 +91,11 @@ func validate() error {
 	if config.Agent.SharedSecret == "" {
 		return errors.New("AGENT_SHARED_SECRET must be set")
 	}
-	if len(config.Agent.Stacks) == 0 {
-		return errors.New("agent.stacks must declare at least one stack -> compose-file mapping")
+	if config.Agent.ComposeFile == "" {
+		return errors.New("agent.compose_file must be set")
 	}
-	for name, path := range config.Agent.Stacks {
-		if path == "" {
-			return fmt.Errorf("agent.stacks[%q]: compose file path is empty", name)
-		}
-		if _, err := os.Stat(path); err != nil {
-			return fmt.Errorf("agent.stacks[%q]: compose file %q not accessible: %w", name, path, err)
-		}
+	if _, err := os.Stat(config.Agent.ComposeFile); err != nil {
+		return fmt.Errorf("agent.compose_file %q not accessible: %w", config.Agent.ComposeFile, err)
 	}
 	return nil
 }

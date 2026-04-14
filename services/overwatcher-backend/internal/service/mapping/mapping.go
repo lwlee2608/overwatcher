@@ -1,65 +1,185 @@
 package mapping
 
-import "strings"
+import (
+	"context"
+	"fmt"
+	"strings"
 
-// Config holds the repo->stack mapping loaded from application.yml.
-type Config struct {
-	Mappings []Entry `mapstructure:"mappings"`
-}
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
+)
 
-// Entry declares that pushes to Repo should trigger deploys on Stack.
+// Entry is a resolved mapping row used by the webhook handler.
 type Entry struct {
-	Repo        string   `mapstructure:"repo"`        // "owner/name" - required
-	Stack       string   `mapstructure:"stack"`       // compose stack name - required
-	Services    []string `mapstructure:"services"`    // optional; empty = whole stack
-	Environment string   `mapstructure:"environment"` // optional; default "production"
-	Image       string   `mapstructure:"image"`       // optional; overrides convention
-	Tag         string   `mapstructure:"tag"`         // optional; overrides {sha}
+	ID          string
+	Repo        string
+	AgentID     string
+	AgentName   string
+	Services    []string
+	Environment string
 }
 
-// ResolveImage returns the explicit override if set, otherwise the default
-// convention ghcr.io/<lowered-repo>.
-func (e Entry) ResolveImage(repo string) string {
-	if e.Image != "" {
-		return e.Image
-	}
+// ResolveImage returns the default convention ghcr.io/<lowered-repo>.
+func ResolveImage(repo string) string {
 	return "ghcr.io/" + strings.ToLower(repo)
 }
 
-// ResolveTag returns the explicit override if set, otherwise the commit SHA.
-func (e Entry) ResolveTag(sha string) string {
-	if e.Tag != "" {
-		return e.Tag
-	}
+// ResolveTag returns the commit SHA as the image tag.
+func ResolveTag(sha string) string {
 	return sha
 }
 
-// ResolveEnvironment returns the explicit environment if set, otherwise "production".
-func (e Entry) ResolveEnvironment() string {
-	if e.Environment != "" {
-		return e.Environment
+// Service manages deploy mappings backed by PostgreSQL.
+type Service struct {
+	q *sqlc.Queries
+}
+
+func NewService(q *sqlc.Queries) *Service {
+	return &Service{q: q}
+}
+
+// Match returns all enabled mappings for the given repo (case-insensitive).
+func (s *Service) Match(ctx context.Context, repo string) ([]Entry, error) {
+	rows, err := s.q.ListEnabledMappingsByRepo(ctx, repo)
+	if err != nil {
+		return nil, err
 	}
-	return "production"
-}
-
-// Mapping is the in-memory index of configured repo->stack entries.
-type Mapping struct {
-	entries []Entry
-}
-
-func New(entries []Entry) *Mapping {
-	return &Mapping{entries: entries}
-}
-
-// Match returns every entry whose Repo matches (case-insensitive). A push can
-// legitimately produce multiple intents if the same repo is mapped to several
-// stacks.
-func (m *Mapping) Match(repo string) []Entry {
-	matches := make([]Entry, 0, len(m.entries))
-	for _, entry := range m.entries {
-		if strings.EqualFold(entry.Repo, repo) {
-			matches = append(matches, entry)
+	entries := make([]Entry, len(rows))
+	for i, r := range rows {
+		entries[i] = Entry{
+			ID:          uuidToString(r.ID),
+			Repo:        r.Repo,
+			AgentID:     uuidToString(r.AgentID),
+			AgentName:   r.AgentName,
+			Services:    r.Services,
+			Environment: r.Environment,
 		}
 	}
-	return matches
+	return entries, nil
+}
+
+// List returns all mappings.
+func (s *Service) List(ctx context.Context) ([]Entry, error) {
+	rows, err := s.q.ListDeployMappings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]Entry, len(rows))
+	for i, r := range rows {
+		entries[i] = Entry{
+			ID:          uuidToString(r.ID),
+			Repo:        r.Repo,
+			AgentID:     uuidToString(r.AgentID),
+			AgentName:   r.AgentName,
+			Services:    r.Services,
+			Environment: r.Environment,
+		}
+	}
+	return entries, nil
+}
+
+// GetByID returns a single mapping.
+func (s *Service) GetByID(ctx context.Context, id string) (*Entry, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(id); err != nil {
+		return nil, err
+	}
+	r, err := s.q.GetDeployMapping(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+	return &Entry{
+		ID:          uuidToString(r.ID),
+		Repo:        r.Repo,
+		AgentID:     uuidToString(r.AgentID),
+		AgentName:   r.AgentName,
+		Services:    r.Services,
+		Environment: r.Environment,
+	}, nil
+}
+
+type CreateParams struct {
+	Repo        string
+	AgentID     string
+	Services    []string
+	Environment string
+	Enabled     bool
+}
+
+// Create inserts a new mapping.
+func (s *Service) Create(ctx context.Context, p CreateParams) (*Entry, error) {
+	agentUID := pgtype.UUID{}
+	if err := agentUID.Scan(p.AgentID); err != nil {
+		return nil, err
+	}
+	env := p.Environment
+	if env == "" {
+		env = "production"
+	}
+	r, err := s.q.CreateDeployMapping(ctx, sqlc.CreateDeployMappingParams{
+		Repo:        p.Repo,
+		AgentID:     agentUID,
+		Services:    p.Services,
+		Environment: env,
+		Enabled:     p.Enabled,
+	})
+	if err != nil {
+		return nil, err
+	}
+	// CreateDeployMapping returns without agent_name (no JOIN), so fetch it.
+	return s.GetByID(ctx, uuidToString(r.ID))
+}
+
+type UpdateParams struct {
+	Repo        string
+	AgentID     string
+	Services    []string
+	Environment string
+	Enabled     bool
+}
+
+// Update modifies an existing mapping.
+func (s *Service) Update(ctx context.Context, id string, p UpdateParams) (*Entry, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(id); err != nil {
+		return nil, err
+	}
+	agentUID := pgtype.UUID{}
+	if err := agentUID.Scan(p.AgentID); err != nil {
+		return nil, err
+	}
+	env := p.Environment
+	if env == "" {
+		env = "production"
+	}
+	_, err := s.q.UpdateDeployMapping(ctx, sqlc.UpdateDeployMappingParams{
+		ID:          uid,
+		Repo:        p.Repo,
+		AgentID:     agentUID,
+		Services:    p.Services,
+		Environment: env,
+		Enabled:     p.Enabled,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return s.GetByID(ctx, id)
+}
+
+// Delete removes a mapping.
+func (s *Service) Delete(ctx context.Context, id string) error {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(id); err != nil {
+		return err
+	}
+	return s.q.DeleteDeployMapping(ctx, uid)
+}
+
+func uuidToString(u pgtype.UUID) string {
+	if !u.Valid {
+		return ""
+	}
+	b := u.Bytes
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
+		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }

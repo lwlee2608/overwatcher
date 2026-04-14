@@ -11,7 +11,6 @@ import (
 	"github.com/lwlee2608/adder"
 	"github.com/lwlee2608/overwatcher/internal/api/http"
 	"github.com/lwlee2608/overwatcher/internal/db"
-	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 )
 
 type GitHubConfig struct {
@@ -32,13 +31,12 @@ type DispatchConfig struct {
 }
 
 type Config struct {
-	Log         LogConfig
-	Http        http.Config
-	GitHub      GitHubConfig   `mapstructure:"github"`
-	Deployments mapping.Config `mapstructure:"deployments"`
-	Agent       AgentConfig    `mapstructure:"agent"`
-	Dispatch    DispatchConfig `mapstructure:"dispatch"`
-	Database    db.Config      `mapstructure:"database"`
+	Log      LogConfig
+	Http     http.Config
+	GitHub   GitHubConfig   `mapstructure:"github"`
+	Agent    AgentConfig    `mapstructure:"agent"`
+	Dispatch DispatchConfig `mapstructure:"dispatch"`
+	Database db.Config      `mapstructure:"database"`
 }
 
 var config Config
@@ -99,14 +97,6 @@ func validate() error {
 	}
 	if config.Database.URL == "" {
 		return errors.New("database.url must be set")
-	}
-	for i, m := range config.Deployments.Mappings {
-		if m.Repo == "" {
-			return fmt.Errorf("deployments.mappings[%d]: repo is required", i)
-		}
-		if m.Stack == "" {
-			return fmt.Errorf("deployments.mappings[%d]: stack is required", i)
-		}
 	}
 	return nil
 }

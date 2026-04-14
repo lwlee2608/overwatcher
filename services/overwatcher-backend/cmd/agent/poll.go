@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"sort"
 	"strings"
 	"time"
 
@@ -90,7 +89,7 @@ func (p *Poller) fetchNext(ctx context.Context) (*dto.DeployIntentResponse, erro
 	}
 	req.Header.Set("Authorization", "Bearer "+p.cfg.SharedSecret)
 	req.Header.Set("X-Agent-Name", p.cfg.Name)
-	req.Header.Set("X-Agent-Stacks", strings.Join(p.stackNames(), ","))
+	req.Header.Set("X-Agent-Compose-File", p.cfg.ComposeFile)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
@@ -159,7 +158,7 @@ func (p *Poller) postResult(ctx context.Context, intentID string, success bool, 
 	req.Header.Set("Authorization", "Bearer "+p.cfg.SharedSecret)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Agent-Name", p.cfg.Name)
-	req.Header.Set("X-Agent-Stacks", strings.Join(p.stackNames(), ","))
+	req.Header.Set("X-Agent-Compose-File", p.cfg.ComposeFile)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
@@ -174,11 +173,3 @@ func (p *Poller) postResult(ctx context.Context, intentID string, success bool, 
 	return nil
 }
 
-func (p *Poller) stackNames() []string {
-	names := make([]string, 0, len(p.cfg.Stacks))
-	for name := range p.cfg.Stacks {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	return names
-}

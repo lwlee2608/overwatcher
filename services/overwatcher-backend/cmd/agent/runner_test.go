@@ -43,9 +43,8 @@ func TestRunner_Run_HappyPath(t *testing.T) {
 	logPath, restore := stubDocker(t, 0)
 	defer restore()
 
-	r := NewRunner(map[string]string{"foo": composeFile})
+	r := NewRunner(composeFile)
 	intent := &dto.DeployIntentResponse{
-		Stack:    "foo",
 		Services: []string{"app"},
 		Image:    "ghcr.io/owner/repo",
 		Tag:      "abc1234",
@@ -61,7 +60,7 @@ func TestRunner_Run_HappyPath(t *testing.T) {
 	}
 	got := strings.TrimSpace(string(out))
 	wantLines := []string{
-		"compose -f " + composeFile + " pull|IMAGE=ghcr.io/owner/repo|IMAGE_TAG=abc1234",
+		"compose -f " + composeFile + " pull app|IMAGE=ghcr.io/owner/repo|IMAGE_TAG=abc1234",
 		"compose -f " + composeFile + " up -d app|IMAGE=ghcr.io/owner/repo|IMAGE_TAG=abc1234",
 	}
 	if got != strings.Join(wantLines, "\n") {
@@ -76,8 +75,8 @@ func TestRunner_Run_NoServicesUsesWholeStack(t *testing.T) {
 	logPath, restore := stubDocker(t, 0)
 	defer restore()
 
-	r := NewRunner(map[string]string{"foo": composeFile})
-	if err := r.Run(context.Background(), &dto.DeployIntentResponse{Stack: "foo"}); err != nil {
+	r := NewRunner(composeFile)
+	if err := r.Run(context.Background(), &dto.DeployIntentResponse{}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -88,14 +87,6 @@ func TestRunner_Run_NoServicesUsesWholeStack(t *testing.T) {
 	}
 }
 
-func TestRunner_Run_UnknownStack(t *testing.T) {
-	r := NewRunner(map[string]string{"foo": "/tmp/foo.yml"})
-	err := r.Run(context.Background(), &dto.DeployIntentResponse{Stack: "bar"})
-	if err == nil || !strings.Contains(err.Error(), "no compose file configured") {
-		t.Errorf("err = %v, want unknown-stack error", err)
-	}
-}
-
 func TestRunner_Run_PullFailure(t *testing.T) {
 	composeFile := filepath.Join(t.TempDir(), "compose.yml")
 	_ = os.WriteFile(composeFile, []byte("x"), 0644)
@@ -103,8 +94,8 @@ func TestRunner_Run_PullFailure(t *testing.T) {
 	_, restore := stubDocker(t, 1)
 	defer restore()
 
-	r := NewRunner(map[string]string{"foo": composeFile})
-	err := r.Run(context.Background(), &dto.DeployIntentResponse{Stack: "foo"})
+	r := NewRunner(composeFile)
+	err := r.Run(context.Background(), &dto.DeployIntentResponse{})
 	if err == nil {
 		t.Fatal("expected error from failing pull")
 	}

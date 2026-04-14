@@ -12,34 +12,31 @@ import (
 
 // Runner executes a deploy intent by shelling out to `docker compose`.
 type Runner struct {
-	stacks map[string]string
+	composeFile string
 }
 
-func NewRunner(stacks map[string]string) *Runner {
-	return &Runner{stacks: stacks}
+func NewRunner(composeFile string) *Runner {
+	return &Runner{composeFile: composeFile}
 }
 
-// Run resolves the compose file from the stack map, then runs `pull` followed
-// by `up -d`. The intent's resolved Image and Tag are exposed to the
-// subprocess as IMAGE and IMAGE_TAG so compose files can interpolate them
+// Run executes `docker compose pull` followed by `up -d` for the given
+// services. The intent's resolved Image and Tag are exposed to the subprocess
+// as IMAGE and IMAGE_TAG so compose files can interpolate them
 // (e.g. `image: ${IMAGE}:${IMAGE_TAG}`). Returns nil on success or an error
 // describing which command failed and its combined output.
 func (r *Runner) Run(ctx context.Context, intent *dto.DeployIntentResponse) error {
-	composeFile, ok := r.stacks[intent.Stack]
-	if !ok {
-		return fmt.Errorf("no compose file configured for stack %q", intent.Stack)
-	}
-
 	env := append(os.Environ(),
 		"IMAGE="+intent.Image,
 		"IMAGE_TAG="+intent.Tag,
 	)
 
-	if err := r.runDocker(ctx, env, "compose", "-f", composeFile, "pull"); err != nil {
+	pullArgs := []string{"compose", "-f", r.composeFile, "pull"}
+	pullArgs = append(pullArgs, intent.Services...)
+	if err := r.runDocker(ctx, env, pullArgs...); err != nil {
 		return fmt.Errorf("docker compose pull: %w", err)
 	}
 
-	upArgs := []string{"compose", "-f", composeFile, "up", "-d"}
+	upArgs := []string{"compose", "-f", r.composeFile, "up", "-d"}
 	upArgs = append(upArgs, intent.Services...)
 	if err := r.runDocker(ctx, env, upArgs...); err != nil {
 		return fmt.Errorf("docker compose up: %w", err)

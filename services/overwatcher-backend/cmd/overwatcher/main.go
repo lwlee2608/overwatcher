@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	internalhttp "github.com/lwlee2608/overwatcher/internal/api/http"
 	"github.com/lwlee2608/overwatcher/internal/db"
+	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
 	"github.com/lwlee2608/overwatcher/internal/service/agent"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
@@ -33,7 +34,6 @@ func main() {
 	slog.Info("overwatcher", "version", AppVersion)
 
 	ghClient := internalgithub.NewClient(config.GitHub.AppID, []byte(config.GitHub.PrivateKey))
-	mappingIdx := mapping.New(config.Deployments.Mappings)
 
 	if err := db.RunMigrations(config.Database.URL, config.Database.Schema); err != nil {
 		slog.Error("migration failed", "error", err)
@@ -45,16 +45,20 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
+
+	queries := sqlc.New(pool)
 	intentStore := intent.NewDBStore(pool)
 
-	webhookSvc := webhook.New(ghClient, mappingIdx, intentStore)
+	agentSvc := agent.NewService(queries, 60*time.Second)
+	mappingSvc := mapping.NewService(queries)
+	webhookSvc := webhook.New(ghClient, mappingSvc, intentStore)
 	dispatchSvc := dispatch.New(ghClient, intentStore)
-	agentTracker := agent.NewTracker(60 * time.Second)
 
 	services := &internalhttp.Services{
 		WebhookService:    webhookSvc,
 		DispatchService:   dispatchSvc,
-		AgentTracker:      agentTracker,
+		AgentService:      agentSvc,
+		MappingService:    mappingSvc,
 		WebhookSecret:     config.GitHub.WebhookSecret,
 		AgentSharedSecret: config.Agent.SharedSecret,
 	}
