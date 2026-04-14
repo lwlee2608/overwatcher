@@ -1,6 +1,7 @@
 export interface AgentStatus {
+  id: string;
   name: string;
-  stacks: string[];
+  compose_file: string;
   last_seen: string;
   remote_ip: string;
   connected: boolean;

@@ -42,18 +42,11 @@ export function AgentCard({ agent }: AgentCardProps) {
           <span>{timeAgo(agent.last_seen)}</span>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <span className="font-medium text-gray-500 dark:text-gray-500">
-            Stacks
+            Compose
           </span>
-          {(agent.stacks ?? []).map((stack) => (
-            <span
-              key={stack}
-              className="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-            >
-              {stack}
-            </span>
-          ))}
+          <span className="font-mono text-xs truncate">{agent.compose_file}</span>
         </div>
       </div>
     </div>
