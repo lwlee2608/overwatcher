@@ -29,6 +29,7 @@ type Querier interface {
 	ListDeployMappings(ctx context.Context) ([]ListDeployMappingsRow, error)
 	ListEnabledMappingsByRepo(ctx context.Context, lower string) ([]ListEnabledMappingsByRepoRow, error)
 	ListEventLogs(ctx context.Context, limit int32) ([]EventLog, error)
+	ListRecentDeployIntents(ctx context.Context, limit int32) ([]DeployIntent, error)
 	RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOutIntentsParams) ([]DeployIntent, error)
 	// Atomically claim the oldest dispatchable intent. The CTE skips stacks that

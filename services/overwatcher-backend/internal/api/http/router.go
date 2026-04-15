@@ -63,5 +63,6 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 		apis.DELETE("/mappings/:id", mappingHandler.Delete)
 
 		apis.GET("/events", eventLogHandler.List)
+		apis.GET("/deployments", deployHandler.ListDeployments)
 	}
 }

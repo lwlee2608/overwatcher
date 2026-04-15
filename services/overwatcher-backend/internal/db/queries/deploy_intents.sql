@@ -79,3 +79,8 @@ RETURNING *;
 
 -- name: CountDeployIntentsByStatus :one
 SELECT count(*) FROM deploy_intents WHERE status = @status;
+
+-- name: ListRecentDeployIntents :many
+SELECT * FROM deploy_intents
+ORDER BY created_at DESC
+LIMIT $1;
