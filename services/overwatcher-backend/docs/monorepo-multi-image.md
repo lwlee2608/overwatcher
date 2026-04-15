@@ -1,54 +1,29 @@
-# Monorepo Multi-Image Deploy Problem
+# Monorepo Multi-Image Deploy
 
-## Context
+## Background
 
-Overwatcher currently resolves a single image per deploy intent (`ghcr.io/<repo>`).
-This works for repos that produce one Docker image, but breaks for monorepos like
-`byte-twister/medtutor-server` which builds 3 separate images from one repo:
+Overwatcher now supports configurable `image` and `tag` per deploy mapping. Each
+mapping specifies which container image (and tag) the agent should pull when a push
+event is received. This replaced the old hardcoded `ghcr.io/<repo>` convention.
 
-| Service dir        | Docker-compose service | Current image (Alibaba CR)                |
-|--------------------|------------------------|-------------------------------------------|
+## Monorepo challenge
+
+For repos that produce a single Docker image, one mapping is sufficient. Monorepos
+like `byte-twister/medtutor-server` build 3 separate images from one repo:
+
+| Service dir        | Docker-compose service | Image (Alibaba CR)                          |
+|--------------------|------------------------|---------------------------------------------|
 | medtutor-backend   | medtutor-server        | crpi-...aliyuncs.com/axcova/medtutor-server |
 | medtutor-frontend  | medtutor-frontend      | crpi-...aliyuncs.com/axcova/medtutor-web    |
 | medtutor-admin     | medtutor-admin         | crpi-...aliyuncs.com/axcova/medtutor-admin  |
 
-## How it breaks
+Currently a single mapping can only carry one `image`. To deploy all three services,
+you would need three separate mappings for the same repo, each with its own image
+and service. The `UNIQUE(repo, agent_id)` constraint on `deploy_mappings` prevents
+this — it must be relaxed first.
 
-1. `webhook.go` calls `mapping.ResolveImage(repo)` which returns a single image name.
-2. `runner.go` injects that as `IMAGE` env var into `docker compose pull/up`.
-3. Each compose service has a different image — a single `IMAGE` cannot address all three.
-4. The compose file uses hardcoded image references, so `IMAGE` and `IMAGE_TAG` are ignored.
+## Remaining work
 
-## Proposed fix
-
-Since all services share the same git SHA (same repo, same push), the **tag** is the
-common denominator, not the image name.
-
-### 1. Docker-compose: use `IMAGE_TAG` only
-
-Each service keeps its own image name but references the shared tag:
-
-```yaml
-medtutor-server:
-  image: ghcr.io/byte-twister/medtutor-server/backend:${IMAGE_TAG:-latest}
-
-medtutor-frontend:
-  image: ghcr.io/byte-twister/medtutor-server/frontend:${IMAGE_TAG:-latest}
-
-medtutor-admin:
-  image: ghcr.io/byte-twister/medtutor-server/admin:${IMAGE_TAG:-latest}
-```
-
-### 2. CI: build and push all 3 images on push to main
-
-Add a GitHub Actions workflow that builds each service's Dockerfile and pushes to
-ghcr.io (or the Alibaba registry) tagged with the git SHA.
-
-### 3. Overwatcher: no code change needed
-
-The runner already sets `IMAGE_TAG=<sha>`. The `IMAGE` env var goes unused, which is
-fine. No overwatcher code changes required for this approach.
-
-## Status
-
-Deferred — testing with a single image first to validate the end-to-end flow.
+1. **Relax the unique constraint** to allow multiple mappings per repo+agent pair.
+2. **Update docker-compose** on target VMs so each service references `${IMAGE}:${IMAGE_TAG}`.
+3. **Add CI workflow** to build and push all 3 images on push to main.
