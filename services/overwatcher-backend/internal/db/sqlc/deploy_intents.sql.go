@@ -231,6 +231,51 @@ func (q *Queries) ListDeployIntentsByStatus(ctx context.Context, status string) 
 	return items, nil
 }
 
+const listRecentDeployIntents = `-- name: ListRecentDeployIntents :many
+SELECT id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at FROM deploy_intents
+ORDER BY created_at DESC
+LIMIT $1
+`
+
+func (q *Queries) ListRecentDeployIntents(ctx context.Context, limit int32) ([]DeployIntent, error) {
+	rows, err := q.db.Query(ctx, listRecentDeployIntents, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DeployIntent{}
+	for rows.Next() {
+		var i DeployIntent
+		if err := rows.Scan(
+			&i.ID,
+			&i.DeliveryID,
+			&i.StackIndex,
+			&i.Repo,
+			&i.GitRef,
+			&i.Sha,
+			&i.Image,
+			&i.Tag,
+			&i.Stack,
+			&i.Services,
+			&i.Environment,
+			&i.DeploymentID,
+			&i.InstallationID,
+			&i.Status,
+			&i.Attempts,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DispatchedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const requeueDeployIntent = `-- name: RequeueDeployIntent :one
 UPDATE deploy_intents
 SET status = 'created',

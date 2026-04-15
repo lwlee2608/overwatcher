@@ -25,3 +25,24 @@ type DeployResultRequest struct {
 	State string `json:"state"` // "success" or "failure"
 	Error string `json:"error,omitempty"`
 }
+
+// DeploymentResponse is the wire shape for the deployments dashboard.
+type DeploymentResponse struct {
+	ID          string    `json:"id"`
+	CreatedAt   time.Time `json:"created_at"`
+	DeliveryID  string    `json:"delivery_id"`
+	Repo        string    `json:"repo"`
+	Ref         string    `json:"ref"`
+	SHA         string    `json:"sha"`
+	Image       string    `json:"image"`
+	Tag         string    `json:"tag"`
+	Stack       string    `json:"stack"`
+	Services    []string  `json:"services,omitempty"`
+	Environment string    `json:"environment"`
+	Status      string    `json:"status"`
+	Attempts    int       `json:"attempts"`
+}
+
+type DeploymentListResponse struct {
+	Deployments []DeploymentResponse `json:"deployments"`
+}

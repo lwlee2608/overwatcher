@@ -1,6 +1,8 @@
 import { Routes, Route, NavLink } from "react-router-dom";
 import { AgentDashboard } from "./components/AgentDashboard";
 import { MappingDashboard } from "./components/MappingDashboard";
+import { EventLogDashboard } from "./components/EventLogDashboard";
+import { DeploymentDashboard } from "./components/DeploymentDashboard";
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return `text-sm font-medium pb-0.5 ${
@@ -25,6 +27,12 @@ function App() {
             <NavLink to="/mappings" className={navLinkClass}>
               Mappings
             </NavLink>
+            <NavLink to="/deployments" className={navLinkClass}>
+              Deployments
+            </NavLink>
+            <NavLink to="/events" className={navLinkClass}>
+              Events
+            </NavLink>
           </div>
         </div>
       </nav>
@@ -33,6 +41,8 @@ function App() {
         <Routes>
           <Route path="/" element={<AgentDashboard />} />
           <Route path="/mappings" element={<MappingDashboard />} />
+          <Route path="/deployments" element={<DeploymentDashboard />} />
+          <Route path="/events" element={<EventLogDashboard />} />
         </Routes>
       </div>
     </div>

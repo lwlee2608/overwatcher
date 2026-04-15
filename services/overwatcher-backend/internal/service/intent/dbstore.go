@@ -200,6 +200,18 @@ func (s *DBStore) InFlight() []*DeployIntent {
 	return out
 }
 
+func (s *DBStore) ListRecent(ctx context.Context, limit int32) ([]*DeployIntent, error) {
+	rows, err := s.q.ListRecentDeployIntents(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*DeployIntent, len(rows))
+	for i, row := range rows {
+		out[i] = fromRow(row)
+	}
+	return out, nil
+}
+
 func (s *DBStore) Len() int {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

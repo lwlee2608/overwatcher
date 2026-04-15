@@ -14,6 +14,7 @@ type Store interface {
 	Requeue(id string) (*DeployIntent, bool)
 	SweepTimedOut(timeout time.Duration, maxAttempts int) (requeued, failed []*DeployIntent)
 	List() []*DeployIntent
+	ListRecent(ctx context.Context, limit int32) ([]*DeployIntent, error)
 	InFlight() []*DeployIntent
 	Len() int
 }

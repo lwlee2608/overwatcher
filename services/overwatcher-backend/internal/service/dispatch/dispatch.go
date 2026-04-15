@@ -136,6 +136,10 @@ func (d *Service) NewReaper(timeout time.Duration, maxAttempts int, interval tim
 	return NewReaper(d.store, d.updater, timeout, maxAttempts, interval)
 }
 
+func (d *Service) ListRecent(ctx context.Context, limit int32) ([]*intent.DeployIntent, error) {
+	return d.store.ListRecent(ctx, limit)
+}
+
 func splitRepo(full string) (owner, repo string) {
 	if i := strings.IndexByte(full, '/'); i >= 0 {
 		return full[:i], full[i+1:]

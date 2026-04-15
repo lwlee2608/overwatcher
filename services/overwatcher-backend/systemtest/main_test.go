@@ -12,6 +12,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 	"github.com/lwlee2608/overwatcher/internal/service/agent"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
+	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
 	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 	"github.com/lwlee2608/overwatcher/internal/service/webhook"
@@ -49,15 +50,17 @@ func TestSystemIntegration(t *testing.T) {
 
 	agentSvc := agent.NewService(queries, 60*time.Second)
 	mappingSvc := mapping.NewService(queries)
+	eventLogSvc := eventlog.NewService(queries)
 	intentStore := intent.NewDBStore(pool)
 	dispatchSvc := dispatch.NewForTest(intentStore)
-	webhookSvc := webhook.New(nil, mappingSvc, intentStore)
+	webhookSvc := webhook.New(nil, mappingSvc, intentStore, eventLogSvc)
 
 	services := &internalhttp.Services{
 		WebhookService:    webhookSvc,
 		DispatchService:   dispatchSvc,
 		AgentService:      agentSvc,
 		MappingService:    mappingSvc,
+		EventLogService:   eventLogSvc,
 		WebhookSecret:     "test-webhook-secret",
 		AgentSharedSecret: "test-agent-secret",
 	}

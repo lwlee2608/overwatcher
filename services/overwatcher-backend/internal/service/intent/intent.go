@@ -222,6 +222,22 @@ func (s *MemoryStore) TestSetInFlight(id string, fn func(*DeployIntent)) {
 	}
 }
 
+func (s *MemoryStore) ListRecent(_ context.Context, limit int32) ([]*DeployIntent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var all []*DeployIntent
+	all = append(all, s.queue...)
+	for _, i := range s.inFlight {
+		all = append(all, i)
+	}
+
+	if int32(len(all)) > limit {
+		all = all[:limit]
+	}
+	return all, nil
+}
+
 func (s *MemoryStore) Len() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -59,6 +60,43 @@ func (h *DeployHandler) Next(c *gin.Context) {
 		Environment:  intent.Environment,
 		DeploymentID: intent.DeploymentID,
 	})
+}
+
+func (h *DeployHandler) ListDeployments(c *gin.Context) {
+	limit := int32(50)
+	if v := c.Query("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+			limit = int32(n)
+		}
+	}
+
+	intents, err := h.dispatchService.ListRecent(c.Request.Context(), limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	resp := dto.DeploymentListResponse{
+		Deployments: make([]dto.DeploymentResponse, len(intents)),
+	}
+	for i, d := range intents {
+		resp.Deployments[i] = dto.DeploymentResponse{
+			ID:          d.ID,
+			CreatedAt:   d.CreatedAt,
+			DeliveryID:  d.DeliveryID,
+			Repo:        d.Repo,
+			Ref:         d.Ref,
+			SHA:         d.SHA,
+			Image:       d.Image,
+			Tag:         d.Tag,
+			Stack:       d.Stack,
+			Services:    d.Services,
+			Environment: d.Environment,
+			Status:      string(d.Status),
+			Attempts:    d.Attempts,
+		}
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // Result records an agent's deploy outcome. Returns 404 for unknown intent
