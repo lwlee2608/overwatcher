@@ -18,6 +18,7 @@ type Querier interface {
 	// "already enqueued, do nothing".
 	CreateDeployIntent(ctx context.Context, arg CreateDeployIntentParams) (DeployIntent, error)
 	CreateDeployMapping(ctx context.Context, arg CreateDeployMappingParams) (DeployMapping, error)
+	CreateEventLog(ctx context.Context, arg CreateEventLogParams) (EventLog, error)
 	DeleteDeployMapping(ctx context.Context, id pgtype.UUID) (DeployMapping, error)
 	FailTimedOutIntents(ctx context.Context, arg FailTimedOutIntentsParams) ([]DeployIntent, error)
 	GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error)
@@ -26,6 +27,7 @@ type Querier interface {
 	ListDeployIntentsByStatus(ctx context.Context, status string) ([]DeployIntent, error)
 	ListDeployMappings(ctx context.Context) ([]ListDeployMappingsRow, error)
 	ListEnabledMappingsByRepo(ctx context.Context, lower string) ([]ListEnabledMappingsByRepoRow, error)
+	ListEventLogs(ctx context.Context, limit int32) ([]EventLog, error)
 	RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOutIntentsParams) ([]DeployIntent, error)
 	// Atomically claim the oldest dispatchable intent. The CTE skips stacks that

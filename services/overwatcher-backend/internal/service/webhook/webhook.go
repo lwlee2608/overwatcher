@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	gh "github.com/google/go-github/v84/github"
 
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
+	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
 	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 )
@@ -18,13 +20,20 @@ type Service struct {
 	ghClient *internalgithub.Client
 	mapping  *mapping.Service
 	store    intent.Store
+	eventLog *eventlog.Service
 }
 
-func New(ghClient *internalgithub.Client, m *mapping.Service, store intent.Store) *Service {
-	return &Service{ghClient: ghClient, mapping: m, store: store}
+func New(ghClient *internalgithub.Client, m *mapping.Service, store intent.Store, el *eventlog.Service) *Service {
+	return &Service{ghClient: ghClient, mapping: m, store: store, eventLog: el}
 }
 
 func (s *Service) HandleEvent(ctx context.Context, eventType string, deliveryID string, payload []byte) error {
+	repo, sender, summary := extractEventInfo(eventType, payload)
+
+	if err := s.eventLog.Record(ctx, deliveryID, eventType, repo, sender, summary); err != nil {
+		slog.Error("Failed to record event log", "delivery_id", deliveryID, "error", err)
+	}
+
 	event, err := gh.ParseWebHook(eventType, payload)
 	if err != nil {
 		slog.Error("Failed to parse webhook payload", "event", eventType, "delivery_id", deliveryID, "error", err)
@@ -39,6 +48,44 @@ func (s *Service) HandleEvent(ctx context.Context, eventType string, deliveryID 
 	}
 
 	return nil
+}
+
+// extractEventInfo pulls repo, sender, and a human-readable summary from the raw payload.
+func extractEventInfo(eventType string, payload []byte) (repo, sender, summary string) {
+	var raw struct {
+		Repository struct {
+			FullName string `json:"full_name"`
+		} `json:"repository"`
+		Sender struct {
+			Login string `json:"login"`
+		} `json:"sender"`
+		Ref     string `json:"ref"`
+		Commits []any  `json:"commits"`
+		Action  string `json:"action"`
+	}
+	_ = json.Unmarshal(payload, &raw)
+
+	repo = raw.Repository.FullName
+	sender = raw.Sender.Login
+
+	switch eventType {
+	case "push":
+		branch := raw.Ref
+		if strings.HasPrefix(branch, "refs/heads/") {
+			branch = strings.TrimPrefix(branch, "refs/heads/")
+		}
+		n := len(raw.Commits)
+		summary = fmt.Sprintf("pushed %d commit(s) to %s", n, branch)
+	case "ping":
+		summary = "webhook ping"
+	default:
+		if raw.Action != "" {
+			summary = raw.Action
+		} else {
+			summary = eventType
+		}
+	}
+	return
 }
 
 func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryID string) {

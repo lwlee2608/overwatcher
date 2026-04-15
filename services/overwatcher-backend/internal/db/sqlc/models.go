@@ -51,3 +51,13 @@ type DeployMapping struct {
 	Image       string             `json:"image"`
 	Tag         string             `json:"tag"`
 }
+
+type EventLog struct {
+	ID         pgtype.UUID        `json:"id"`
+	DeliveryID string             `json:"delivery_id"`
+	EventType  string             `json:"event_type"`
+	Repo       string             `json:"repo"`
+	Sender     string             `json:"sender"`
+	Summary    string             `json:"summary"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}

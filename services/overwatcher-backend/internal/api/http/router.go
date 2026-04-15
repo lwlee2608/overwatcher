@@ -6,6 +6,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/service/agent"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
+	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 	"github.com/lwlee2608/overwatcher/internal/service/webhook"
 )
@@ -19,6 +20,7 @@ type Services struct {
 	DispatchService   *dispatch.Service
 	AgentService      *agent.Service
 	MappingService    *mapping.Service
+	EventLogService   *eventlog.Service
 	WebhookSecret     string
 	AgentSharedSecret string
 }
@@ -32,6 +34,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	deployHandler := handler.NewDeployHandler(srvs.DispatchService)
 	agentHandler := handler.NewAgentHandler(srvs.AgentService)
 	mappingHandler := handler.NewMappingHandler(srvs.MappingService)
+	eventLogHandler := handler.NewEventLogHandler(srvs.EventLogService)
 
 	engine.GET("/health", healthHandler.Check)
 
@@ -58,5 +61,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 		apis.POST("/mappings", mappingHandler.Create)
 		apis.PUT("/mappings/:id", mappingHandler.Update)
 		apis.DELETE("/mappings/:id", mappingHandler.Delete)
+
+		apis.GET("/events", eventLogHandler.List)
 	}
 }
