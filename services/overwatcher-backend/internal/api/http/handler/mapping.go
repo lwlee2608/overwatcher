@@ -54,6 +54,8 @@ func (h *MappingHandler) Create(c *gin.Context) {
 		AgentID:     req.AgentID,
 		Services:    req.Services,
 		Environment: req.Environment,
+		Image:       req.Image,
+		Tag:         req.Tag,
 		Enabled:     enabled,
 	})
 	if err != nil {
@@ -90,6 +92,8 @@ func (h *MappingHandler) Update(c *gin.Context) {
 		AgentID:     req.AgentID,
 		Services:    req.Services,
 		Environment: req.Environment,
+		Image:       req.Image,
+		Tag:         req.Tag,
 		Enabled:     enabled,
 	})
 	if err != nil {
@@ -129,6 +133,8 @@ func entryToResponse(e mapping.Entry) dto.DeployMappingResponse {
 		AgentName:   e.AgentName,
 		Services:    e.Services,
 		Environment: e.Environment,
+		Image:       e.Image,
+		Tag:         e.Tag,
 		Enabled:     e.Enabled,
 		CreatedAt:   e.CreatedAt,
 		UpdatedAt:   e.UpdatedAt,

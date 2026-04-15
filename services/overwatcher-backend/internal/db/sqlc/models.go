@@ -48,4 +48,6 @@ type DeployMapping struct {
 	Enabled     bool               `json:"enabled"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Image       string             `json:"image"`
+	Tag         string             `json:"tag"`
 }

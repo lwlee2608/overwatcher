@@ -43,6 +43,8 @@ func TestMappings(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 			AgentID:     agentID,
 			Services:    []string{"web", "api"},
 			Environment: "staging",
+			Image:       "ghcr.io/lwlee2608/overwatcher",
+			Tag:         "latest",
 		})
 
 		rr := httptest.NewRecorder()
@@ -60,6 +62,8 @@ func TestMappings(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 		assert.Equal(t, agentID, resp.AgentID)
 		assert.Equal(t, []string{"web", "api"}, resp.Services)
 		assert.Equal(t, "staging", resp.Environment)
+		assert.Equal(t, "ghcr.io/lwlee2608/overwatcher", resp.Image)
+		assert.Equal(t, "latest", resp.Tag)
 		assert.True(t, resp.Enabled)
 
 		createdID = resp.ID
@@ -86,6 +90,8 @@ func TestMappings(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 			AgentID:     agentID,
 			Services:    []string{"web"},
 			Environment: "production",
+			Image:       "ghcr.io/lwlee2608/overwatcher",
+			Tag:         "v2",
 			Enabled:     &enabled,
 		})
 
@@ -101,6 +107,8 @@ func TestMappings(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"web"}, resp.Services)
 		assert.Equal(t, "production", resp.Environment)
+		assert.Equal(t, "ghcr.io/lwlee2608/overwatcher", resp.Image)
+		assert.Equal(t, "v2", resp.Tag)
 		assert.False(t, resp.Enabled)
 	})
 
@@ -108,6 +116,7 @@ func TestMappings(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 		body, _ := json.Marshal(dto.CreateDeployMappingRequest{
 			Repo:    "foo/bar",
 			AgentID: "00000000-0000-0000-0000-000000000000",
+			Image:   "ghcr.io/foo/bar",
 		})
 
 		rr := httptest.NewRecorder()
@@ -122,6 +131,7 @@ func TestMappings(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 		body, _ := json.Marshal(dto.UpdateDeployMappingRequest{
 			Repo:    "foo/bar",
 			AgentID: agentID,
+			Image:   "ghcr.io/foo/bar",
 		})
 
 		rr := httptest.NewRecorder()

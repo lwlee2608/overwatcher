@@ -9,6 +9,8 @@ type DeployMappingResponse struct {
 	AgentName   string    `json:"agent_name"`
 	Services    []string  `json:"services"`
 	Environment string    `json:"environment"`
+	Image       string    `json:"image"`
+	Tag         string    `json:"tag"`
 	Enabled     bool      `json:"enabled"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
@@ -23,6 +25,8 @@ type CreateDeployMappingRequest struct {
 	AgentID     string   `json:"agent_id" binding:"required"`
 	Services    []string `json:"services"`
 	Environment string   `json:"environment"`
+	Image       string   `json:"image" binding:"required"`
+	Tag         string   `json:"tag"`
 	Enabled     *bool    `json:"enabled"`
 }
 
@@ -31,5 +35,7 @@ type UpdateDeployMappingRequest struct {
 	AgentID     string   `json:"agent_id" binding:"required"`
 	Services    []string `json:"services"`
 	Environment string   `json:"environment"`
+	Image       string   `json:"image" binding:"required"`
+	Tag         string   `json:"tag"`
 	Enabled     *bool    `json:"enabled"`
 }
