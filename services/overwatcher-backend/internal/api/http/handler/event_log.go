@@ -20,7 +20,7 @@ func NewEventLogHandler(svc *eventlog.Service) *EventLogHandler {
 func (h *EventLogHandler) List(c *gin.Context) {
 	limit := int32(50)
 	if v := c.Query("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
 			limit = int32(n)
 		}
 	}
