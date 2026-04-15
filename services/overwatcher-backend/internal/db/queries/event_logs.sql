@@ -7,3 +7,11 @@ RETURNING *;
 SELECT * FROM event_logs
 ORDER BY created_at DESC
 LIMIT $1;
+
+-- name: DeleteOldEventLogs :execrows
+DELETE FROM event_logs
+WHERE id IN (
+    SELECT id FROM event_logs
+    ORDER BY created_at DESC
+    OFFSET $1
+);

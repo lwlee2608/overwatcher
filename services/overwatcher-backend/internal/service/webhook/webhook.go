@@ -63,7 +63,9 @@ func extractEventInfo(eventType string, payload []byte) (repo, sender, summary s
 		Commits []any  `json:"commits"`
 		Action  string `json:"action"`
 	}
-	_ = json.Unmarshal(payload, &raw)
+	if err := json.Unmarshal(payload, &raw); err != nil {
+		slog.Warn("Failed to extract event info from payload", "event_type", eventType, "error", err)
+	}
 
 	repo = raw.Repository.FullName
 	sender = raw.Sender.Login

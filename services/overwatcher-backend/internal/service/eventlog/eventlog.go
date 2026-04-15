@@ -2,11 +2,14 @@ package eventlog
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 	"github.com/lwlee2608/overwatcher/internal/util"
 )
+
+const maxEventLogs = 1000
 
 type Event struct {
 	ID         string
@@ -34,7 +37,17 @@ func (s *Service) Record(ctx context.Context, deliveryID, eventType, repo, sende
 		Sender:     sender,
 		Summary:    summary,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+
+	if n, err := s.queries.DeleteOldEventLogs(ctx, maxEventLogs); err != nil {
+		slog.Warn("Failed to trim old event logs", "error", err)
+	} else if n > 0 {
+		slog.Info("Trimmed old event logs", "deleted", n)
+	}
+
+	return nil
 }
 
 func (s *Service) List(ctx context.Context, limit int32) ([]Event, error) {

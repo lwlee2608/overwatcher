@@ -44,6 +44,23 @@ func (q *Queries) CreateEventLog(ctx context.Context, arg CreateEventLogParams) 
 	return i, err
 }
 
+const deleteOldEventLogs = `-- name: DeleteOldEventLogs :execrows
+DELETE FROM event_logs
+WHERE id IN (
+    SELECT id FROM event_logs
+    ORDER BY created_at DESC
+    OFFSET $1
+)
+`
+
+func (q *Queries) DeleteOldEventLogs(ctx context.Context, offset int32) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOldEventLogs, offset)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const listEventLogs = `-- name: ListEventLogs :many
 SELECT id, delivery_id, event_type, repo, sender, summary, created_at FROM event_logs
 ORDER BY created_at DESC

@@ -3,8 +3,9 @@ import type { EventLog } from "../types/event_log";
 import { fetchEvents } from "../api/events";
 
 function timeAgo(dateStr: string): string {
-  const seconds = Math.floor(
-    (Date.now() - new Date(dateStr).getTime()) / 1000
+  const seconds = Math.max(
+    0,
+    Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
   );
   if (seconds < 60) return `${seconds}s ago`;
   const minutes = Math.floor(seconds / 60);
@@ -76,6 +77,7 @@ export function EventLogDashboard() {
       )}
 
       <div className="mb-6 text-sm text-gray-600 dark:text-gray-400">
+        Latest{" "}
         <span className="font-semibold text-gray-900 dark:text-gray-100">
           {events.length}
         </span>{" "}
