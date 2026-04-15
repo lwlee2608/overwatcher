@@ -14,6 +14,8 @@ interface FormState {
   agent_id: string;
   services: string;
   environment: string;
+  image: string;
+  tag: string;
   enabled: boolean;
 }
 
@@ -22,6 +24,8 @@ const emptyForm: FormState = {
   agent_id: "",
   services: "",
   environment: "production",
+  image: "",
+  tag: "latest",
   enabled: true,
 };
 
@@ -67,6 +71,8 @@ export function MappingDashboard() {
       agent_id: m.agent_id,
       services: m.services.join(", "),
       environment: m.environment,
+      image: m.image,
+      tag: m.tag,
       enabled: m.enabled,
     });
     setShowForm(true);
@@ -95,6 +101,8 @@ export function MappingDashboard() {
           agent_id: form.agent_id,
           services,
           environment: form.environment || "production",
+          image: form.image,
+          tag: form.tag || "latest",
           enabled: form.enabled,
         });
       } else {
@@ -103,6 +111,8 @@ export function MappingDashboard() {
           agent_id: form.agent_id,
           services,
           environment: form.environment || "production",
+          image: form.image,
+          tag: form.tag || "latest",
           enabled: form.enabled,
         });
       }
@@ -224,6 +234,31 @@ export function MappingDashboard() {
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Image
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="ghcr.io/owner/repo"
+                value={form.image}
+                onChange={(e) => setForm({ ...form, image: e.target.value })}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Tag
+              </label>
+              <input
+                type="text"
+                placeholder="latest"
+                value={form.tag}
+                onChange={(e) => setForm({ ...form, tag: e.target.value })}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              />
+            </div>
           </div>
           <div className="mt-4 flex items-center gap-4">
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -269,6 +304,8 @@ export function MappingDashboard() {
                 <th className="px-4 py-3">Repository</th>
                 <th className="px-4 py-3">Agent</th>
                 <th className="px-4 py-3">Services</th>
+                <th className="px-4 py-3">Image</th>
+                <th className="px-4 py-3">Tag</th>
                 <th className="px-4 py-3">Environment</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3"></th>
@@ -300,6 +337,12 @@ export function MappingDashboard() {
                         all
                       </span>
                     )}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-gray-700 dark:text-gray-300 text-xs">
+                    {m.image}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-gray-700 dark:text-gray-300 text-xs">
+                    {m.tag}
                   </td>
                   <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                     {m.environment}

@@ -5,6 +5,8 @@ export interface DeployMappingResponse {
   agent_name: string;
   services: string[];
   environment: string;
+  image: string;
+  tag: string;
   enabled: boolean;
   created_at: string;
   updated_at: string;
@@ -19,6 +21,8 @@ export interface CreateDeployMappingRequest {
   agent_id: string;
   services: string[];
   environment: string;
+  image: string;
+  tag: string;
   enabled: boolean;
 }
 
@@ -27,5 +31,7 @@ export interface UpdateDeployMappingRequest {
   agent_id: string;
   services: string[];
   environment: string;
+  image: string;
+  tag: string;
   enabled: boolean;
 }

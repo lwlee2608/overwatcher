@@ -3,7 +3,6 @@ package mapping
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -26,19 +25,11 @@ type Entry struct {
 	AgentName   string
 	Services    []string
 	Environment string
+	Image       string
+	Tag         string
 	Enabled     bool
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
-}
-
-// ResolveImage returns the default convention ghcr.io/<lowered-repo>.
-func ResolveImage(repo string) string {
-	return "ghcr.io/" + strings.ToLower(repo)
-}
-
-// ResolveTag returns the commit SHA as the image tag.
-func ResolveTag(sha string) string {
-	return sha
 }
 
 // Service manages deploy mappings backed by PostgreSQL.
@@ -65,6 +56,8 @@ func (s *Service) Match(ctx context.Context, repo string) ([]Entry, error) {
 			AgentName:   r.AgentName,
 			Services:    r.Services,
 			Environment: r.Environment,
+			Image:       r.Image,
+			Tag:         r.Tag,
 			Enabled:     r.Enabled,
 			CreatedAt:   r.CreatedAt.Time,
 			UpdatedAt:   r.UpdatedAt.Time,
@@ -88,6 +81,8 @@ func (s *Service) List(ctx context.Context) ([]Entry, error) {
 			AgentName:   r.AgentName,
 			Services:    r.Services,
 			Environment: r.Environment,
+			Image:       r.Image,
+			Tag:         r.Tag,
 			Enabled:     r.Enabled,
 			CreatedAt:   r.CreatedAt.Time,
 			UpdatedAt:   r.UpdatedAt.Time,
@@ -116,6 +111,8 @@ func (s *Service) GetByID(ctx context.Context, id string) (*Entry, error) {
 		AgentName:   r.AgentName,
 		Services:    r.Services,
 		Environment: r.Environment,
+		Image:       r.Image,
+		Tag:         r.Tag,
 		Enabled:     r.Enabled,
 		CreatedAt:   r.CreatedAt.Time,
 		UpdatedAt:   r.UpdatedAt.Time,
@@ -127,6 +124,8 @@ type CreateParams struct {
 	AgentID     string
 	Services    []string
 	Environment string
+	Image       string
+	Tag         string
 	Enabled     bool
 }
 
@@ -146,12 +145,18 @@ func (s *Service) Create(ctx context.Context, p CreateParams) (*Entry, error) {
 	if env == "" {
 		env = "production"
 	}
+	tag := p.Tag
+	if tag == "" {
+		tag = "latest"
+	}
 	r, err := s.q.CreateDeployMapping(ctx, sqlc.CreateDeployMappingParams{
 		Repo:        p.Repo,
 		AgentID:     agentUID,
 		Services:    p.Services,
 		Environment: env,
 		Enabled:     p.Enabled,
+		Image:       p.Image,
+		Tag:         tag,
 	})
 	if err != nil {
 		return nil, err
@@ -164,6 +169,8 @@ type UpdateParams struct {
 	AgentID     string
 	Services    []string
 	Environment string
+	Image       string
+	Tag         string
 	Enabled     bool
 }
 
@@ -187,6 +194,10 @@ func (s *Service) Update(ctx context.Context, id string, p UpdateParams) (*Entry
 	if env == "" {
 		env = "production"
 	}
+	tag := p.Tag
+	if tag == "" {
+		tag = "latest"
+	}
 	_, err := s.q.UpdateDeployMapping(ctx, sqlc.UpdateDeployMappingParams{
 		ID:          uid,
 		Repo:        p.Repo,
@@ -194,6 +205,8 @@ func (s *Service) Update(ctx context.Context, id string, p UpdateParams) (*Entry
 		Services:    p.Services,
 		Environment: env,
 		Enabled:     p.Enabled,
+		Image:       p.Image,
+		Tag:         tag,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

@@ -12,9 +12,9 @@ import (
 )
 
 const createDeployMapping = `-- name: CreateDeployMapping :one
-INSERT INTO deploy_mappings (repo, agent_id, services, environment, enabled)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, repo, agent_id, services, environment, enabled, created_at, updated_at
+INSERT INTO deploy_mappings (repo, agent_id, services, environment, enabled, image, tag)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, repo, agent_id, services, environment, enabled, created_at, updated_at, image, tag
 `
 
 type CreateDeployMappingParams struct {
@@ -23,6 +23,8 @@ type CreateDeployMappingParams struct {
 	Services    []string    `json:"services"`
 	Environment string      `json:"environment"`
 	Enabled     bool        `json:"enabled"`
+	Image       string      `json:"image"`
+	Tag         string      `json:"tag"`
 }
 
 func (q *Queries) CreateDeployMapping(ctx context.Context, arg CreateDeployMappingParams) (DeployMapping, error) {
@@ -32,6 +34,8 @@ func (q *Queries) CreateDeployMapping(ctx context.Context, arg CreateDeployMappi
 		arg.Services,
 		arg.Environment,
 		arg.Enabled,
+		arg.Image,
+		arg.Tag,
 	)
 	var i DeployMapping
 	err := row.Scan(
@@ -43,12 +47,14 @@ func (q *Queries) CreateDeployMapping(ctx context.Context, arg CreateDeployMappi
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Image,
+		&i.Tag,
 	)
 	return i, err
 }
 
 const deleteDeployMapping = `-- name: DeleteDeployMapping :one
-DELETE FROM deploy_mappings WHERE id = $1 RETURNING id, repo, agent_id, services, environment, enabled, created_at, updated_at
+DELETE FROM deploy_mappings WHERE id = $1 RETURNING id, repo, agent_id, services, environment, enabled, created_at, updated_at, image, tag
 `
 
 func (q *Queries) DeleteDeployMapping(ctx context.Context, id pgtype.UUID) (DeployMapping, error) {
@@ -63,12 +69,14 @@ func (q *Queries) DeleteDeployMapping(ctx context.Context, id pgtype.UUID) (Depl
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Image,
+		&i.Tag,
 	)
 	return i, err
 }
 
 const getDeployMapping = `-- name: GetDeployMapping :one
-SELECT dm.id, dm.repo, dm.agent_id, dm.services, dm.environment, dm.enabled, dm.created_at, dm.updated_at,
+SELECT dm.id, dm.repo, dm.agent_id, dm.services, dm.environment, dm.enabled, dm.created_at, dm.updated_at, dm.image, dm.tag,
        a.name AS agent_name
 FROM deploy_mappings dm
 JOIN agents a ON a.id = dm.agent_id
@@ -84,6 +92,8 @@ type GetDeployMappingRow struct {
 	Enabled     bool               `json:"enabled"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Image       string             `json:"image"`
+	Tag         string             `json:"tag"`
 	AgentName   string             `json:"agent_name"`
 }
 
@@ -99,13 +109,15 @@ func (q *Queries) GetDeployMapping(ctx context.Context, id pgtype.UUID) (GetDepl
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Image,
+		&i.Tag,
 		&i.AgentName,
 	)
 	return i, err
 }
 
 const listDeployMappings = `-- name: ListDeployMappings :many
-SELECT dm.id, dm.repo, dm.agent_id, dm.services, dm.environment, dm.enabled, dm.created_at, dm.updated_at,
+SELECT dm.id, dm.repo, dm.agent_id, dm.services, dm.environment, dm.enabled, dm.created_at, dm.updated_at, dm.image, dm.tag,
        a.name AS agent_name
 FROM deploy_mappings dm
 JOIN agents a ON a.id = dm.agent_id
@@ -121,6 +133,8 @@ type ListDeployMappingsRow struct {
 	Enabled     bool               `json:"enabled"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Image       string             `json:"image"`
+	Tag         string             `json:"tag"`
 	AgentName   string             `json:"agent_name"`
 }
 
@@ -142,6 +156,8 @@ func (q *Queries) ListDeployMappings(ctx context.Context) ([]ListDeployMappingsR
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Image,
+			&i.Tag,
 			&i.AgentName,
 		); err != nil {
 			return nil, err
@@ -155,7 +171,7 @@ func (q *Queries) ListDeployMappings(ctx context.Context) ([]ListDeployMappingsR
 }
 
 const listEnabledMappingsByRepo = `-- name: ListEnabledMappingsByRepo :many
-SELECT dm.id, dm.repo, dm.agent_id, dm.services, dm.environment, dm.enabled, dm.created_at, dm.updated_at,
+SELECT dm.id, dm.repo, dm.agent_id, dm.services, dm.environment, dm.enabled, dm.created_at, dm.updated_at, dm.image, dm.tag,
        a.name AS agent_name
 FROM deploy_mappings dm
 JOIN agents a ON a.id = dm.agent_id
@@ -173,6 +189,8 @@ type ListEnabledMappingsByRepoRow struct {
 	Enabled     bool               `json:"enabled"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Image       string             `json:"image"`
+	Tag         string             `json:"tag"`
 	AgentName   string             `json:"agent_name"`
 }
 
@@ -194,6 +212,8 @@ func (q *Queries) ListEnabledMappingsByRepo(ctx context.Context, lower string) (
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Image,
+			&i.Tag,
 			&i.AgentName,
 		); err != nil {
 			return nil, err
@@ -213,9 +233,11 @@ SET repo        = $2,
     services    = $4,
     environment = $5,
     enabled     = $6,
+    image       = $7,
+    tag         = $8,
     updated_at  = NOW()
 WHERE id = $1
-RETURNING id, repo, agent_id, services, environment, enabled, created_at, updated_at
+RETURNING id, repo, agent_id, services, environment, enabled, created_at, updated_at, image, tag
 `
 
 type UpdateDeployMappingParams struct {
@@ -225,6 +247,8 @@ type UpdateDeployMappingParams struct {
 	Services    []string    `json:"services"`
 	Environment string      `json:"environment"`
 	Enabled     bool        `json:"enabled"`
+	Image       string      `json:"image"`
+	Tag         string      `json:"tag"`
 }
 
 func (q *Queries) UpdateDeployMapping(ctx context.Context, arg UpdateDeployMappingParams) (DeployMapping, error) {
@@ -235,6 +259,8 @@ func (q *Queries) UpdateDeployMapping(ctx context.Context, arg UpdateDeployMappi
 		arg.Services,
 		arg.Environment,
 		arg.Enabled,
+		arg.Image,
+		arg.Tag,
 	)
 	var i DeployMapping
 	err := row.Scan(
@@ -246,6 +272,8 @@ func (q *Queries) UpdateDeployMapping(ctx context.Context, arg UpdateDeployMappi
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Image,
+		&i.Tag,
 	)
 	return i, err
 }

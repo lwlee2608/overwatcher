@@ -13,8 +13,8 @@ JOIN agents a ON a.id = dm.agent_id
 WHERE dm.id = $1;
 
 -- name: CreateDeployMapping :one
-INSERT INTO deploy_mappings (repo, agent_id, services, environment, enabled)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO deploy_mappings (repo, agent_id, services, environment, enabled, image, tag)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: UpdateDeployMapping :one
@@ -24,6 +24,8 @@ SET repo        = $2,
     services    = $4,
     environment = $5,
     enabled     = $6,
+    image       = $7,
+    tag         = $8,
     updated_at  = NOW()
 WHERE id = $1
 RETURNING *;

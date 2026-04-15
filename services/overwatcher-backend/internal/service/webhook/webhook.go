@@ -102,8 +102,8 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 	}
 
 	for i, entry := range matches {
-		image := mapping.ResolveImage(repo)
-		tag := mapping.ResolveTag(sha)
+		image := entry.Image
+		tag := entry.Tag
 		environment := entry.Environment
 
 		description := fmt.Sprintf("Deployment queued for agent %s", entry.AgentName)
