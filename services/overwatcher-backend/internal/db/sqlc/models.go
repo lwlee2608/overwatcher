@@ -25,10 +25,7 @@ type DeployIntent struct {
 	Repo           string           `json:"repo"`
 	GitRef         string           `json:"git_ref"`
 	Sha            string           `json:"sha"`
-	Image          string           `json:"image"`
-	Tag            string           `json:"tag"`
 	Stack          string           `json:"stack"`
-	Services       []string         `json:"services"`
 	Environment    string           `json:"environment"`
 	DeploymentID   int64            `json:"deployment_id"`
 	InstallationID int64            `json:"installation_id"`
@@ -37,19 +34,26 @@ type DeployIntent struct {
 	CreatedAt      pgtype.Timestamp `json:"created_at"`
 	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
 	DispatchedAt   pgtype.Timestamp `json:"dispatched_at"`
+	ServicesSpec   []byte           `json:"services_spec"`
 }
 
 type DeployMapping struct {
 	ID          pgtype.UUID        `json:"id"`
 	Repo        string             `json:"repo"`
 	AgentID     pgtype.UUID        `json:"agent_id"`
-	Services    []string           `json:"services"`
 	Environment string             `json:"environment"`
 	Enabled     bool               `json:"enabled"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	Image       string             `json:"image"`
-	Tag         string             `json:"tag"`
+}
+
+type DeployMappingService struct {
+	ID        pgtype.UUID `json:"id"`
+	MappingID pgtype.UUID `json:"mapping_id"`
+	Name      string      `json:"name"`
+	Image     string      `json:"image"`
+	Tag       string      `json:"tag"`
+	Position  int32       `json:"position"`
 }
 
 type EventLog struct {

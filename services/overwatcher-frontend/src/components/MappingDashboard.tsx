@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import type { AgentStatus } from "../types/agent";
-import type { DeployMappingResponse } from "../types/mapping";
+import type {
+  DeployMappingResponse,
+  ServiceSpec,
+} from "../types/mapping";
 import { fetchAgents } from "../api/agents";
 import {
   fetchMappings,
@@ -12,20 +15,18 @@ import {
 interface FormState {
   repo: string;
   agent_id: string;
-  services: string;
+  services: ServiceSpec[];
   environment: string;
-  image: string;
-  tag: string;
   enabled: boolean;
 }
+
+const emptyService = (): ServiceSpec => ({ name: "", image: "", tag: "latest" });
 
 const emptyForm: FormState = {
   repo: "",
   agent_id: "",
-  services: "",
+  services: [emptyService()],
   environment: "production",
-  image: "",
-  tag: "latest",
   enabled: true,
 };
 
@@ -60,7 +61,7 @@ export function MappingDashboard() {
 
   function openCreate() {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, services: [emptyService()] });
     setShowForm(true);
   }
 
@@ -69,10 +70,11 @@ export function MappingDashboard() {
     setForm({
       repo: m.repo,
       agent_id: m.agent_id,
-      services: m.services.join(", "),
+      services:
+        m.services.length > 0
+          ? m.services.map((s) => ({ ...s }))
+          : [emptyService()],
       environment: m.environment,
-      image: m.image,
-      tag: m.tag,
       enabled: m.enabled,
     });
     setShowForm(true);
@@ -84,15 +86,44 @@ export function MappingDashboard() {
     setForm(emptyForm);
   }
 
+  function updateService(index: number, patch: Partial<ServiceSpec>) {
+    setForm((f) => ({
+      ...f,
+      services: f.services.map((s, i) => (i === index ? { ...s, ...patch } : s)),
+    }));
+  }
+
+  function addService() {
+    setForm((f) => ({ ...f, services: [...f.services, emptyService()] }));
+  }
+
+  function removeService(index: number) {
+    setForm((f) => ({
+      ...f,
+      services:
+        f.services.length > 1
+          ? f.services.filter((_, i) => i !== index)
+          : f.services,
+    }));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
 
     const services = form.services
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+      .filter((s) => s.image.trim() !== "")
+      .map((s) => ({
+        name: s.name.trim(),
+        image: s.image.trim(),
+        tag: s.tag.trim() || "latest",
+      }));
+    if (services.length === 0) {
+      setError("At least one service with an image is required");
+      setSaving(false);
+      return;
+    }
 
     try {
       if (editingId) {
@@ -101,8 +132,6 @@ export function MappingDashboard() {
           agent_id: form.agent_id,
           services,
           environment: form.environment || "production",
-          image: form.image,
-          tag: form.tag || "latest",
           enabled: form.enabled,
         });
       } else {
@@ -111,8 +140,6 @@ export function MappingDashboard() {
           agent_id: form.agent_id,
           services,
           environment: form.environment || "production",
-          image: form.image,
-          tag: form.tag || "latest",
           enabled: form.enabled,
         });
       }
@@ -210,18 +237,6 @@ export function MappingDashboard() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                Services
-              </label>
-              <input
-                type="text"
-                placeholder="app, worker (comma-separated, empty = all)"
-                value={form.services}
-                onChange={(e) => setForm({ ...form, services: e.target.value })}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                 Environment
               </label>
               <input
@@ -234,32 +249,60 @@ export function MappingDashboard() {
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                Image
+          </div>
+
+          <div className="mt-5">
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400">
+                Services
               </label>
-              <input
-                type="text"
-                required
-                placeholder="ghcr.io/owner/repo"
-                value={form.image}
-                onChange={(e) => setForm({ ...form, image: e.target.value })}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-              />
+              <button
+                type="button"
+                onClick={addService}
+                className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+              >
+                + Add service
+              </button>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                Tag
-              </label>
-              <input
-                type="text"
-                placeholder="latest"
-                value={form.tag}
-                onChange={(e) => setForm({ ...form, tag: e.target.value })}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-              />
+            <div className="space-y-2">
+              {form.services.map((svc, i) => (
+                <div key={i} className="grid grid-cols-[1fr_2fr_1fr_auto] gap-2">
+                  <input
+                    type="text"
+                    placeholder="name (blank = all)"
+                    value={svc.name}
+                    onChange={(e) => updateService(i, { name: e.target.value })}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  />
+                  <input
+                    type="text"
+                    required
+                    placeholder="ghcr.io/owner/image"
+                    value={svc.image}
+                    onChange={(e) => updateService(i, { image: e.target.value })}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  />
+                  <input
+                    type="text"
+                    placeholder="latest"
+                    value={svc.tag}
+                    onChange={(e) => updateService(i, { tag: e.target.value })}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeService(i)}
+                    disabled={form.services.length === 1}
+                    className="rounded-md border border-gray-300 px-2 text-sm text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+                    aria-label="Remove service"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
+
           <div className="mt-4 flex items-center gap-4">
             <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
               <input
@@ -304,8 +347,6 @@ export function MappingDashboard() {
                 <th className="px-4 py-3">Repository</th>
                 <th className="px-4 py-3">Agent</th>
                 <th className="px-4 py-3">Services</th>
-                <th className="px-4 py-3">Image</th>
-                <th className="px-4 py-3">Tag</th>
                 <th className="px-4 py-3">Environment</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3"></th>
@@ -322,27 +363,23 @@ export function MappingDashboard() {
                   </td>
                   <td className="px-4 py-3">
                     {m.services.length > 0 ? (
-                      <div className="flex gap-1 flex-wrap">
-                        {m.services.map((s) => (
-                          <span
-                            key={s}
-                            className="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                          >
-                            {s}
-                          </span>
+                      <div className="flex flex-col gap-1">
+                        {m.services.map((s, i) => (
+                          <div key={i} className="text-xs">
+                            <span className="inline-block rounded bg-blue-100 px-2 py-0.5 font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              {s.name || "(all)"}
+                            </span>
+                            <span className="ml-2 font-mono text-gray-600 dark:text-gray-400">
+                              {s.image}:{s.tag}
+                            </span>
+                          </div>
                         ))}
                       </div>
                     ) : (
                       <span className="text-gray-400 dark:text-gray-500">
-                        all
+                        none
                       </span>
                     )}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-gray-700 dark:text-gray-300 text-xs">
-                    {m.image}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-gray-700 dark:text-gray-300 text-xs">
-                    {m.tag}
                   </td>
                   <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                     {m.environment}

@@ -1,3 +1,5 @@
+import type { ServiceSpec } from "./mapping";
+
 export interface Deployment {
   id: string;
   created_at: string;
@@ -5,10 +7,8 @@ export interface Deployment {
   repo: string;
   ref: string;
   sha: string;
-  image: string;
-  tag: string;
   stack: string;
-  services: string[];
+  services: ServiceSpec[];
   environment: string;
   status: string;
   attempts: number;

@@ -51,7 +51,7 @@ func main() {
 	intentStore := intent.NewDBStore(pool)
 
 	agentSvc := agent.NewService(queries, 60*time.Second)
-	mappingSvc := mapping.NewService(queries)
+	mappingSvc := mapping.NewService(pool)
 	eventLogSvc := eventlog.NewService(queries)
 	webhookSvc := webhook.New(ghClient, mappingSvc, intentStore, eventLogSvc)
 	dispatchSvc := dispatch.New(ghClient, intentStore)

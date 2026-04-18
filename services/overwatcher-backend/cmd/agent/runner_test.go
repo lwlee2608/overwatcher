@@ -34,7 +34,7 @@ func stubDocker(t *testing.T, exitCode int) (logPath string, restore func()) {
 	return logPath, func() { _ = os.Setenv("PATH", oldPath) }
 }
 
-func TestRunner_Run_HappyPath(t *testing.T) {
+func TestRunner_Run_SingleService(t *testing.T) {
 	composeFile := filepath.Join(t.TempDir(), "compose.yml")
 	if err := os.WriteFile(composeFile, []byte("services: {}\n"), 0644); err != nil {
 		t.Fatal(err)
@@ -45,9 +45,9 @@ func TestRunner_Run_HappyPath(t *testing.T) {
 
 	r := NewRunner(composeFile)
 	intent := &dto.DeployIntentResponse{
-		Services: []string{"app"},
-		Image:    "ghcr.io/owner/repo",
-		Tag:      "abc1234",
+		Services: []dto.ServiceSpecDTO{
+			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "abc1234"},
+		},
 	}
 
 	if err := r.Run(context.Background(), intent); err != nil {
@@ -68,7 +68,7 @@ func TestRunner_Run_HappyPath(t *testing.T) {
 	}
 }
 
-func TestRunner_Run_NoServicesUsesWholeStack(t *testing.T) {
+func TestRunner_Run_MultipleServicesUseOwnImageTag(t *testing.T) {
 	composeFile := filepath.Join(t.TempDir(), "compose.yml")
 	_ = os.WriteFile(composeFile, []byte("services: {}\n"), 0644)
 
@@ -76,7 +76,44 @@ func TestRunner_Run_NoServicesUsesWholeStack(t *testing.T) {
 	defer restore()
 
 	r := NewRunner(composeFile)
-	if err := r.Run(context.Background(), &dto.DeployIntentResponse{}); err != nil {
+	intent := &dto.DeployIntentResponse{
+		Services: []dto.ServiceSpecDTO{
+			{Name: "web", Image: "ghcr.io/owner/web", Tag: "v1"},
+			{Name: "api", Image: "ghcr.io/owner/api", Tag: "v2"},
+		},
+	}
+
+	if err := r.Run(context.Background(), intent); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	out, _ := os.ReadFile(logPath)
+	got := strings.TrimSpace(string(out))
+	wantLines := []string{
+		"compose -f " + composeFile + " pull web|IMAGE=ghcr.io/owner/web|IMAGE_TAG=v1",
+		"compose -f " + composeFile + " up -d web|IMAGE=ghcr.io/owner/web|IMAGE_TAG=v1",
+		"compose -f " + composeFile + " pull api|IMAGE=ghcr.io/owner/api|IMAGE_TAG=v2",
+		"compose -f " + composeFile + " up -d api|IMAGE=ghcr.io/owner/api|IMAGE_TAG=v2",
+	}
+	if got != strings.Join(wantLines, "\n") {
+		t.Errorf("docker invocations:\n got:  %q\n want: %q", got, strings.Join(wantLines, "\n"))
+	}
+}
+
+func TestRunner_Run_EmptyNameAppliesToWholeStack(t *testing.T) {
+	composeFile := filepath.Join(t.TempDir(), "compose.yml")
+	_ = os.WriteFile(composeFile, []byte("services: {}\n"), 0644)
+
+	logPath, restore := stubDocker(t, 0)
+	defer restore()
+
+	r := NewRunner(composeFile)
+	intent := &dto.DeployIntentResponse{
+		Services: []dto.ServiceSpecDTO{
+			{Name: "", Image: "ghcr.io/owner/repo", Tag: "v1"},
+		},
+	}
+	if err := r.Run(context.Background(), intent); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -95,11 +132,24 @@ func TestRunner_Run_PullFailure(t *testing.T) {
 	defer restore()
 
 	r := NewRunner(composeFile)
-	err := r.Run(context.Background(), &dto.DeployIntentResponse{})
+	intent := &dto.DeployIntentResponse{
+		Services: []dto.ServiceSpecDTO{
+			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "v1"},
+		},
+	}
+	err := r.Run(context.Background(), intent)
 	if err == nil {
 		t.Fatal("expected error from failing pull")
 	}
 	if !strings.Contains(err.Error(), "docker compose pull") {
 		t.Errorf("err did not mention pull: %v", err)
+	}
+}
+
+func TestRunner_Run_NoServicesReturnsError(t *testing.T) {
+	r := NewRunner(filepath.Join(t.TempDir(), "compose.yml"))
+	err := r.Run(context.Background(), &dto.DeployIntentResponse{})
+	if err == nil {
+		t.Fatal("expected error for empty services")
 	}
 }

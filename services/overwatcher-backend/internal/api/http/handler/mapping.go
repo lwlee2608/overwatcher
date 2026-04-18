@@ -45,17 +45,12 @@ func (h *MappingHandler) Create(c *gin.Context) {
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
-	if req.Services == nil {
-		req.Services = []string{}
-	}
 
 	entry, err := h.mappingService.Create(c.Request.Context(), mapping.CreateParams{
 		Repo:        req.Repo,
 		AgentID:     req.AgentID,
-		Services:    req.Services,
+		Services:    dtoToServices(req.Services),
 		Environment: req.Environment,
-		Image:       req.Image,
-		Tag:         req.Tag,
 		Enabled:     enabled,
 	})
 	if err != nil {
@@ -83,17 +78,12 @@ func (h *MappingHandler) Update(c *gin.Context) {
 	if req.Enabled != nil {
 		enabled = *req.Enabled
 	}
-	if req.Services == nil {
-		req.Services = []string{}
-	}
 
 	entry, err := h.mappingService.Update(c.Request.Context(), id, mapping.UpdateParams{
 		Repo:        req.Repo,
 		AgentID:     req.AgentID,
-		Services:    req.Services,
+		Services:    dtoToServices(req.Services),
 		Environment: req.Environment,
-		Image:       req.Image,
-		Tag:         req.Tag,
 		Enabled:     enabled,
 	})
 	if err != nil {
@@ -131,12 +121,26 @@ func entryToResponse(e mapping.Entry) dto.DeployMappingResponse {
 		Repo:        e.Repo,
 		AgentID:     e.AgentID,
 		AgentName:   e.AgentName,
-		Services:    e.Services,
+		Services:    servicesToDTO(e.Services),
 		Environment: e.Environment,
-		Image:       e.Image,
-		Tag:         e.Tag,
 		Enabled:     e.Enabled,
 		CreatedAt:   e.CreatedAt,
 		UpdatedAt:   e.UpdatedAt,
 	}
+}
+
+func servicesToDTO(specs []mapping.ServiceSpec) []dto.ServiceSpecDTO {
+	out := make([]dto.ServiceSpecDTO, len(specs))
+	for i, s := range specs {
+		out[i] = dto.ServiceSpecDTO{Name: s.Name, Image: s.Image, Tag: s.Tag}
+	}
+	return out
+}
+
+func dtoToServices(dtos []dto.ServiceSpecDTO) []mapping.ServiceSpec {
+	out := make([]mapping.ServiceSpec, len(dtos))
+	for i, d := range dtos {
+		out[i] = mapping.ServiceSpec{Name: d.Name, Image: d.Image, Tag: d.Tag}
+	}
+	return out
 }

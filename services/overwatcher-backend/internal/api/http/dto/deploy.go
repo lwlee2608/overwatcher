@@ -6,18 +6,16 @@ import "time"
 // It is a subset of intent.DeployIntent — internal fields like InstallationID
 // and Status are deliberately omitted.
 type DeployIntentResponse struct {
-	ID           string    `json:"id"`
-	CreatedAt    time.Time `json:"created_at"`
-	DeliveryID   string    `json:"delivery_id"`
-	Repo         string    `json:"repo"`
-	Ref          string    `json:"ref"`
-	SHA          string    `json:"sha"`
-	Image        string    `json:"image"`
-	Tag          string    `json:"tag"`
-	Stack        string    `json:"stack"`
-	Services     []string  `json:"services,omitempty"`
-	Environment  string    `json:"environment"`
-	DeploymentID int64     `json:"deployment_id"`
+	ID           string           `json:"id"`
+	CreatedAt    time.Time        `json:"created_at"`
+	DeliveryID   string           `json:"delivery_id"`
+	Repo         string           `json:"repo"`
+	Ref          string           `json:"ref"`
+	SHA          string           `json:"sha"`
+	Stack        string           `json:"stack"`
+	Services     []ServiceSpecDTO `json:"services"`
+	Environment  string           `json:"environment"`
+	DeploymentID int64            `json:"deployment_id"`
 }
 
 // DeployResultRequest is what an agent POSTs to /deploy/{id}/result.
@@ -28,19 +26,17 @@ type DeployResultRequest struct {
 
 // DeploymentResponse is the wire shape for the deployments dashboard.
 type DeploymentResponse struct {
-	ID          string    `json:"id"`
-	CreatedAt   time.Time `json:"created_at"`
-	DeliveryID  string    `json:"delivery_id"`
-	Repo        string    `json:"repo"`
-	Ref         string    `json:"ref"`
-	SHA         string    `json:"sha"`
-	Image       string    `json:"image"`
-	Tag         string    `json:"tag"`
-	Stack       string    `json:"stack"`
-	Services    []string  `json:"services,omitempty"`
-	Environment string    `json:"environment"`
-	Status      string    `json:"status"`
-	Attempts    int       `json:"attempts"`
+	ID          string           `json:"id"`
+	CreatedAt   time.Time        `json:"created_at"`
+	DeliveryID  string           `json:"delivery_id"`
+	Repo        string           `json:"repo"`
+	Ref         string           `json:"ref"`
+	SHA         string           `json:"sha"`
+	Stack       string           `json:"stack"`
+	Services    []ServiceSpecDTO `json:"services"`
+	Environment string           `json:"environment"`
+	Status      string           `json:"status"`
+	Attempts    int              `json:"attempts"`
 }
 
 type DeploymentListResponse struct {

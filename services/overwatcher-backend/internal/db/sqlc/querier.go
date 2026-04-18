@@ -19,7 +19,9 @@ type Querier interface {
 	CreateDeployIntent(ctx context.Context, arg CreateDeployIntentParams) (DeployIntent, error)
 	CreateDeployMapping(ctx context.Context, arg CreateDeployMappingParams) (DeployMapping, error)
 	CreateEventLog(ctx context.Context, arg CreateEventLogParams) (EventLog, error)
+	CreateMappingService(ctx context.Context, arg CreateMappingServiceParams) error
 	DeleteDeployMapping(ctx context.Context, id pgtype.UUID) (DeployMapping, error)
+	DeleteMappingServicesByMapping(ctx context.Context, mappingID pgtype.UUID) error
 	DeleteOldEventLogs(ctx context.Context, offset int32) (int64, error)
 	FailTimedOutIntents(ctx context.Context, arg FailTimedOutIntentsParams) ([]DeployIntent, error)
 	GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error)

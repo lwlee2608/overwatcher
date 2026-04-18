@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 	"time"
+
+	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 )
 
 // Status tracks a DeployIntent through its lifecycle.
@@ -27,10 +29,8 @@ type DeployIntent struct {
 	Repo           string
 	Ref            string
 	SHA            string
-	Image          string
-	Tag            string
 	Stack          string
-	Services       []string
+	Services       []mapping.ServiceSpec
 	Environment    string
 	DeploymentID   int64
 	InstallationID int64

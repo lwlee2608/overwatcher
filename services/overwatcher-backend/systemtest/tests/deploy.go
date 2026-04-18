@@ -12,12 +12,17 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
+	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func authReq(req *http.Request, secret string) {
 	req.Header.Set("Authorization", "Bearer "+secret)
+}
+
+func webSvc(tag string) []mapping.ServiceSpec {
+	return []mapping.ServiceSpec{{Name: "web", Image: "ghcr.io/owner/repo", Tag: tag}}
 }
 
 func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToken string) {
@@ -28,10 +33,8 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "abc123",
-			Image:          "ghcr.io/owner/repo",
-			Tag:            "abc123",
 			Stack:          "stack-enqueue",
-			Services:       []string{"web"},
+			Services:       webSvc("abc123"),
 			Environment:    "production",
 			DeploymentID:   100,
 			InstallationID: 1,
@@ -52,10 +55,11 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 		assert.Equal(t, "owner/repo", resp.Repo)
 		assert.Equal(t, "refs/heads/main", resp.Ref)
 		assert.Equal(t, "abc123", resp.SHA)
-		assert.Equal(t, "ghcr.io/owner/repo", resp.Image)
-		assert.Equal(t, "abc123", resp.Tag)
 		assert.Equal(t, "stack-enqueue", resp.Stack)
-		assert.Equal(t, []string{"web"}, resp.Services)
+		require.Len(t, resp.Services, 1)
+		assert.Equal(t, "web", resp.Services[0].Name)
+		assert.Equal(t, "ghcr.io/owner/repo", resp.Services[0].Image)
+		assert.Equal(t, "abc123", resp.Services[0].Tag)
 		assert.Equal(t, "production", resp.Environment)
 		assert.Equal(t, int64(100), resp.DeploymentID)
 
@@ -70,10 +74,8 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "def456",
-			Image:          "ghcr.io/owner/repo",
-			Tag:            "def456",
 			Stack:          "stack-success",
-			Services:       []string{},
+			Services:       webSvc("def456"),
 			Environment:    "staging",
 			DeploymentID:   101,
 			InstallationID: 1,
@@ -108,10 +110,8 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "ghi789",
-			Image:          "ghcr.io/owner/repo",
-			Tag:            "ghi789",
 			Stack:          "stack-failure",
-			Services:       []string{},
+			Services:       webSvc("ghi789"),
 			Environment:    "staging",
 			DeploymentID:   102,
 			InstallationID: 1,
@@ -155,10 +155,8 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "aaa111",
-			Image:          "ghcr.io/owner/repo",
-			Tag:            "aaa111",
 			Stack:          "stack-guard",
-			Services:       []string{},
+			Services:       webSvc("aaa111"),
 			Environment:    "production",
 			DeploymentID:   200,
 			InstallationID: 1,
@@ -169,10 +167,8 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "bbb222",
-			Image:          "ghcr.io/owner/repo",
-			Tag:            "bbb222",
 			Stack:          "stack-guard",
-			Services:       []string{},
+			Services:       webSvc("bbb222"),
 			Environment:    "production",
 			DeploymentID:   201,
 			InstallationID: 1,
@@ -209,10 +205,8 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "ccc333",
-			Image:          "ghcr.io/owner/repo",
-			Tag:            "ccc333",
 			Stack:          "stack-dup",
-			Services:       []string{},
+			Services:       webSvc("ccc333"),
 			Environment:    "production",
 			DeploymentID:   300,
 			InstallationID: 1,
@@ -224,10 +218,8 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "ccc333",
-			Image:          "ghcr.io/owner/repo",
-			Tag:            "ccc333",
 			Stack:          "stack-dup",
-			Services:       []string{},
+			Services:       webSvc("ccc333"),
 			Environment:    "production",
 			DeploymentID:   300,
 			InstallationID: 1,
@@ -256,10 +248,8 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "ddd444",
-			Image:          "ghcr.io/owner/repo",
-			Tag:            "ddd444",
 			Stack:          "stack-sweep-rq",
-			Services:       []string{},
+			Services:       webSvc("ddd444"),
 			Environment:    "production",
 			DeploymentID:   400,
 			InstallationID: 1,
@@ -292,10 +282,8 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "eee555",
-			Image:          "ghcr.io/owner/repo",
-			Tag:            "eee555",
 			Stack:          "stack-sweep-fail",
-			Services:       []string{},
+			Services:       webSvc("eee555"),
 			Environment:    "production",
 			DeploymentID:   500,
 			InstallationID: 1,

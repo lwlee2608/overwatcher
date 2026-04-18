@@ -4,12 +4,12 @@
 -- "already enqueued, do nothing".
 INSERT INTO deploy_intents (
     delivery_id, stack_index, repo, git_ref, sha,
-    image, tag, stack, services, environment,
+    stack, services_spec, environment,
     deployment_id, installation_id
 ) VALUES (
     $1, $2, $3, $4, $5,
-    $6, $7, $8, $9, $10,
-    $11, $12
+    $6, $7, $8,
+    $9, $10
 )
 ON CONFLICT (delivery_id, stack_index) DO NOTHING
 RETURNING *;
