@@ -57,14 +57,14 @@ export function DeploymentDashboard() {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto text-center py-12 text-gray-400 dark:text-gray-500">
+      <div className="max-w-7xl mx-auto text-center py-12 text-gray-400 dark:text-gray-500">
         Loading...
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-7xl mx-auto">
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
           {error}
@@ -124,16 +124,22 @@ export function DeploymentDashboard() {
                       <span className="text-gray-400 dark:text-gray-500">—</span>
                     ) : (
                       <div className="flex flex-col gap-0.5">
-                        {d.services.map((s, i) => (
-                          <div key={i}>
-                            {s.name && (
-                              <span className="mr-1 text-gray-500 dark:text-gray-400">
-                                {s.name}:
-                              </span>
-                            )}
-                            {s.image}:{s.tag}
-                          </div>
-                        ))}
+                        {d.services.map((s, i) => {
+                          const fullImage = `${s.image}:${s.tag}`;
+                          const lastSlash = s.image.lastIndexOf("/");
+                          const shortImage =
+                            lastSlash >= 0 ? s.image.slice(lastSlash + 1) : s.image;
+                          return (
+                            <div key={i} title={fullImage}>
+                              {s.name && (
+                                <span className="mr-1 text-gray-500 dark:text-gray-400">
+                                  {s.name}:
+                                </span>
+                              )}
+                              {shortImage}:{s.tag}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </td>
@@ -143,7 +149,7 @@ export function DeploymentDashboard() {
                   <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
                     {timeAgo(d.created_at)}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
                     <button
                       onClick={() => handleRedeploy(d.id)}
                       disabled={redeployingId === d.id}
