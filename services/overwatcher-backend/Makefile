@@ -4,7 +4,7 @@ DOCKER = $(shell which docker 2>/dev/null)
 REGISTRY        ?= lwlee2608/
 APP             := overwatcher
 AGENT           := agent
-VERSION         ?= v0.1.0
+VERSION         ?= v0.2.0
 LDFLAGS         := -ldflags "-X main.AppVersion=$(VERSION)"
 
 .PHONY: all build build-agent clean run run-agent test dep generate
