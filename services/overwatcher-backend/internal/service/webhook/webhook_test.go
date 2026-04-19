@@ -37,8 +37,8 @@ func TestRedeploy_MissingInstallationID(t *testing.T) {
 
 	svc := New(nil, nil, store, nil)
 	err := svc.Redeploy(context.Background(), "src-1")
-	if err == nil {
-		t.Fatal("expected error for missing installation id, got nil")
+	if !errors.Is(err, ErrNoInstallation) {
+		t.Fatalf("expected ErrNoInstallation, got %v", err)
 	}
 }
 
@@ -58,8 +58,8 @@ func TestRedeploy_MalformedRepo(t *testing.T) {
 
 	svc := New(nil, nil, store, nil)
 	err := svc.Redeploy(context.Background(), "src-2")
-	if err == nil {
-		t.Fatal("expected error for malformed repo, got nil")
+	if !errors.Is(err, ErrInvalidRepo) {
+		t.Fatalf("expected ErrInvalidRepo, got %v", err)
 	}
 }
 

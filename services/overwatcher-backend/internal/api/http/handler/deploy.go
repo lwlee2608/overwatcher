@@ -108,12 +108,15 @@ func (h *DeployHandler) Redeploy(c *gin.Context) {
 	}
 
 	if err := h.webhookService.Redeploy(c.Request.Context(), id); err != nil {
-		if errors.Is(err, intent.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "deployment not found"})
-			return
-		}
 		slog.Error("Manual redeploy failed", "source_id", id, "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		switch {
+		case errors.Is(err, intent.ErrNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "deployment not found"})
+		case errors.Is(err, webhook.ErrNoInstallation), errors.Is(err, webhook.ErrInvalidRepo):
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "source deployment is not redeployable"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "redeploy failed"})
+		}
 		return
 	}
 	c.Status(http.StatusAccepted)

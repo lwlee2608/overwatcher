@@ -3,6 +3,7 @@ package webhook
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -15,6 +16,12 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
 	"github.com/lwlee2608/overwatcher/internal/service/mapping"
+)
+
+// Errors returned by Service.Redeploy so callers can branch with errors.Is.
+var (
+	ErrNoInstallation = errors.New("source intent has no GitHub installation id")
+	ErrInvalidRepo    = errors.New("invalid repo format")
 )
 
 type Service struct {
@@ -236,20 +243,20 @@ func (s *Service) createGitHubDeployment(
 func (s *Service) Redeploy(ctx context.Context, sourceID string) error {
 	src, err := s.store.GetByID(ctx, sourceID)
 	if err != nil {
-		return err
+		return fmt.Errorf("load source intent: %w", err)
 	}
 	if src.InstallationID == 0 {
-		return fmt.Errorf("cannot redeploy: source intent has no GitHub installation id")
+		return fmt.Errorf("redeploy %s: %w", sourceID, ErrNoInstallation)
 	}
 
 	owner, repoName, ok := splitRepo(src.Repo)
 	if !ok {
-		return fmt.Errorf("cannot redeploy: invalid repo %q", src.Repo)
+		return fmt.Errorf("redeploy %s: %w: %q", sourceID, ErrInvalidRepo, src.Repo)
 	}
 
 	client, err := s.ghClient.GetInstallationClient(ctx, src.InstallationID)
 	if err != nil {
-		return fmt.Errorf("get installation client: %w", err)
+		return fmt.Errorf("redeploy %s: get installation client: %w", sourceID, err)
 	}
 
 	shortSHA := src.SHA
@@ -260,7 +267,7 @@ func (s *Service) Redeploy(ctx context.Context, sourceID string) error {
 
 	deploymentID, err := s.createGitHubDeployment(ctx, client, owner, repoName, src.SHA, src.Environment, description)
 	if err != nil {
-		return fmt.Errorf("create deployment: %w", err)
+		return fmt.Errorf("redeploy %s: create deployment: %w", sourceID, err)
 	}
 
 	deliveryID := "manual-" + uuid.NewString()
