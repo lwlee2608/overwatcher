@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Deployment } from "../types/deployment";
-import { fetchDeployments } from "../api/deployments";
+import { fetchDeployments, redeployDeployment } from "../api/deployments";
 import { timeAgo } from "../utils/time";
 
 const statusColors: Record<string, string> = {
@@ -23,33 +23,37 @@ export function DeploymentDashboard() {
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [redeployingId, setRedeployingId] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await fetchDeployments(100);
+      setDeployments(data.deployments ?? []);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let active = true;
+    refresh();
+    const id = setInterval(refresh, 10_000);
+    return () => clearInterval(id);
+  }, [refresh]);
 
-    async function poll() {
-      try {
-        const data = await fetchDeployments(100);
-        if (active) {
-          setDeployments(data.deployments ?? []);
-          setError(null);
-          setLoading(false);
-        }
-      } catch (err) {
-        if (active) {
-          setError(err instanceof Error ? err.message : "Failed to fetch");
-          setLoading(false);
-        }
-      }
+  const handleRedeploy = async (id: string) => {
+    setRedeployingId(id);
+    try {
+      await redeployDeployment(id);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to redeploy");
+    } finally {
+      setRedeployingId(null);
     }
-
-    poll();
-    const id = setInterval(poll, 10_000);
-    return () => {
-      active = false;
-      clearInterval(id);
-    };
-  }, []);
+  };
 
   if (loading) {
     return (
@@ -93,6 +97,7 @@ export function DeploymentDashboard() {
                 <th className="px-4 py-3">Services</th>
                 <th className="px-4 py-3">Env</th>
                 <th className="px-4 py-3">Time</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
@@ -137,6 +142,15 @@ export function DeploymentDashboard() {
                   </td>
                   <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
                     {timeAgo(d.created_at)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      onClick={() => handleRedeploy(d.id)}
+                      disabled={redeployingId === d.id}
+                      className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {redeployingId === d.id ? "Redeploying…" : "Redeploy"}
+                    </button>
                   </td>
                 </tr>
               ))}

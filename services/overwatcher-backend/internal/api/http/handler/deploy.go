@@ -11,6 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
+	"github.com/lwlee2608/overwatcher/internal/service/intent"
+	"github.com/lwlee2608/overwatcher/internal/service/webhook"
 )
 
 // longPollTimeout caps how long Next holds an idle request. Sits comfortably
@@ -21,10 +23,11 @@ var longPollTimeout = 25 * time.Second
 
 type DeployHandler struct {
 	dispatchService *dispatch.Service
+	webhookService  *webhook.Service
 }
 
-func NewDeployHandler(dispatchService *dispatch.Service) *DeployHandler {
-	return &DeployHandler{dispatchService: dispatchService}
+func NewDeployHandler(dispatchService *dispatch.Service, webhookService *webhook.Service) *DeployHandler {
+	return &DeployHandler{dispatchService: dispatchService, webhookService: webhookService}
 }
 
 // Next is a long-poll. It blocks inside DispatchService.Next for up to
@@ -93,6 +96,27 @@ func (h *DeployHandler) ListDeployments(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// Redeploy clones an existing deploy intent into a new one so the agent
+// re-runs the same stack/SHA/services without requiring a fresh git push.
+func (h *DeployHandler) Redeploy(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing id"})
+		return
+	}
+
+	if err := h.webhookService.Redeploy(c.Request.Context(), id); err != nil {
+		if errors.Is(err, intent.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "deployment not found"})
+			return
+		}
+		slog.Error("Manual redeploy failed", "source_id", id, "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusAccepted)
 }
 
 // Result records an agent's deploy outcome. Returns 404 for unknown intent

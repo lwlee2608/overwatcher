@@ -206,6 +206,17 @@ func (s *DBStore) InFlight() []*DeployIntent {
 	return out
 }
 
+func (s *DBStore) GetByID(ctx context.Context, id string) (*DeployIntent, error) {
+	row, err := s.q.GetDeployIntentByID(ctx, parseUUID(id))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return fromRow(row), nil
+}
+
 func (s *DBStore) ListRecent(ctx context.Context, limit int32) ([]*DeployIntent, error) {
 	rows, err := s.q.ListRecentDeployIntents(ctx, limit)
 	if err != nil {

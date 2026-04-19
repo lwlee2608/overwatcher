@@ -222,6 +222,20 @@ func (s *MemoryStore) TestSetInFlight(id string, fn func(*DeployIntent)) {
 	}
 }
 
+func (s *MemoryStore) GetByID(_ context.Context, id string) (*DeployIntent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, i := range s.queue {
+		if i.ID == id {
+			return i, nil
+		}
+	}
+	if i, ok := s.inFlight[id]; ok {
+		return i, nil
+	}
+	return nil, ErrNotFound
+}
+
 func (s *MemoryStore) ListRecent(_ context.Context, limit int32) ([]*DeployIntent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -19,6 +19,9 @@ SELECT * FROM deploy_intents
 WHERE status = $1
 ORDER BY created_at ASC;
 
+-- name: GetDeployIntentByID :one
+SELECT * FROM deploy_intents WHERE id = $1;
+
 -- name: TakeNextDeployIntent :one
 -- Atomically claim the oldest dispatchable intent. The CTE skips stacks that
 -- already have a dispatched intent (concurrency guard) and uses FOR UPDATE

@@ -31,7 +31,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 
 	healthHandler := handler.NewHealthHandler()
 	webhookHandler := handler.NewWebhookHandler(srvs.WebhookService)
-	deployHandler := handler.NewDeployHandler(srvs.DispatchService)
+	deployHandler := handler.NewDeployHandler(srvs.DispatchService, srvs.WebhookService)
 	agentHandler := handler.NewAgentHandler(srvs.AgentService)
 	mappingHandler := handler.NewMappingHandler(srvs.MappingService)
 	eventLogHandler := handler.NewEventLogHandler(srvs.EventLogService)
@@ -64,5 +64,6 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 
 		apis.GET("/events", eventLogHandler.List)
 		apis.GET("/deployments", deployHandler.ListDeployments)
+		apis.POST("/deployments/:id/redeploy", deployHandler.Redeploy)
 	}
 }

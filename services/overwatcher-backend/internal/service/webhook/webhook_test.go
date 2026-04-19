@@ -1,0 +1,87 @@
+package webhook
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/lwlee2608/overwatcher/internal/service/intent"
+	"github.com/lwlee2608/overwatcher/internal/service/mapping"
+)
+
+func TestRedeploy_SourceNotFound(t *testing.T) {
+	store := intent.NewMemoryStore()
+	svc := New(nil, nil, store, nil)
+
+	err := svc.Redeploy(context.Background(), "00000000-0000-0000-0000-000000000000")
+	if !errors.Is(err, intent.ErrNotFound) {
+		t.Fatalf("expected intent.ErrNotFound, got %v", err)
+	}
+}
+
+func TestRedeploy_MissingInstallationID(t *testing.T) {
+	store := intent.NewMemoryStore()
+	src := &intent.DeployIntent{
+		ID:             "src-1",
+		DeliveryID:     "orig-delivery",
+		Repo:           "owner/repo",
+		Ref:            "refs/heads/main",
+		SHA:            "abcdef1234567890",
+		Stack:          "prod-agent",
+		Services:       []mapping.ServiceSpec{{Name: "web", Image: "x", Tag: "v1"}},
+		Environment:    "production",
+		InstallationID: 0,
+		Status:         intent.StatusCreated,
+	}
+	store.Enqueue(src)
+
+	svc := New(nil, nil, store, nil)
+	err := svc.Redeploy(context.Background(), "src-1")
+	if err == nil {
+		t.Fatal("expected error for missing installation id, got nil")
+	}
+}
+
+func TestRedeploy_MalformedRepo(t *testing.T) {
+	store := intent.NewMemoryStore()
+	src := &intent.DeployIntent{
+		ID:             "src-2",
+		DeliveryID:     "orig-delivery",
+		Repo:           "no-slash-here",
+		SHA:            "abcdef",
+		Stack:          "prod-agent",
+		Environment:    "production",
+		InstallationID: 42,
+		Status:         intent.StatusCreated,
+	}
+	store.Enqueue(src)
+
+	svc := New(nil, nil, store, nil)
+	err := svc.Redeploy(context.Background(), "src-2")
+	if err == nil {
+		t.Fatal("expected error for malformed repo, got nil")
+	}
+}
+
+func TestSplitRepo(t *testing.T) {
+	cases := []struct {
+		in      string
+		owner   string
+		name    string
+		wantOK  bool
+	}{
+		{"owner/repo", "owner", "repo", true},
+		{"a/b/c", "a", "b/c", true},
+		{"no-slash", "", "", false},
+		{"/only-trailing", "", "", false},
+		{"only-leading/", "", "", false},
+		{"", "", "", false},
+	}
+	for _, tc := range cases {
+		owner, name, ok := splitRepo(tc.in)
+		if ok != tc.wantOK || owner != tc.owner || name != tc.name {
+			t.Errorf("splitRepo(%q) = (%q, %q, %v), want (%q, %q, %v)",
+				tc.in, owner, name, ok, tc.owner, tc.name, tc.wantOK)
+		}
+	}
+}

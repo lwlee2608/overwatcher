@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
+	"github.com/lwlee2608/overwatcher/internal/service/webhook"
 )
 
 func newDeployTestRouter(t *testing.T) (*gin.Engine, *intent.MemoryStore) {
@@ -16,7 +17,8 @@ func newDeployTestRouter(t *testing.T) (*gin.Engine, *intent.MemoryStore) {
 	gin.SetMode(gin.TestMode)
 	store := intent.NewMemoryStore()
 	svc := dispatch.NewForTest(store)
-	h := NewDeployHandler(svc)
+	webhookSvc := webhook.New(nil, nil, store, nil)
+	h := NewDeployHandler(svc, webhookSvc)
 
 	r := gin.New()
 	r.GET("/api/v1/deploy/next", h.Next)

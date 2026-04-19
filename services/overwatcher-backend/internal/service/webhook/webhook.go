@@ -9,6 +9,7 @@ import (
 	"time"
 
 	gh "github.com/google/go-github/v84/github"
+	"github.com/google/uuid"
 
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
@@ -158,19 +159,13 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 			description = fmt.Sprintf("%s: %s", description, commitMsg)
 		}
 
-		deployment, _, err := client.Repositories.CreateDeployment(ctx, owner, repoName, &gh.DeploymentRequest{
-			Ref:              &sha,
-			Environment:      gh.Ptr(environment),
-			Description:      &description,
-			AutoMerge:        gh.Ptr(false),
-			RequiredContexts: &[]string{},
-		})
+		deploymentID, err := s.createGitHubDeployment(ctx, client, owner, repoName, sha, environment, description)
 		if err != nil {
 			slog.Error("Failed to create deployment", "delivery_id", deliveryID, "repo", repo, "agent", entry.AgentName, "sha", sha, "error", err)
 			continue
 		}
 
-		slog.Info("Deployment created", "delivery_id", deliveryID, "repo", repo, "agent", entry.AgentName, "deployment_id", deployment.GetID(), "sha", sha)
+		slog.Info("Deployment created", "delivery_id", deliveryID, "repo", repo, "agent", entry.AgentName, "deployment_id", deploymentID, "sha", sha)
 
 		di := &intent.DeployIntent{
 			ID:             fmt.Sprintf("%s-%d", deliveryID, i),
@@ -183,7 +178,7 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 			Stack:          entry.AgentName,
 			Services:       entry.Services,
 			Environment:    environment,
-			DeploymentID:   deployment.GetID(),
+			DeploymentID:   deploymentID,
 			InstallationID: installationID,
 			Status:         intent.StatusCreated,
 		}
@@ -197,14 +192,111 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 			"services", len(entry.Services),
 			"environment", environment,
 		)
-
-		_, _, err = client.Repositories.CreateDeploymentStatus(ctx, owner, repoName, deployment.GetID(), &gh.DeploymentStatusRequest{
-			State:       gh.Ptr("queued"),
-			Description: gh.Ptr(description),
-			Environment: gh.Ptr(environment),
-		})
-		if err != nil {
-			slog.Warn("Failed to mark deployment queued; intent still enqueued", "delivery_id", deliveryID, "repo", repo, "agent", entry.AgentName, "deployment_id", deployment.GetID(), "error", err)
-		}
 	}
+}
+
+// createGitHubDeployment creates a GitHub Deployment and marks it queued.
+// The queued status is best-effort — failure is logged but the deployment ID
+// is still returned so the caller can enqueue an intent.
+func (s *Service) createGitHubDeployment(
+	ctx context.Context,
+	client *gh.Client,
+	owner, repoName, sha, environment, description string,
+) (int64, error) {
+	deployment, _, err := client.Repositories.CreateDeployment(ctx, owner, repoName, &gh.DeploymentRequest{
+		Ref:              &sha,
+		Environment:      gh.Ptr(environment),
+		Description:      &description,
+		AutoMerge:        gh.Ptr(false),
+		RequiredContexts: &[]string{},
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	_, _, err = client.Repositories.CreateDeploymentStatus(ctx, owner, repoName, deployment.GetID(), &gh.DeploymentStatusRequest{
+		State:       gh.Ptr("queued"),
+		Description: gh.Ptr(description),
+		Environment: gh.Ptr(environment),
+	})
+	if err != nil {
+		slog.Warn("Failed to mark deployment queued; proceeding anyway",
+			"repo", owner+"/"+repoName,
+			"deployment_id", deployment.GetID(),
+			"error", err,
+		)
+	}
+	return deployment.GetID(), nil
+}
+
+// Redeploy clones an existing DeployIntent into a new one targeting the same
+// stack/SHA/services. A fresh GitHub Deployment is created so the manual
+// trigger has its own status timeline. The new intent flows through the same
+// agent long-poll + concurrency guard as webhook-produced ones.
+func (s *Service) Redeploy(ctx context.Context, sourceID string) error {
+	src, err := s.store.GetByID(ctx, sourceID)
+	if err != nil {
+		return err
+	}
+	if src.InstallationID == 0 {
+		return fmt.Errorf("cannot redeploy: source intent has no GitHub installation id")
+	}
+
+	owner, repoName, ok := splitRepo(src.Repo)
+	if !ok {
+		return fmt.Errorf("cannot redeploy: invalid repo %q", src.Repo)
+	}
+
+	client, err := s.ghClient.GetInstallationClient(ctx, src.InstallationID)
+	if err != nil {
+		return fmt.Errorf("get installation client: %w", err)
+	}
+
+	shortSHA := src.SHA
+	if len(shortSHA) > 7 {
+		shortSHA = shortSHA[:7]
+	}
+	description := fmt.Sprintf("Manual redeploy of %s @ %s", src.Stack, shortSHA)
+
+	deploymentID, err := s.createGitHubDeployment(ctx, client, owner, repoName, src.SHA, src.Environment, description)
+	if err != nil {
+		return fmt.Errorf("create deployment: %w", err)
+	}
+
+	deliveryID := "manual-" + uuid.NewString()
+	di := &intent.DeployIntent{
+		CreatedAt:      time.Now(),
+		DeliveryID:     deliveryID,
+		StackIndex:     0,
+		Repo:           src.Repo,
+		Ref:            src.Ref,
+		SHA:            src.SHA,
+		Stack:          src.Stack,
+		Services:       src.Services,
+		Environment:    src.Environment,
+		DeploymentID:   deploymentID,
+		InstallationID: src.InstallationID,
+		Status:         intent.StatusCreated,
+	}
+	s.store.Enqueue(di)
+
+	slog.Info("Manual redeploy enqueued",
+		"source_id", sourceID,
+		"delivery_id", deliveryID,
+		"repo", src.Repo,
+		"stack", src.Stack,
+		"sha", src.SHA,
+		"deployment_id", deploymentID,
+	)
+	return nil
+}
+
+// splitRepo parses "owner/name" into its parts. Returns ok=false if the
+// input is malformed (no slash).
+func splitRepo(full string) (owner, name string, ok bool) {
+	i := strings.IndexByte(full, '/')
+	if i <= 0 || i == len(full)-1 {
+		return "", "", false
+	}
+	return full[:i], full[i+1:], true
 }
