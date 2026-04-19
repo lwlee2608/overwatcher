@@ -176,6 +176,34 @@ func (q *Queries) FailTimedOutIntents(ctx context.Context, arg FailTimedOutInten
 	return items, nil
 }
 
+const getDeployIntentByID = `-- name: GetDeployIntentByID :one
+SELECT id, delivery_id, stack_index, repo, git_ref, sha, stack, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at, services_spec FROM deploy_intents WHERE id = $1
+`
+
+func (q *Queries) GetDeployIntentByID(ctx context.Context, id pgtype.UUID) (DeployIntent, error) {
+	row := q.db.QueryRow(ctx, getDeployIntentByID, id)
+	var i DeployIntent
+	err := row.Scan(
+		&i.ID,
+		&i.DeliveryID,
+		&i.StackIndex,
+		&i.Repo,
+		&i.GitRef,
+		&i.Sha,
+		&i.Stack,
+		&i.Environment,
+		&i.DeploymentID,
+		&i.InstallationID,
+		&i.Status,
+		&i.Attempts,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DispatchedAt,
+		&i.ServicesSpec,
+	)
+	return i, err
+}
+
 const listDeployIntentsByStatus = `-- name: ListDeployIntentsByStatus :many
 SELECT id, delivery_id, stack_index, repo, git_ref, sha, stack, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at, services_spec FROM deploy_intents
 WHERE status = $1

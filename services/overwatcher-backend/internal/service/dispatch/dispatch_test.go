@@ -167,14 +167,3 @@ func TestService_Report_UnknownID(t *testing.T) {
 		t.Error("Report returned true for unknown id")
 	}
 }
-
-func TestSplitRepo(t *testing.T) {
-	owner, repo := splitRepo("owner/repo")
-	if owner != "owner" || repo != "repo" {
-		t.Errorf("split = %q/%q", owner, repo)
-	}
-	owner, repo = splitRepo("noslash")
-	if owner != "" || repo != "noslash" {
-		t.Errorf("split = %q/%q", owner, repo)
-	}
-}
