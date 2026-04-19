@@ -15,6 +15,10 @@ Move routing config to PostgreSQL so it can be managed via UI. Agents auto-regis
 
 The previous design had a separate `stacks` table allowing a single agent to manage multiple compose files. This added unnecessary complexity — the agent already lives inside the compose stack it manages. Enforcing a 1:1 relationship means the agent *is* the stack, eliminating the `stacks` table entirely and reducing the schema to two new tables: `agents` and `deploy_mappings`.
 
+### Per-service image/tag
+
+Each service in a mapping carries its own image and tag, stored in a `deploy_mapping_services` child table. A single mapping can deploy N services atomically (e.g. frontend + backend + worker in one repo). Intents denormalize the services list as a `services_spec` JSONB snapshot so historical deployments remain readable even after the mapping changes.
+
 ## ER Diagram
 
 ```
@@ -38,13 +42,27 @@ The previous design had a separate `stacks` table allowing a single agent to man
  │ id            UUID PK            │
  │ repo          VARCHAR(512)       │
  │ agent_id      UUID FK → agents   │
- │ services      TEXT[]             │
  │ environment   VARCHAR(255)       │
  │ enabled       BOOLEAN            │
  │ created_at    TIMESTAMPTZ        │
  │ updated_at    TIMESTAMPTZ        │
  │                                  │
  │ UQ(repo, agent_id)               │
+ └──────────────┬───────────────────┘
+                │
+                │ 1:N
+                │
+ ┌──────────────┴───────────────────┐
+ │   deploy_mapping_services        │
+ ├──────────────────────────────────┤
+ │ id            UUID PK            │
+ │ mapping_id    UUID FK → mappings │
+ │ name          VARCHAR(255)       │
+ │ image         VARCHAR(512)       │
+ │ tag           VARCHAR(255)       │
+ │ position      INTEGER            │
+ │                                  │
+ │ UQ(mapping_id, name)             │
  └──────────────────────────────────┘
 
 
@@ -57,10 +75,8 @@ The previous design had a separate `stacks` table allowing a single agent to man
  │ repo            VARCHAR(512)     │
  │ git_ref         VARCHAR(255)     │
  │ sha             VARCHAR(64)      │
- │ image           VARCHAR(512)     │
- │ tag             VARCHAR(255)     │
  │ stack           VARCHAR(255)     │
- │ services        TEXT[]           │
+ │ services_spec   JSONB            │
  │ environment     VARCHAR(255)     │
  │ deployment_id   BIGINT           │
  │ installation_id BIGINT           │
@@ -74,7 +90,7 @@ The previous design had a separate `stacks` table allowing a single agent to man
  └──────────────────────────────────┘
 ```
 
-`deploy_intents` is an event log. It stores denormalized copies of stack/services/repo at the time of the event, so it does not FK into the config tables. Deleting a mapping does not erase deployment history.
+`deploy_intents` is an event log. It stores denormalized copies of stack/services/repo at the time of the event, so it does not FK into the config tables. Deleting a mapping does not erase deployment history. `services_spec` is a JSONB array of `{name, image, tag}` objects captured when the intent is enqueued.
 
 ## Table Details
 
@@ -101,13 +117,27 @@ Routing rules configured via UI. Replaces the `deployments.mappings` list in `ap
 | id          | UUID PK      | gen_random_uuid()                      |
 | repo        | VARCHAR(512) | "owner/repo-name"                      |
 | agent_id    | UUID FK      | references agents(id)                  |
-| services    | TEXT[]       | e.g. {"medtutor-server"}; empty = all  |
 | environment | VARCHAR(255) | default "production"                   |
 | enabled     | BOOLEAN      | default true; allows disabling without deleting |
 | created_at  | TIMESTAMPTZ  | default NOW()                          |
 | updated_at  | TIMESTAMPTZ  | default NOW()                          |
 
 Unique constraint on `(repo, agent_id)` — one mapping per repo per agent.
+
+### deploy_mapping_services
+
+Per-service image/tag attached to a mapping. The runner iterates this list and runs `docker compose pull <name>` / `up -d <name>` once per row with `IMAGE` and `IMAGE_TAG` env set from the row. An empty `name` means "apply to the whole compose stack" (preserved from the legacy empty-services semantics).
+
+| Column     | Type         | Notes                                          |
+|------------|--------------|------------------------------------------------|
+| id         | UUID PK      | gen_random_uuid()                              |
+| mapping_id | UUID FK      | references deploy_mappings(id) ON DELETE CASCADE |
+| name       | VARCHAR(255) | compose service name; "" = whole stack         |
+| image      | VARCHAR(512) | e.g. "ghcr.io/owner/web"                       |
+| tag        | VARCHAR(255) | default "latest"                               |
+| position   | INTEGER      | ordering within the mapping                    |
+
+Unique constraint on `(mapping_id, name)`.
 
 ## Setup Flow (Before vs After)
 

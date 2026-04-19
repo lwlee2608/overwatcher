@@ -151,8 +151,6 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 	}
 
 	for i, entry := range matches {
-		image := entry.Image
-		tag := entry.Tag
 		environment := entry.Environment
 
 		description := fmt.Sprintf("Deployment queued for agent %s", entry.AgentName)
@@ -182,8 +180,6 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 			Repo:           repo,
 			Ref:            ref,
 			SHA:            sha,
-			Image:          image,
-			Tag:            tag,
 			Stack:          entry.AgentName,
 			Services:       entry.Services,
 			Environment:    environment,
@@ -198,8 +194,7 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 			"intent_id", di.ID,
 			"repo", repo,
 			"agent", entry.AgentName,
-			"image", image,
-			"tag", tag,
+			"services", len(entry.Services),
 			"environment", environment,
 		)
 

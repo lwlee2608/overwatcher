@@ -39,12 +39,13 @@ func TestMappings(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 
 	t.Run("Create", func(t *testing.T) {
 		body, _ := json.Marshal(dto.CreateDeployMappingRequest{
-			Repo:        "lwlee2608/overwatcher",
-			AgentID:     agentID,
-			Services:    []string{"web", "api"},
+			Repo:    "lwlee2608/overwatcher",
+			AgentID: agentID,
+			Services: []dto.ServiceSpecDTO{
+				{Name: "web", Image: "ghcr.io/lwlee2608/web", Tag: "latest"},
+				{Name: "api", Image: "ghcr.io/lwlee2608/api", Tag: "v1"},
+			},
 			Environment: "staging",
-			Image:       "ghcr.io/lwlee2608/overwatcher",
-			Tag:         "latest",
 		})
 
 		rr := httptest.NewRecorder()
@@ -60,10 +61,14 @@ func TestMappings(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 		assert.NotEmpty(t, resp.ID)
 		assert.Equal(t, "lwlee2608/overwatcher", resp.Repo)
 		assert.Equal(t, agentID, resp.AgentID)
-		assert.Equal(t, []string{"web", "api"}, resp.Services)
+		require.Len(t, resp.Services, 2)
+		assert.Equal(t, "web", resp.Services[0].Name)
+		assert.Equal(t, "ghcr.io/lwlee2608/web", resp.Services[0].Image)
+		assert.Equal(t, "latest", resp.Services[0].Tag)
+		assert.Equal(t, "api", resp.Services[1].Name)
+		assert.Equal(t, "ghcr.io/lwlee2608/api", resp.Services[1].Image)
+		assert.Equal(t, "v1", resp.Services[1].Tag)
 		assert.Equal(t, "staging", resp.Environment)
-		assert.Equal(t, "ghcr.io/lwlee2608/overwatcher", resp.Image)
-		assert.Equal(t, "latest", resp.Tag)
 		assert.True(t, resp.Enabled)
 
 		createdID = resp.ID
@@ -86,12 +91,12 @@ func TestMappings(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 	t.Run("Update", func(t *testing.T) {
 		enabled := false
 		body, _ := json.Marshal(dto.UpdateDeployMappingRequest{
-			Repo:        "lwlee2608/overwatcher",
-			AgentID:     agentID,
-			Services:    []string{"web"},
+			Repo:    "lwlee2608/overwatcher",
+			AgentID: agentID,
+			Services: []dto.ServiceSpecDTO{
+				{Name: "web", Image: "ghcr.io/lwlee2608/web", Tag: "v2"},
+			},
 			Environment: "production",
-			Image:       "ghcr.io/lwlee2608/overwatcher",
-			Tag:         "v2",
 			Enabled:     &enabled,
 		})
 
@@ -105,10 +110,10 @@ func TestMappings(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 		var resp dto.DeployMappingResponse
 		err := json.NewDecoder(rr.Body).Decode(&resp)
 		require.NoError(t, err)
-		assert.Equal(t, []string{"web"}, resp.Services)
+		require.Len(t, resp.Services, 1)
+		assert.Equal(t, "web", resp.Services[0].Name)
+		assert.Equal(t, "v2", resp.Services[0].Tag)
 		assert.Equal(t, "production", resp.Environment)
-		assert.Equal(t, "ghcr.io/lwlee2608/overwatcher", resp.Image)
-		assert.Equal(t, "v2", resp.Tag)
 		assert.False(t, resp.Enabled)
 	})
 
@@ -116,7 +121,9 @@ func TestMappings(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 		body, _ := json.Marshal(dto.CreateDeployMappingRequest{
 			Repo:    "foo/bar",
 			AgentID: "00000000-0000-0000-0000-000000000000",
-			Image:   "ghcr.io/foo/bar",
+			Services: []dto.ServiceSpecDTO{
+				{Name: "web", Image: "ghcr.io/foo/bar", Tag: "latest"},
+			},
 		})
 
 		rr := httptest.NewRecorder()
@@ -131,7 +138,9 @@ func TestMappings(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 		body, _ := json.Marshal(dto.UpdateDeployMappingRequest{
 			Repo:    "foo/bar",
 			AgentID: agentID,
-			Image:   "ghcr.io/foo/bar",
+			Services: []dto.ServiceSpecDTO{
+				{Name: "web", Image: "ghcr.io/foo/bar", Tag: "latest"},
+			},
 		})
 
 		rr := httptest.NewRecorder()

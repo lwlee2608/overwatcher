@@ -90,7 +90,7 @@ export function DeploymentDashboard() {
                 <th className="px-4 py-3">Repository</th>
                 <th className="px-4 py-3">SHA</th>
                 <th className="px-4 py-3">Agent</th>
-                <th className="px-4 py-3">Image</th>
+                <th className="px-4 py-3">Services</th>
                 <th className="px-4 py-3">Env</th>
                 <th className="px-4 py-3">Time</th>
               </tr>
@@ -115,7 +115,22 @@ export function DeploymentDashboard() {
                     {d.stack}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-gray-700 dark:text-gray-300">
-                    {d.image}:{d.tag}
+                    {d.services.length === 0 ? (
+                      <span className="text-gray-400 dark:text-gray-500">—</span>
+                    ) : (
+                      <div className="flex flex-col gap-0.5">
+                        {d.services.map((s, i) => (
+                          <div key={i}>
+                            {s.name && (
+                              <span className="mr-1 text-gray-500 dark:text-gray-400">
+                                {s.name}:
+                              </span>
+                            )}
+                            {s.image}:{s.tag}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
                     {d.environment}

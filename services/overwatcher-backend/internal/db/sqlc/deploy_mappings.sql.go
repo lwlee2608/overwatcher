@@ -12,49 +12,64 @@ import (
 )
 
 const createDeployMapping = `-- name: CreateDeployMapping :one
-INSERT INTO deploy_mappings (repo, agent_id, services, environment, enabled, image, tag)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, repo, agent_id, services, environment, enabled, created_at, updated_at, image, tag
+INSERT INTO deploy_mappings (repo, agent_id, environment, enabled)
+VALUES ($1, $2, $3, $4)
+RETURNING id, repo, agent_id, environment, enabled, created_at, updated_at
 `
 
 type CreateDeployMappingParams struct {
 	Repo        string      `json:"repo"`
 	AgentID     pgtype.UUID `json:"agent_id"`
-	Services    []string    `json:"services"`
 	Environment string      `json:"environment"`
 	Enabled     bool        `json:"enabled"`
-	Image       string      `json:"image"`
-	Tag         string      `json:"tag"`
 }
 
 func (q *Queries) CreateDeployMapping(ctx context.Context, arg CreateDeployMappingParams) (DeployMapping, error) {
 	row := q.db.QueryRow(ctx, createDeployMapping,
 		arg.Repo,
 		arg.AgentID,
-		arg.Services,
 		arg.Environment,
 		arg.Enabled,
-		arg.Image,
-		arg.Tag,
 	)
 	var i DeployMapping
 	err := row.Scan(
 		&i.ID,
 		&i.Repo,
 		&i.AgentID,
-		&i.Services,
 		&i.Environment,
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Image,
-		&i.Tag,
 	)
 	return i, err
 }
 
+const createMappingService = `-- name: CreateMappingService :exec
+INSERT INTO deploy_mapping_services (mapping_id, name, image, tag, position)
+VALUES ($1, $2, $3, $4, $5)
+`
+
+type CreateMappingServiceParams struct {
+	MappingID pgtype.UUID `json:"mapping_id"`
+	Name      string      `json:"name"`
+	Image     string      `json:"image"`
+	Tag       string      `json:"tag"`
+	Position  int32       `json:"position"`
+}
+
+func (q *Queries) CreateMappingService(ctx context.Context, arg CreateMappingServiceParams) error {
+	_, err := q.db.Exec(ctx, createMappingService,
+		arg.MappingID,
+		arg.Name,
+		arg.Image,
+		arg.Tag,
+		arg.Position,
+	)
+	return err
+}
+
 const deleteDeployMapping = `-- name: DeleteDeployMapping :one
-DELETE FROM deploy_mappings WHERE id = $1 RETURNING id, repo, agent_id, services, environment, enabled, created_at, updated_at, image, tag
+DELETE FROM deploy_mappings WHERE id = $1 RETURNING id, repo, agent_id, environment, enabled, created_at, updated_at
 `
 
 func (q *Queries) DeleteDeployMapping(ctx context.Context, id pgtype.UUID) (DeployMapping, error) {
@@ -64,20 +79,35 @@ func (q *Queries) DeleteDeployMapping(ctx context.Context, id pgtype.UUID) (Depl
 		&i.ID,
 		&i.Repo,
 		&i.AgentID,
-		&i.Services,
 		&i.Environment,
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Image,
-		&i.Tag,
 	)
 	return i, err
 }
 
+const deleteMappingServicesByMapping = `-- name: DeleteMappingServicesByMapping :exec
+DELETE FROM deploy_mapping_services WHERE mapping_id = $1
+`
+
+func (q *Queries) DeleteMappingServicesByMapping(ctx context.Context, mappingID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteMappingServicesByMapping, mappingID)
+	return err
+}
+
 const getDeployMapping = `-- name: GetDeployMapping :one
-SELECT dm.id, dm.repo, dm.agent_id, dm.services, dm.environment, dm.enabled, dm.created_at, dm.updated_at, dm.image, dm.tag,
-       a.name AS agent_name
+SELECT dm.id, dm.repo, dm.agent_id, dm.environment, dm.enabled, dm.created_at, dm.updated_at,
+       a.name AS agent_name,
+       COALESCE(
+           (SELECT jsonb_agg(
+                       jsonb_build_object('name', s.name, 'image', s.image, 'tag', s.tag)
+                       ORDER BY s.position
+                   )
+            FROM deploy_mapping_services s
+            WHERE s.mapping_id = dm.id),
+           '[]'::jsonb
+       ) AS services
 FROM deploy_mappings dm
 JOIN agents a ON a.id = dm.agent_id
 WHERE dm.id = $1
@@ -87,14 +117,12 @@ type GetDeployMappingRow struct {
 	ID          pgtype.UUID        `json:"id"`
 	Repo        string             `json:"repo"`
 	AgentID     pgtype.UUID        `json:"agent_id"`
-	Services    []string           `json:"services"`
 	Environment string             `json:"environment"`
 	Enabled     bool               `json:"enabled"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	Image       string             `json:"image"`
-	Tag         string             `json:"tag"`
 	AgentName   string             `json:"agent_name"`
+	Services    interface{}        `json:"services"`
 }
 
 func (q *Queries) GetDeployMapping(ctx context.Context, id pgtype.UUID) (GetDeployMappingRow, error) {
@@ -104,21 +132,28 @@ func (q *Queries) GetDeployMapping(ctx context.Context, id pgtype.UUID) (GetDepl
 		&i.ID,
 		&i.Repo,
 		&i.AgentID,
-		&i.Services,
 		&i.Environment,
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Image,
-		&i.Tag,
 		&i.AgentName,
+		&i.Services,
 	)
 	return i, err
 }
 
 const listDeployMappings = `-- name: ListDeployMappings :many
-SELECT dm.id, dm.repo, dm.agent_id, dm.services, dm.environment, dm.enabled, dm.created_at, dm.updated_at, dm.image, dm.tag,
-       a.name AS agent_name
+SELECT dm.id, dm.repo, dm.agent_id, dm.environment, dm.enabled, dm.created_at, dm.updated_at,
+       a.name AS agent_name,
+       COALESCE(
+           (SELECT jsonb_agg(
+                       jsonb_build_object('name', s.name, 'image', s.image, 'tag', s.tag)
+                       ORDER BY s.position
+                   )
+            FROM deploy_mapping_services s
+            WHERE s.mapping_id = dm.id),
+           '[]'::jsonb
+       ) AS services
 FROM deploy_mappings dm
 JOIN agents a ON a.id = dm.agent_id
 ORDER BY dm.repo ASC, dm.created_at ASC
@@ -128,14 +163,12 @@ type ListDeployMappingsRow struct {
 	ID          pgtype.UUID        `json:"id"`
 	Repo        string             `json:"repo"`
 	AgentID     pgtype.UUID        `json:"agent_id"`
-	Services    []string           `json:"services"`
 	Environment string             `json:"environment"`
 	Enabled     bool               `json:"enabled"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	Image       string             `json:"image"`
-	Tag         string             `json:"tag"`
 	AgentName   string             `json:"agent_name"`
+	Services    interface{}        `json:"services"`
 }
 
 func (q *Queries) ListDeployMappings(ctx context.Context) ([]ListDeployMappingsRow, error) {
@@ -151,14 +184,12 @@ func (q *Queries) ListDeployMappings(ctx context.Context) ([]ListDeployMappingsR
 			&i.ID,
 			&i.Repo,
 			&i.AgentID,
-			&i.Services,
 			&i.Environment,
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.Image,
-			&i.Tag,
 			&i.AgentName,
+			&i.Services,
 		); err != nil {
 			return nil, err
 		}
@@ -171,8 +202,17 @@ func (q *Queries) ListDeployMappings(ctx context.Context) ([]ListDeployMappingsR
 }
 
 const listEnabledMappingsByRepo = `-- name: ListEnabledMappingsByRepo :many
-SELECT dm.id, dm.repo, dm.agent_id, dm.services, dm.environment, dm.enabled, dm.created_at, dm.updated_at, dm.image, dm.tag,
-       a.name AS agent_name
+SELECT dm.id, dm.repo, dm.agent_id, dm.environment, dm.enabled, dm.created_at, dm.updated_at,
+       a.name AS agent_name,
+       COALESCE(
+           (SELECT jsonb_agg(
+                       jsonb_build_object('name', s.name, 'image', s.image, 'tag', s.tag)
+                       ORDER BY s.position
+                   )
+            FROM deploy_mapping_services s
+            WHERE s.mapping_id = dm.id),
+           '[]'::jsonb
+       ) AS services
 FROM deploy_mappings dm
 JOIN agents a ON a.id = dm.agent_id
 WHERE LOWER(dm.repo) = LOWER($1)
@@ -184,14 +224,12 @@ type ListEnabledMappingsByRepoRow struct {
 	ID          pgtype.UUID        `json:"id"`
 	Repo        string             `json:"repo"`
 	AgentID     pgtype.UUID        `json:"agent_id"`
-	Services    []string           `json:"services"`
 	Environment string             `json:"environment"`
 	Enabled     bool               `json:"enabled"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	Image       string             `json:"image"`
-	Tag         string             `json:"tag"`
 	AgentName   string             `json:"agent_name"`
+	Services    interface{}        `json:"services"`
 }
 
 func (q *Queries) ListEnabledMappingsByRepo(ctx context.Context, lower string) ([]ListEnabledMappingsByRepoRow, error) {
@@ -207,14 +245,12 @@ func (q *Queries) ListEnabledMappingsByRepo(ctx context.Context, lower string) (
 			&i.ID,
 			&i.Repo,
 			&i.AgentID,
-			&i.Services,
 			&i.Environment,
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.Image,
-			&i.Tag,
 			&i.AgentName,
+			&i.Services,
 		); err != nil {
 			return nil, err
 		}
@@ -230,25 +266,19 @@ const updateDeployMapping = `-- name: UpdateDeployMapping :one
 UPDATE deploy_mappings
 SET repo        = $2,
     agent_id    = $3,
-    services    = $4,
-    environment = $5,
-    enabled     = $6,
-    image       = $7,
-    tag         = $8,
+    environment = $4,
+    enabled     = $5,
     updated_at  = NOW()
 WHERE id = $1
-RETURNING id, repo, agent_id, services, environment, enabled, created_at, updated_at, image, tag
+RETURNING id, repo, agent_id, environment, enabled, created_at, updated_at
 `
 
 type UpdateDeployMappingParams struct {
 	ID          pgtype.UUID `json:"id"`
 	Repo        string      `json:"repo"`
 	AgentID     pgtype.UUID `json:"agent_id"`
-	Services    []string    `json:"services"`
 	Environment string      `json:"environment"`
 	Enabled     bool        `json:"enabled"`
-	Image       string      `json:"image"`
-	Tag         string      `json:"tag"`
 }
 
 func (q *Queries) UpdateDeployMapping(ctx context.Context, arg UpdateDeployMappingParams) (DeployMapping, error) {
@@ -256,24 +286,18 @@ func (q *Queries) UpdateDeployMapping(ctx context.Context, arg UpdateDeployMappi
 		arg.ID,
 		arg.Repo,
 		arg.AgentID,
-		arg.Services,
 		arg.Environment,
 		arg.Enabled,
-		arg.Image,
-		arg.Tag,
 	)
 	var i DeployMapping
 	err := row.Scan(
 		&i.ID,
 		&i.Repo,
 		&i.AgentID,
-		&i.Services,
 		&i.Environment,
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Image,
-		&i.Tag,
 	)
 	return i, err
 }

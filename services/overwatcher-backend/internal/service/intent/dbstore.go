@@ -2,6 +2,7 @@ package intent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
+	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 )
 
 var _ Store = (*DBStore)(nil)
@@ -35,16 +37,20 @@ func (s *DBStore) Enqueue(i *DeployIntent) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := s.q.CreateDeployIntent(ctx, sqlc.CreateDeployIntentParams{
+	spec, err := json.Marshal(i.Services)
+	if err != nil {
+		slog.Error("Failed to marshal services spec", "delivery_id", i.DeliveryID, "error", err)
+		return
+	}
+
+	_, err = s.q.CreateDeployIntent(ctx, sqlc.CreateDeployIntentParams{
 		DeliveryID:     i.DeliveryID,
 		StackIndex:     int32(i.StackIndex),
 		Repo:           i.Repo,
 		GitRef:         i.Ref,
 		Sha:            i.SHA,
-		Image:          i.Image,
-		Tag:            i.Tag,
 		Stack:          i.Stack,
-		Services:       i.Services,
+		ServicesSpec:   spec,
 		Environment:    i.Environment,
 		DeploymentID:   i.DeploymentID,
 		InstallationID: i.InstallationID,
@@ -226,6 +232,12 @@ func (s *DBStore) Len() int {
 
 // fromRow converts a sqlc-generated DeployIntent to the domain model.
 func fromRow(row sqlc.DeployIntent) *DeployIntent {
+	var services []mapping.ServiceSpec
+	if len(row.ServicesSpec) > 0 {
+		if err := json.Unmarshal(row.ServicesSpec, &services); err != nil {
+			slog.Error("Failed to unmarshal services spec", "intent_id", uuidToString(row.ID), "error", err)
+		}
+	}
 	di := &DeployIntent{
 		ID:             uuidToString(row.ID),
 		DeliveryID:     row.DeliveryID,
@@ -233,10 +245,8 @@ func fromRow(row sqlc.DeployIntent) *DeployIntent {
 		Repo:           row.Repo,
 		Ref:            row.GitRef,
 		SHA:            row.Sha,
-		Image:          row.Image,
-		Tag:            row.Tag,
 		Stack:          row.Stack,
-		Services:       row.Services,
+		Services:       services,
 		Environment:    row.Environment,
 		DeploymentID:   row.DeploymentID,
 		InstallationID: row.InstallationID,

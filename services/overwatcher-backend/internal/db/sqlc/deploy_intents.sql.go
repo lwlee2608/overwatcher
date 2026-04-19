@@ -16,7 +16,7 @@ UPDATE deploy_intents
 SET status = $1,
     updated_at = NOW()
 WHERE id = $2 AND status = 'dispatched'
-RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at
+RETURNING id, delivery_id, stack_index, repo, git_ref, sha, stack, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at, services_spec
 `
 
 type CompleteDeployIntentParams struct {
@@ -34,10 +34,7 @@ func (q *Queries) CompleteDeployIntent(ctx context.Context, arg CompleteDeployIn
 		&i.Repo,
 		&i.GitRef,
 		&i.Sha,
-		&i.Image,
-		&i.Tag,
 		&i.Stack,
-		&i.Services,
 		&i.Environment,
 		&i.DeploymentID,
 		&i.InstallationID,
@@ -46,6 +43,7 @@ func (q *Queries) CompleteDeployIntent(ctx context.Context, arg CompleteDeployIn
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DispatchedAt,
+		&i.ServicesSpec,
 	)
 	return i, err
 }
@@ -64,30 +62,28 @@ func (q *Queries) CountDeployIntentsByStatus(ctx context.Context, status string)
 const createDeployIntent = `-- name: CreateDeployIntent :one
 INSERT INTO deploy_intents (
     delivery_id, stack_index, repo, git_ref, sha,
-    image, tag, stack, services, environment,
+    stack, services_spec, environment,
     deployment_id, installation_id
 ) VALUES (
     $1, $2, $3, $4, $5,
-    $6, $7, $8, $9, $10,
-    $11, $12
+    $6, $7, $8,
+    $9, $10
 )
 ON CONFLICT (delivery_id, stack_index) DO NOTHING
-RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at
+RETURNING id, delivery_id, stack_index, repo, git_ref, sha, stack, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at, services_spec
 `
 
 type CreateDeployIntentParams struct {
-	DeliveryID     string   `json:"delivery_id"`
-	StackIndex     int32    `json:"stack_index"`
-	Repo           string   `json:"repo"`
-	GitRef         string   `json:"git_ref"`
-	Sha            string   `json:"sha"`
-	Image          string   `json:"image"`
-	Tag            string   `json:"tag"`
-	Stack          string   `json:"stack"`
-	Services       []string `json:"services"`
-	Environment    string   `json:"environment"`
-	DeploymentID   int64    `json:"deployment_id"`
-	InstallationID int64    `json:"installation_id"`
+	DeliveryID     string `json:"delivery_id"`
+	StackIndex     int32  `json:"stack_index"`
+	Repo           string `json:"repo"`
+	GitRef         string `json:"git_ref"`
+	Sha            string `json:"sha"`
+	Stack          string `json:"stack"`
+	ServicesSpec   []byte `json:"services_spec"`
+	Environment    string `json:"environment"`
+	DeploymentID   int64  `json:"deployment_id"`
+	InstallationID int64  `json:"installation_id"`
 }
 
 // Webhook redeliveries dedup on (delivery_id, stack_index): on conflict the
@@ -100,10 +96,8 @@ func (q *Queries) CreateDeployIntent(ctx context.Context, arg CreateDeployIntent
 		arg.Repo,
 		arg.GitRef,
 		arg.Sha,
-		arg.Image,
-		arg.Tag,
 		arg.Stack,
-		arg.Services,
+		arg.ServicesSpec,
 		arg.Environment,
 		arg.DeploymentID,
 		arg.InstallationID,
@@ -116,10 +110,7 @@ func (q *Queries) CreateDeployIntent(ctx context.Context, arg CreateDeployIntent
 		&i.Repo,
 		&i.GitRef,
 		&i.Sha,
-		&i.Image,
-		&i.Tag,
 		&i.Stack,
-		&i.Services,
 		&i.Environment,
 		&i.DeploymentID,
 		&i.InstallationID,
@@ -128,6 +119,7 @@ func (q *Queries) CreateDeployIntent(ctx context.Context, arg CreateDeployIntent
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DispatchedAt,
+		&i.ServicesSpec,
 	)
 	return i, err
 }
@@ -139,7 +131,7 @@ SET status = 'permanently_failed',
 WHERE status = 'dispatched'
   AND dispatched_at < $1
   AND attempts >= $2
-RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at
+RETURNING id, delivery_id, stack_index, repo, git_ref, sha, stack, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at, services_spec
 `
 
 type FailTimedOutIntentsParams struct {
@@ -163,10 +155,7 @@ func (q *Queries) FailTimedOutIntents(ctx context.Context, arg FailTimedOutInten
 			&i.Repo,
 			&i.GitRef,
 			&i.Sha,
-			&i.Image,
-			&i.Tag,
 			&i.Stack,
-			&i.Services,
 			&i.Environment,
 			&i.DeploymentID,
 			&i.InstallationID,
@@ -175,6 +164,7 @@ func (q *Queries) FailTimedOutIntents(ctx context.Context, arg FailTimedOutInten
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DispatchedAt,
+			&i.ServicesSpec,
 		); err != nil {
 			return nil, err
 		}
@@ -187,7 +177,7 @@ func (q *Queries) FailTimedOutIntents(ctx context.Context, arg FailTimedOutInten
 }
 
 const listDeployIntentsByStatus = `-- name: ListDeployIntentsByStatus :many
-SELECT id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at FROM deploy_intents
+SELECT id, delivery_id, stack_index, repo, git_ref, sha, stack, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at, services_spec FROM deploy_intents
 WHERE status = $1
 ORDER BY created_at ASC
 `
@@ -208,10 +198,7 @@ func (q *Queries) ListDeployIntentsByStatus(ctx context.Context, status string) 
 			&i.Repo,
 			&i.GitRef,
 			&i.Sha,
-			&i.Image,
-			&i.Tag,
 			&i.Stack,
-			&i.Services,
 			&i.Environment,
 			&i.DeploymentID,
 			&i.InstallationID,
@@ -220,6 +207,7 @@ func (q *Queries) ListDeployIntentsByStatus(ctx context.Context, status string) 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DispatchedAt,
+			&i.ServicesSpec,
 		); err != nil {
 			return nil, err
 		}
@@ -232,7 +220,7 @@ func (q *Queries) ListDeployIntentsByStatus(ctx context.Context, status string) 
 }
 
 const listRecentDeployIntents = `-- name: ListRecentDeployIntents :many
-SELECT id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at FROM deploy_intents
+SELECT id, delivery_id, stack_index, repo, git_ref, sha, stack, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at, services_spec FROM deploy_intents
 ORDER BY created_at DESC
 LIMIT $1
 `
@@ -253,10 +241,7 @@ func (q *Queries) ListRecentDeployIntents(ctx context.Context, limit int32) ([]D
 			&i.Repo,
 			&i.GitRef,
 			&i.Sha,
-			&i.Image,
-			&i.Tag,
 			&i.Stack,
-			&i.Services,
 			&i.Environment,
 			&i.DeploymentID,
 			&i.InstallationID,
@@ -265,6 +250,7 @@ func (q *Queries) ListRecentDeployIntents(ctx context.Context, limit int32) ([]D
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DispatchedAt,
+			&i.ServicesSpec,
 		); err != nil {
 			return nil, err
 		}
@@ -282,7 +268,7 @@ SET status = 'created',
     dispatched_at = NULL,
     updated_at = NOW()
 WHERE id = $1 AND status = 'dispatched'
-RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at
+RETURNING id, delivery_id, stack_index, repo, git_ref, sha, stack, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at, services_spec
 `
 
 func (q *Queries) RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error) {
@@ -295,10 +281,7 @@ func (q *Queries) RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (Depl
 		&i.Repo,
 		&i.GitRef,
 		&i.Sha,
-		&i.Image,
-		&i.Tag,
 		&i.Stack,
-		&i.Services,
 		&i.Environment,
 		&i.DeploymentID,
 		&i.InstallationID,
@@ -307,6 +290,7 @@ func (q *Queries) RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (Depl
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DispatchedAt,
+		&i.ServicesSpec,
 	)
 	return i, err
 }
@@ -319,7 +303,7 @@ SET status = 'created',
 WHERE status = 'dispatched'
   AND dispatched_at < $1
   AND attempts < $2
-RETURNING id, delivery_id, stack_index, repo, git_ref, sha, image, tag, stack, services, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at
+RETURNING id, delivery_id, stack_index, repo, git_ref, sha, stack, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at, services_spec
 `
 
 type RequeueTimedOutIntentsParams struct {
@@ -343,10 +327,7 @@ func (q *Queries) RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOu
 			&i.Repo,
 			&i.GitRef,
 			&i.Sha,
-			&i.Image,
-			&i.Tag,
 			&i.Stack,
-			&i.Services,
 			&i.Environment,
 			&i.DeploymentID,
 			&i.InstallationID,
@@ -355,6 +336,7 @@ func (q *Queries) RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOu
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DispatchedAt,
+			&i.ServicesSpec,
 		); err != nil {
 			return nil, err
 		}
@@ -385,7 +367,7 @@ SET status = 'dispatched',
     updated_at = NOW()
 FROM candidate c
 WHERE di.id = c.id
-RETURNING di.id, di.delivery_id, di.stack_index, di.repo, di.git_ref, di.sha, di.image, di.tag, di.stack, di.services, di.environment, di.deployment_id, di.installation_id, di.status, di.attempts, di.created_at, di.updated_at, di.dispatched_at
+RETURNING di.id, di.delivery_id, di.stack_index, di.repo, di.git_ref, di.sha, di.stack, di.environment, di.deployment_id, di.installation_id, di.status, di.attempts, di.created_at, di.updated_at, di.dispatched_at, di.services_spec
 `
 
 // Atomically claim the oldest dispatchable intent. The CTE skips stacks that
@@ -401,10 +383,7 @@ func (q *Queries) TakeNextDeployIntent(ctx context.Context) (DeployIntent, error
 		&i.Repo,
 		&i.GitRef,
 		&i.Sha,
-		&i.Image,
-		&i.Tag,
 		&i.Stack,
-		&i.Services,
 		&i.Environment,
 		&i.DeploymentID,
 		&i.InstallationID,
@@ -413,6 +392,7 @@ func (q *Queries) TakeNextDeployIntent(ctx context.Context) (DeployIntent, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DispatchedAt,
+		&i.ServicesSpec,
 	)
 	return i, err
 }

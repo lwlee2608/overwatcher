@@ -19,27 +19,33 @@ func NewRunner(composeFile string) *Runner {
 	return &Runner{composeFile: composeFile}
 }
 
-// Run executes `docker compose pull` followed by `up -d` for the given
-// services. The intent's resolved Image and Tag are exposed to the subprocess
-// as IMAGE and IMAGE_TAG so compose files can interpolate them
-// (e.g. `image: ${IMAGE}:${IMAGE_TAG}`). Returns nil on success or an error
-// describing which command failed and its combined output.
+// Run executes `docker compose pull` followed by `up -d` for each service in
+// the intent. Each service carries its own image and tag, exported as IMAGE
+// and IMAGE_TAG for subprocess interpolation. An empty service name falls
+// back to applying the command to every service in the compose file.
 func (r *Runner) Run(ctx context.Context, intent *dto.DeployIntentResponse) error {
-	env := append(os.Environ(),
-		"IMAGE="+intent.Image,
-		"IMAGE_TAG="+intent.Tag,
-	)
-
-	pullArgs := []string{"compose", "-f", r.composeFile, "pull"}
-	pullArgs = append(pullArgs, intent.Services...)
-	if err := r.runDocker(ctx, env, pullArgs...); err != nil {
-		return fmt.Errorf("docker compose pull: %w", err)
+	if len(intent.Services) == 0 {
+		return fmt.Errorf("intent has no services")
 	}
+	for _, svc := range intent.Services {
+		env := append(os.Environ(),
+			"IMAGE="+svc.Image,
+			"IMAGE_TAG="+svc.Tag,
+		)
 
-	upArgs := []string{"compose", "-f", r.composeFile, "up", "-d"}
-	upArgs = append(upArgs, intent.Services...)
-	if err := r.runDocker(ctx, env, upArgs...); err != nil {
-		return fmt.Errorf("docker compose up: %w", err)
+		pullArgs := []string{"compose", "-f", r.composeFile, "pull"}
+		upArgs := []string{"compose", "-f", r.composeFile, "up", "-d"}
+		if svc.Name != "" {
+			pullArgs = append(pullArgs, svc.Name)
+			upArgs = append(upArgs, svc.Name)
+		}
+
+		if err := r.runDocker(ctx, env, pullArgs...); err != nil {
+			return fmt.Errorf("docker compose pull %s: %w", svc.Name, err)
+		}
+		if err := r.runDocker(ctx, env, upArgs...); err != nil {
+			return fmt.Errorf("docker compose up %s: %w", svc.Name, err)
+		}
 	}
 	return nil
 }
