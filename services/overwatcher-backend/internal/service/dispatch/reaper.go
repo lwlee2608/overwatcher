@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
+	"github.com/lwlee2608/overwatcher/internal/util"
 )
 
 // Reaper periodically sweeps in-flight intents that have exceeded the dispatch
@@ -62,7 +63,7 @@ func (r *Reaper) sweep(ctx context.Context) {
 			"attempts", i.Attempts,
 			"stack", i.Stack,
 		)
-		owner, repo := splitRepo(i.Repo)
+		owner, repo, _ := util.SplitRepo(i.Repo)
 		desc := fmt.Sprintf("Deploy failed: timed out after %d attempts", i.Attempts)
 		if err := r.updater.UpdateDeploymentStatus(ctx, i.InstallationID, owner, repo, i.DeploymentID, "failure", desc); err != nil {
 			slog.Warn("Failed to update GitHub for permanently failed intent",

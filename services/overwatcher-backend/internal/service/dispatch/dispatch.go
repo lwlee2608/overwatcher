@@ -3,13 +3,13 @@ package dispatch
 import (
 	"context"
 	"log/slog"
-	"strings"
 	"time"
 
 	gh "github.com/google/go-github/v84/github"
 
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
+	"github.com/lwlee2608/overwatcher/internal/util"
 )
 
 // StatusUpdater is the slice of GitHub API dispatch.Service needs. It is
@@ -75,7 +75,7 @@ func (d *Service) Next(ctx context.Context) (*intent.DeployIntent, error) {
 		return nil, err
 	}
 
-	owner, repoName := splitRepo(i.Repo)
+	owner, repoName, _ := util.SplitRepo(i.Repo)
 	if err := d.updater.UpdateDeploymentStatus(ctx, i.InstallationID, owner, repoName, i.DeploymentID, "in_progress", "Deploy in progress"); err != nil {
 		slog.Warn("Failed to mark deployment in_progress; intent still dispatched",
 			"intent_id", i.ID,
@@ -112,7 +112,7 @@ func (d *Service) Report(ctx context.Context, id string, success bool, errMsg st
 		}
 	}
 
-	owner, repoName := splitRepo(i.Repo)
+	owner, repoName, _ := util.SplitRepo(i.Repo)
 	if err := d.updater.UpdateDeploymentStatus(ctx, i.InstallationID, owner, repoName, i.DeploymentID, state, description); err != nil {
 		slog.Warn("Failed to update deployment status",
 			"intent_id", id,
@@ -140,9 +140,3 @@ func (d *Service) ListRecent(ctx context.Context, limit int32) ([]*intent.Deploy
 	return d.store.ListRecent(ctx, limit)
 }
 
-func splitRepo(full string) (owner, repo string) {
-	if i := strings.IndexByte(full, '/'); i >= 0 {
-		return full[:i], full[i+1:]
-	}
-	return "", full
-}

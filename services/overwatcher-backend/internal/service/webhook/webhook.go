@@ -16,6 +16,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
 	"github.com/lwlee2608/overwatcher/internal/service/mapping"
+	"github.com/lwlee2608/overwatcher/internal/util"
 )
 
 // Errors returned by Service.Redeploy so callers can branch with errors.Is.
@@ -249,7 +250,7 @@ func (s *Service) Redeploy(ctx context.Context, sourceID string) error {
 		return fmt.Errorf("redeploy %s: %w", sourceID, ErrNoInstallation)
 	}
 
-	owner, repoName, ok := splitRepo(src.Repo)
+	owner, repoName, ok := util.SplitRepo(src.Repo)
 	if !ok {
 		return fmt.Errorf("redeploy %s: %w: %q", sourceID, ErrInvalidRepo, src.Repo)
 	}
@@ -298,12 +299,3 @@ func (s *Service) Redeploy(ctx context.Context, sourceID string) error {
 	return nil
 }
 
-// splitRepo parses "owner/name" into its parts. Returns ok=false if the
-// input is malformed (no slash).
-func splitRepo(full string) (owner, name string, ok bool) {
-	i := strings.IndexByte(full, '/')
-	if i <= 0 || i == len(full)-1 {
-		return "", "", false
-	}
-	return full[:i], full[i+1:], true
-}
