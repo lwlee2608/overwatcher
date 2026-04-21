@@ -14,7 +14,7 @@ Railway solves both with a **Project** as the unit of deployment: one compose fi
 | Concept | What it is | Relationship |
 |---|---|---|
 | **Project** | The deployable unit. Owns exactly one compose file and exactly one agent. | 1 project — 1 agent, 1 project — N services |
-| **Agent** | The process on a VM that runs `docker compose` for its project. Registers itself on first poll. | 1 agent — 1 project |
+| **Agent** | The process on a VM that runs `docker compose` for its project. Binds to a pre-existing project on first poll via a project-scoped token. | 1 agent — 1 project |
 | **Service** | A compose service. Links to one GitHub repo (+ root directory) and one image:tag. | N services — 1 project. Many services can share a repo. |
 | **DeployIntent** | Queue item: "project P, deploy services [s1, s2] at SHA X". Immutable event log. | N intents — 1 project |
 
@@ -23,6 +23,8 @@ Key invariants:
 - **Project ↔ Agent is 1:1.** An agent can't serve two projects; a project can't have two agents. Enforced by `agents.project_id UNIQUE`.
 - **A repo may appear in many services across many projects.** A webhook for `owner/repo` fans out to every service whose `repo = 'owner/repo'` and whose `root_directory` matches the push's changed paths.
 - **Intents are per-project, not per-service.** A single webhook that affects services `web` and `api` in the same project produces one intent with two services in its spec, so compose is invoked once.
+- **Projects are created before agents.** A user creates a project in the UI, receives a project-scoped registration token, and drops the agent into their compose file with that token. The agent's first poll binds it to the named project; the agent never creates a project implicitly.
+- **Intents survive agent downtime.** If the agent is offline when an intent is enqueued, the row stays in `created` until the agent next polls. Intents that reach `dispatched` but don't report back are requeued by the reaper after the in-flight timeout (unchanged from today).
 
 ## Architecture
 
@@ -111,7 +113,6 @@ A push to `owner/monorepo` touching `web/src/App.tsx` triggers exactly one inten
  │ id              UUID PK          │
  │ project_id      UUID    (nullable, for history after project deletion) │
  │ delivery_id     VARCHAR(255)     │
- │ stack_index     INTEGER          │  ← now = index within (delivery, project)
  │ repo            VARCHAR(512)     │  ← repo that triggered this intent
  │ git_ref         VARCHAR(255)     │
  │ sha             VARCHAR(64)      │
@@ -125,7 +126,7 @@ A push to `owner/monorepo` touching `web/src/App.tsx` triggers exactly one inten
  │ created_at      TIMESTAMPTZ      │
  │ updated_at      TIMESTAMPTZ      │
  │                                  │
- │ UQ(delivery_id, stack_index)     │
+ │ UQ(delivery_id, project_id)      │
  └──────────────────────────────────┘
 ```
 
@@ -136,16 +137,16 @@ A push to `owner/monorepo` touching `web/src/App.tsx` triggers exactly one inten
 - **`services` replaces `deploy_mappings` + `deploy_mapping_services`.** The repo moves from mapping-level to service-level, which is the whole point of the redesign.
 - **`services.root_directory`** is new. Defaults to `/` for single-service repos; required (non-empty) for monorepo services. Used to filter GitHub push events by `commit.modified ∪ added ∪ removed`.
 - **`services.branch`** is new. The current code only deploys on `main`/`master`; per-service branch lets staging projects track `develop` without code changes.
-- **`deploy_intents.stack_index`** keeps its role as a uniqueness discriminator for fan-out, but is now scoped per-project rather than per-mapping. The `UNIQUE(delivery_id, stack_index)` still dedupes redelivered webhooks.
+- **Dedupe key is now `(delivery_id, project_id)`, replacing the old `(delivery_id, stack_index)`.** `stack_index` worked before because there was at most one mapping per `(repo, agent)`, so an integer ordinal was a stable identifier. With projects as the natural grouping, `project_id` is the correct key — and unlike an enumerated index, it doesn't depend on the order the webhook handler walks the result set, so a redelivered push can't bypass the constraint by producing rows in a different order. `project_id` is non-null at insert time; it only becomes NULL if the project is later deleted, and historical rows can't collide with live ones.
 - **`deploy_intents` does not FK into `projects`.** Same rationale as today: it's an event log, and deleting a project shouldn't erase its deployment history.
 
 ## Webhook → intent flow (new)
 
 1. Receive `push` webhook, verify signature.
-2. Extract `repo`, `ref`, `sha`, and changed file paths.
+2. Extract `repo`, `ref`, `sha`, and changed file paths. GitHub caps the push payload at 20 commits with a limited number of files per commit, so treat the payload as potentially truncated: if `commits` is empty, or its length is less than the `before..after` range, fall back to the Compare API (`GET /repos/{owner}/{repo}/compare/{before}...{after}`) for the authoritative changed-path list. If the Compare API also returns no file list (empty push, unreachable, etc.), treat the push as "touches everything" and include every service in every matched project — safe default, matches the pre-redesign behavior.
 3. `SELECT … FROM services WHERE repo = $1 AND branch = $2` → candidate services.
 4. For each candidate, keep it if `root_directory = '/'` OR any changed path starts with `root_directory`.
-5. `GROUP BY project_id`. For each group: enqueue one intent with `services_spec = [{name,image,tag}, …]` for just those services, and `stack_index = <incrementing index in the group order>`.
+5. `GROUP BY project_id`. For each group: enqueue one intent with `services_spec = [{name,image,tag}, …]` for just those services. The dedupe key is `(delivery_id, project_id)` — redelivered webhooks collapse onto existing rows regardless of the order projects come back in.
 6. Create a GitHub Deployment per intent (one commit can have several deployments — one per project affected). Existing status-reporting flow is unchanged.
 
 The dispatch side (agent long-poll, runner, result reporting) is unchanged, except the runner now receives the project-level compose file path from the intent rather than looking it up from the agent's row.
@@ -168,8 +169,3 @@ Steps 1–3 are reversible; step 4 is the point of no return and should land in 
 - **Secrets / env var management.** Still lives in the compose file on the VM; Overwatcher does not manage application secrets (explicitly out of scope per `high-level-design.md`).
 - **Agent self-update.** Unchanged open problem from the current roadmap.
 
-## Open questions
-
-1. **Project creation order vs agent registration.** If the agent auto-registers on first poll, does it create the project too, or must the project exist first? Recommendation: **project-first**. A user creates a project in the UI, gets a project-scoped registration token, drops the agent into their compose file with that token. The agent's first poll binds it to the named project.
-2. **Changed-path detection for force-pushes / merges.** GitHub's push payload lists `commits[*].modified/added/removed`, but these can be empty for large pushes. Fallback: if the list is empty, deploy all services in the project (current behavior — safe default).
-3. **What happens if the agent is offline when an intent is enqueued?** Today: the intent sits in `created`, gets picked up whenever the agent next polls. That behavior is preserved. The reaper still requeues `dispatched` intents past the in-flight timeout.
