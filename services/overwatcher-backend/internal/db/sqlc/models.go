@@ -9,20 +9,18 @@ import (
 )
 
 type Agent struct {
-	ID          pgtype.UUID        `json:"id"`
-	Name        string             `json:"name"`
-	ComposeFile string             `json:"compose_file"`
-	RemoteIp    string             `json:"remote_ip"`
-	LastSeenAt  pgtype.Timestamptz `json:"last_seen_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	ProjectID   pgtype.UUID        `json:"project_id"`
+	ID         pgtype.UUID        `json:"id"`
+	Name       string             `json:"name"`
+	RemoteIp   string             `json:"remote_ip"`
+	LastSeenAt pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	ProjectID  pgtype.UUID        `json:"project_id"`
 }
 
 type DeployIntent struct {
 	ID             pgtype.UUID      `json:"id"`
 	DeliveryID     string           `json:"delivery_id"`
-	StackIndex     int32            `json:"stack_index"`
 	Repo           string           `json:"repo"`
 	GitRef         string           `json:"git_ref"`
 	Sha            string           `json:"sha"`
@@ -38,25 +36,6 @@ type DeployIntent struct {
 	ServicesSpec   []byte           `json:"services_spec"`
 	ProjectID      pgtype.UUID      `json:"project_id"`
 	ComposeFile    string           `json:"compose_file"`
-}
-
-type DeployMapping struct {
-	ID          pgtype.UUID        `json:"id"`
-	Repo        string             `json:"repo"`
-	AgentID     pgtype.UUID        `json:"agent_id"`
-	Environment string             `json:"environment"`
-	Enabled     bool               `json:"enabled"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-}
-
-type DeployMappingService struct {
-	ID        pgtype.UUID `json:"id"`
-	MappingID pgtype.UUID `json:"mapping_id"`
-	Name      string      `json:"name"`
-	Image     string      `json:"image"`
-	Tag       string      `json:"tag"`
-	Position  int32       `json:"position"`
 }
 
 type EventLog struct {

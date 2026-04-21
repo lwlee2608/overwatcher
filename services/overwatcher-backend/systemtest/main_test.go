@@ -14,7 +14,6 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
-	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 	"github.com/lwlee2608/overwatcher/internal/service/project"
 	"github.com/lwlee2608/overwatcher/internal/service/user"
 	"github.com/lwlee2608/overwatcher/internal/service/webhook"
@@ -51,7 +50,6 @@ func TestSystemIntegration(t *testing.T) {
 	queries := sqlc.New(pool)
 
 	agentSvc := agent.NewService(queries, 60*time.Second)
-	mappingSvc := mapping.NewService(pool)
 	eventLogSvc := eventlog.NewService(queries)
 	userSvc := user.NewService(pool)
 	projectSvc := project.NewService(pool)
@@ -63,7 +61,6 @@ func TestSystemIntegration(t *testing.T) {
 		WebhookService:    webhookSvc,
 		DispatchService:   dispatchSvc,
 		AgentService:      agentSvc,
-		MappingService:    mappingSvc,
 		EventLogService:   eventLogSvc,
 		UserService:       userSvc,
 		ProjectService:    projectSvc,
@@ -77,7 +74,6 @@ func TestSystemIntegration(t *testing.T) {
 
 	t.Run("HealthCheck", func(t *testing.T) { tests.TestHealthCheck(t, engine) })
 	t.Run("Agents", func(t *testing.T) { tests.TestAgents(t, engine, agentSvc) })
-	t.Run("Mappings", func(t *testing.T) { tests.TestMappings(t, engine, agentSvc) })
 	var userID string
 	t.Run("Users", func(t *testing.T) { userID = tests.TestUsers(t, engine) })
 	t.Run("Projects", func(t *testing.T) { tests.TestProjects(t, engine, userID) })

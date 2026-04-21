@@ -5,6 +5,3 @@ agent:
   coordinator_url: "http://localhost:8080"
   shared_secret: ""          # override with AGENT_SHARED_SECRET
   poll_timeout: 30s          # client-side timeout; must exceed coordinator's 25s long-poll
-  compose_file: ""           # path to the docker-compose file this agent manages
-  # Example:
-  # compose_file: /opt/stacks/my-app/docker-compose.yml

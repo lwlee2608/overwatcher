@@ -41,13 +41,6 @@ export function AgentCard({ agent }: AgentCardProps) {
           </span>
           <span>{timeAgo(agent.last_seen)}</span>
         </div>
-
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-500 dark:text-gray-500">
-            Compose
-          </span>
-          <span className="font-mono text-xs truncate">{agent.compose_file}</span>
-        </div>
       </div>
     </div>
   );

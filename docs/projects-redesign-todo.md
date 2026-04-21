@@ -1,6 +1,6 @@
 # Projects Redesign — Remaining Work
 
-Companion to [projects-redesign.md](./projects-redesign.md). Steps 1–4 are done; this file tracks what's left before the redesign is complete.
+Companion to [projects-redesign.md](./projects-redesign.md). All five steps are done.
 
 ## Done
 
@@ -8,35 +8,12 @@ Companion to [projects-redesign.md](./projects-redesign.md). Steps 1–4 are don
 - **Step 1b** — sqlc queries for users/projects/services.
 - **Step 2** — `user` and `project` service packages, HTTP handlers (`/api/v1/users`, `/api/v1/projects`, nested `/services`), DTOs, router wiring, and a 14-case system test suite.
 - **Step 3** — Webhook cutover. `handlePush` matches by `(repo, branch)`, filters by `root_directory ∩ changed paths`, groups by project, and enqueues one intent per project. Intent dedup moved to partial unique `(delivery_id, project_id)`. `compose_file` is now a property of the project and rides on each intent; `X-Agent-Compose-File` header and `agent.compose_file` config removed. Migration 0011 backfills a bootstrap user + project per legacy mapping and binds agents.
-- **Step 4** — Frontend. Users page (CRUD), Projects page (list grouped by owner + CRUD), Project detail page with inline services editor (reorderable rows, "Save services" posts the full list via `PUT /projects/:id/services`), Deployments table with a project column linking to the detail page. Mappings page left in place until parity is confirmed.
-
+- **Step 4** — Frontend. Users page (CRUD), Projects page (list grouped by owner + CRUD), Project detail page with inline services editor (reorderable rows, "Save services" posts the full list via `PUT /projects/:id/services`), Deployments table with a project column linking to the detail page.
 - **Step 4b** — Agent binding. `PUT /api/v1/agents/:id/project` binds (or clears with empty `project_id`) the agent↔project link. `AgentStatusResponse` now carries `project_id`. Project detail page has an Agent panel with a selector and connection indicator; reassigning moves future deploys to the new agent.
+- **Step 5** — Drop legacy. Migration 0012 drops `agents.compose_file`, `deploy_intents.stack_index` + its legacy unique, and the `deploy_mapping_services` / `deploy_mappings` tables. `internal/service/mapping`, its handler, DTO, routes, systemtest, and the frontend Mappings page are gone. `ServiceSpecDTO` moved into `dto/deploy.go`; `ServiceSpec` (frontend) moved into `types/deployment.ts`. `Down` is a no-op — drops are not reversible without backup restore.
 
-Open questions (deferred — Mappings page still available as fallback):
+Open questions (ongoing):
 - Multi-service compose stacks across multiple repos — the UI should make it clear that services in one project can come from different repos.
-
-## Step 5 — Drop legacy
-
-Only after Step 4 is live and deploys are flowing through the new path for long enough that we're confident.
-
-Schema:
-- Drop `agents.compose_file` column.
-- Drop `deploy_intents.stack_index` and its `(delivery_id, stack_index)` unique constraint.
-- Drop `deploy_mapping_services` table.
-- Drop `deploy_mappings` table (cascades from the above).
-
-Code:
-- Delete `internal/service/mapping` package.
-- Delete `internal/api/http/handler/mapping.go` and `internal/api/http/dto/mapping.go`.
-- Remove `MappingService` from `Services` struct and router.
-- Remove `/api/v1/mappings` routes.
-- Delete `systemtest/tests/mappings.go` and the `Mappings` sub-test in `main_test.go`.
-- Drop the Mappings page + route from the frontend.
-- Regenerate sqlc (the mapping queries and the `stack_index` / `compose_file` columns disappear from generated models).
-
-Risks:
-- Migration that drops `deploy_mappings` must run *after* every environment is on the new webhook path. Worth double-checking the backfill ran cleanly on each deployment.
-- `deploy_intents.stack_index` is NOT NULL today — dropping it is safe, but any rolling deploy where the coordinator still writes `stack_index` would break. Do this on a clean version bump, not mid-rollout.
 
 ## Follow-ups (not blocking)
 

@@ -16,7 +16,7 @@ UPDATE agents
 SET project_id = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at, project_id
+RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id
 `
 
 type BindAgentToProjectParams struct {
@@ -30,7 +30,6 @@ func (q *Queries) BindAgentToProject(ctx context.Context, arg BindAgentToProject
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.ComposeFile,
 		&i.RemoteIp,
 		&i.LastSeenAt,
 		&i.CreatedAt,
@@ -41,7 +40,7 @@ func (q *Queries) BindAgentToProject(ctx context.Context, arg BindAgentToProject
 }
 
 const getAgent = `-- name: GetAgent :one
-SELECT id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at, project_id FROM agents WHERE id = $1
+SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id FROM agents WHERE id = $1
 `
 
 func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error) {
@@ -50,7 +49,6 @@ func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error) {
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.ComposeFile,
 		&i.RemoteIp,
 		&i.LastSeenAt,
 		&i.CreatedAt,
@@ -61,7 +59,7 @@ func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error) {
 }
 
 const getAgentByName = `-- name: GetAgentByName :one
-SELECT id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at, project_id FROM agents WHERE name = $1
+SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id FROM agents WHERE name = $1
 `
 
 func (q *Queries) GetAgentByName(ctx context.Context, name string) (Agent, error) {
@@ -70,7 +68,6 @@ func (q *Queries) GetAgentByName(ctx context.Context, name string) (Agent, error
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.ComposeFile,
 		&i.RemoteIp,
 		&i.LastSeenAt,
 		&i.CreatedAt,
@@ -81,7 +78,7 @@ func (q *Queries) GetAgentByName(ctx context.Context, name string) (Agent, error
 }
 
 const listAgents = `-- name: ListAgents :many
-SELECT id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at, project_id FROM agents ORDER BY name ASC
+SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id FROM agents ORDER BY name ASC
 `
 
 func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
@@ -96,7 +93,6 @@ func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
-			&i.ComposeFile,
 			&i.RemoteIp,
 			&i.LastSeenAt,
 			&i.CreatedAt,
@@ -114,30 +110,27 @@ func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
 }
 
 const upsertAgent = `-- name: UpsertAgent :one
-INSERT INTO agents (name, compose_file, remote_ip, last_seen_at)
-VALUES ($1, $2, $3, NOW())
+INSERT INTO agents (name, remote_ip, last_seen_at)
+VALUES ($1, $2, NOW())
 ON CONFLICT (name)
 DO UPDATE SET
-    compose_file  = EXCLUDED.compose_file,
     remote_ip     = EXCLUDED.remote_ip,
     last_seen_at  = NOW(),
     updated_at    = NOW()
-RETURNING id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at, project_id
+RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id
 `
 
 type UpsertAgentParams struct {
-	Name        string `json:"name"`
-	ComposeFile string `json:"compose_file"`
-	RemoteIp    string `json:"remote_ip"`
+	Name     string `json:"name"`
+	RemoteIp string `json:"remote_ip"`
 }
 
 func (q *Queries) UpsertAgent(ctx context.Context, arg UpsertAgentParams) (Agent, error) {
-	row := q.db.QueryRow(ctx, upsertAgent, arg.Name, arg.ComposeFile, arg.RemoteIp)
+	row := q.db.QueryRow(ctx, upsertAgent, arg.Name, arg.RemoteIp)
 	var i Agent
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.ComposeFile,
 		&i.RemoteIp,
 		&i.LastSeenAt,
 		&i.CreatedAt,

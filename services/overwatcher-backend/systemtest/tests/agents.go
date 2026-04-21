@@ -29,7 +29,7 @@ func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 	})
 
 	// Seed an agent via the service so we can query it
-	err := agentSvc.Record(context.Background(), "test-agent", "/opt/docker-compose.yml", "10.0.0.1")
+	err := agentSvc.Record(context.Background(), "test-agent", "10.0.0.1")
 	require.NoError(t, err)
 
 	t.Run("ListAfterRecord", func(t *testing.T) {
@@ -44,7 +44,6 @@ func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 		require.NoError(t, err)
 		require.Len(t, resp.Agents, 1)
 		assert.Equal(t, "test-agent", resp.Agents[0].Name)
-		assert.Equal(t, "/opt/docker-compose.yml", resp.Agents[0].ComposeFile)
 		assert.Equal(t, "10.0.0.1", resp.Agents[0].RemoteIP)
 		assert.True(t, resp.Agents[0].Connected)
 	})

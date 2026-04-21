@@ -1,6 +1,5 @@
 import { Routes, Route, NavLink } from "react-router-dom";
 import { AgentDashboard } from "./components/AgentDashboard";
-import { MappingDashboard } from "./components/MappingDashboard";
 import { UsersDashboard } from "./components/UsersDashboard";
 import { ProjectsDashboard } from "./components/ProjectsDashboard";
 import { ProjectDetail } from "./components/ProjectDetail";
@@ -33,9 +32,6 @@ function App() {
             <NavLink to="/projects" className={navLinkClass}>
               Projects
             </NavLink>
-            <NavLink to="/mappings" className={navLinkClass}>
-              Mappings
-            </NavLink>
             <NavLink to="/deployments" className={navLinkClass}>
               Deployments
             </NavLink>
@@ -52,7 +48,6 @@ function App() {
           <Route path="/users" element={<UsersDashboard />} />
           <Route path="/projects" element={<ProjectsDashboard />} />
           <Route path="/projects/:id" element={<ProjectDetail />} />
-          <Route path="/mappings" element={<MappingDashboard />} />
           <Route path="/deployments" element={<DeploymentDashboard />} />
           <Route path="/events" element={<EventLogDashboard />} />
         </Routes>

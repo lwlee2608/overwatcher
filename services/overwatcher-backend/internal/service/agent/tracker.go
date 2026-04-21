@@ -11,13 +11,12 @@ import (
 
 // AgentStatus is a point-in-time snapshot of a registered agent.
 type AgentStatus struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	ComposeFile string    `json:"compose_file"`
-	LastSeen    time.Time `json:"last_seen"`
-	RemoteIP    string    `json:"remote_ip"`
-	Connected   bool      `json:"connected"`
-	ProjectID   string    `json:"project_id,omitempty"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	LastSeen  time.Time `json:"last_seen"`
+	RemoteIP  string    `json:"remote_ip"`
+	Connected bool      `json:"connected"`
+	ProjectID string    `json:"project_id,omitempty"`
 }
 
 // Service manages agent registration and heartbeats backed by PostgreSQL.
@@ -31,11 +30,10 @@ func NewService(q *sqlc.Queries, ttl time.Duration) *Service {
 }
 
 // Record upserts an agent entry with the current time.
-func (s *Service) Record(ctx context.Context, name string, composeFile string, remoteIP string) error {
+func (s *Service) Record(ctx context.Context, name string, remoteIP string) error {
 	_, err := s.q.UpsertAgent(ctx, sqlc.UpsertAgentParams{
-		Name:        name,
-		ComposeFile: composeFile,
-		RemoteIp:    remoteIP,
+		Name:     name,
+		RemoteIp: remoteIP,
 	})
 	return err
 }
@@ -95,13 +93,12 @@ func (s *Service) BindProject(ctx context.Context, agentID string, projectID str
 func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
 	lastSeen := a.LastSeenAt.Time
 	return AgentStatus{
-		ID:          util.UUIDToString(a.ID),
-		Name:        a.Name,
-		ComposeFile: a.ComposeFile,
-		LastSeen:    lastSeen,
-		RemoteIP:    a.RemoteIp,
-		Connected:   now.Sub(lastSeen) < s.ttl,
-		ProjectID:   util.UUIDToString(a.ProjectID),
+		ID:        util.UUIDToString(a.ID),
+		Name:      a.Name,
+		LastSeen:  lastSeen,
+		RemoteIP:  a.RemoteIp,
+		Connected: now.Sub(lastSeen) < s.ttl,
+		ProjectID: util.UUIDToString(a.ProjectID),
 	}
 }
 

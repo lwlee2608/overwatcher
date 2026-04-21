@@ -30,13 +30,12 @@ func (h *AgentHandler) List(c *gin.Context) {
 	}
 	for i, a := range agents {
 		resp.Agents[i] = dto.AgentStatusResponse{
-			ID:          a.ID,
-			Name:        a.Name,
-			ComposeFile: a.ComposeFile,
-			LastSeen:    a.LastSeen,
-			RemoteIP:    a.RemoteIP,
-			Connected:   a.Connected,
-			ProjectID:   a.ProjectID,
+			ID:        a.ID,
+			Name:      a.Name,
+			LastSeen:  a.LastSeen,
+			RemoteIP:  a.RemoteIP,
+			Connected: a.Connected,
+			ProjectID: a.ProjectID,
 		}
 	}
 	c.JSON(http.StatusOK, resp)
@@ -55,13 +54,12 @@ func (h *AgentHandler) Get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, dto.AgentStatusResponse{
-		ID:          a.ID,
-		Name:        a.Name,
-		ComposeFile: a.ComposeFile,
-		LastSeen:    a.LastSeen,
-		RemoteIP:    a.RemoteIP,
-		Connected:   a.Connected,
-		ProjectID:   a.ProjectID,
+		ID:        a.ID,
+		Name:      a.Name,
+		LastSeen:  a.LastSeen,
+		RemoteIP:  a.RemoteIP,
+		Connected: a.Connected,
+		ProjectID: a.ProjectID,
 	})
 }
 
@@ -83,12 +81,11 @@ func (h *AgentHandler) BindProject(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, dto.AgentStatusResponse{
-		ID:          a.ID,
-		Name:        a.Name,
-		ComposeFile: a.ComposeFile,
-		LastSeen:    a.LastSeen,
-		RemoteIP:    a.RemoteIP,
-		Connected:   a.Connected,
-		ProjectID:   a.ProjectID,
+		ID:        a.ID,
+		Name:      a.Name,
+		LastSeen:  a.LastSeen,
+		RemoteIP:  a.RemoteIP,
+		Connected: a.Connected,
+		ProjectID: a.ProjectID,
 	})
 }

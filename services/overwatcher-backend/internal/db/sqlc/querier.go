@@ -18,14 +18,10 @@ type Querier interface {
 	// unique index idx_deploy_intents_delivery_project. On conflict sqlc returns
 	// pgx.ErrNoRows, which callers treat as "already enqueued, do nothing".
 	CreateDeployIntent(ctx context.Context, arg CreateDeployIntentParams) (DeployIntent, error)
-	CreateDeployMapping(ctx context.Context, arg CreateDeployMappingParams) (DeployMapping, error)
 	CreateEventLog(ctx context.Context, arg CreateEventLogParams) (EventLog, error)
-	CreateMappingService(ctx context.Context, arg CreateMappingServiceParams) error
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateService(ctx context.Context, arg CreateServiceParams) (Service, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
-	DeleteDeployMapping(ctx context.Context, id pgtype.UUID) (DeployMapping, error)
-	DeleteMappingServicesByMapping(ctx context.Context, mappingID pgtype.UUID) error
 	DeleteOldEventLogs(ctx context.Context, offset int32) (int64, error)
 	DeleteProject(ctx context.Context, id pgtype.UUID) (Project, error)
 	DeleteService(ctx context.Context, id pgtype.UUID) (Service, error)
@@ -35,7 +31,6 @@ type Querier interface {
 	GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error)
 	GetAgentByName(ctx context.Context, name string) (Agent, error)
 	GetDeployIntentByID(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
-	GetDeployMapping(ctx context.Context, id pgtype.UUID) (GetDeployMappingRow, error)
 	GetProject(ctx context.Context, id pgtype.UUID) (Project, error)
 	GetProjectByUserAndName(ctx context.Context, arg GetProjectByUserAndNameParams) (Project, error)
 	GetService(ctx context.Context, id pgtype.UUID) (Service, error)
@@ -43,8 +38,6 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
 	ListAgents(ctx context.Context) ([]Agent, error)
 	ListDeployIntentsByStatus(ctx context.Context, status string) ([]DeployIntent, error)
-	ListDeployMappings(ctx context.Context) ([]ListDeployMappingsRow, error)
-	ListEnabledMappingsByRepo(ctx context.Context, lower string) ([]ListEnabledMappingsByRepoRow, error)
 	// Webhook matching: returns every service in an enabled project whose repo
 	// matches (case-insensitive). The webhook handler still has to filter by
 	// root_directory against the pushed file paths before enqueueing intents.
@@ -61,7 +54,6 @@ type Querier interface {
 	// already have a dispatched intent (concurrency guard) and uses FOR UPDATE
 	// SKIP LOCKED so concurrent callers don't block each other.
 	TakeNextDeployIntent(ctx context.Context) (DeployIntent, error)
-	UpdateDeployMapping(ctx context.Context, arg UpdateDeployMappingParams) (DeployMapping, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpsertAgent(ctx context.Context, arg UpsertAgentParams) (Agent, error)

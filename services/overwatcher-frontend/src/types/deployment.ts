@@ -1,4 +1,8 @@
-import type { ServiceSpec } from "./mapping";
+export interface ServiceSpec {
+  name: string;
+  image: string;
+  tag: string;
+}
 
 export interface Deployment {
   id: string;
