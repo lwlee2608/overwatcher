@@ -51,7 +51,7 @@ func main() {
 	queries := sqlc.New(pool)
 	intentStore := intent.NewDBStore(pool)
 
-	agentSvc := agent.NewService(queries, 60*time.Second)
+	agentSvc := agent.NewService(pool, queries, 60*time.Second)
 	eventLogSvc := eventlog.NewService(queries)
 	userSvc := user.NewService(pool)
 	projectSvc := project.NewService(pool)

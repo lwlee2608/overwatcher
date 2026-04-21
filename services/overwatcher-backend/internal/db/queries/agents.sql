@@ -17,6 +17,12 @@ SELECT * FROM agents ORDER BY name ASC;
 -- name: GetAgentByName :one
 SELECT * FROM agents WHERE name = $1;
 
+-- name: ClearAgentProjectBinding :exec
+UPDATE agents
+SET project_id = NULL,
+    updated_at = NOW()
+WHERE project_id = $1;
+
 -- name: BindAgentToProject :one
 UPDATE agents
 SET project_id = $2,

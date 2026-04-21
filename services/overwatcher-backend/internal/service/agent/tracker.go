@@ -4,7 +4,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 	"github.com/lwlee2608/overwatcher/internal/util"
 )
@@ -21,12 +23,13 @@ type AgentStatus struct {
 
 // Service manages agent registration and heartbeats backed by PostgreSQL.
 type Service struct {
-	q   *sqlc.Queries
-	ttl time.Duration
+	pool *pgxpool.Pool
+	q    *sqlc.Queries
+	ttl  time.Duration
 }
 
-func NewService(q *sqlc.Queries, ttl time.Duration) *Service {
-	return &Service{q: q, ttl: ttl}
+func NewService(pool *pgxpool.Pool, q *sqlc.Queries, ttl time.Duration) *Service {
+	return &Service{pool: pool, q: q, ttl: ttl}
 }
 
 // Record upserts an agent entry with the current time.
@@ -68,6 +71,8 @@ func (s *Service) GetByID(ctx context.Context, id string) (*AgentStatus, error) 
 }
 
 // BindProject sets (or clears, when projectID is empty) the project binding on an agent.
+// If projectID is non-empty, any other agent currently bound to that project is
+// cleared first so the 1:1 constraint is preserved.
 func (s *Service) BindProject(ctx context.Context, agentID string, projectID string) (*AgentStatus, error) {
 	aid := pgtype.UUID{}
 	if err := aid.Scan(agentID); err != nil {
@@ -79,13 +84,47 @@ func (s *Service) BindProject(ctx context.Context, agentID string, projectID str
 			return nil, err
 		}
 	}
-	a, err := s.q.BindAgentToProject(ctx, sqlc.BindAgentToProjectParams{
+
+	// Unbinding does not need a transaction.
+	if projectID == "" {
+		a, err := s.q.BindAgentToProject(ctx, sqlc.BindAgentToProjectParams{
+			ID:        aid,
+			ProjectID: pid,
+		})
+		if err != nil {
+			return nil, err
+		}
+		status := s.toStatus(a, time.Now())
+		return &status, nil
+	}
+
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+	q := s.q.WithTx(tx)
+
+	if err = q.ClearAgentProjectBinding(ctx, pid); err != nil {
+		return nil, err
+	}
+
+	a, err := q.BindAgentToProject(ctx, sqlc.BindAgentToProjectParams{
 		ID:        aid,
 		ProjectID: pid,
 	})
 	if err != nil {
 		return nil, err
 	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
 	status := s.toStatus(a, time.Now())
 	return &status, nil
 }

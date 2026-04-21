@@ -39,6 +39,18 @@ func (q *Queries) BindAgentToProject(ctx context.Context, arg BindAgentToProject
 	return i, err
 }
 
+const clearAgentProjectBinding = `-- name: ClearAgentProjectBinding :exec
+UPDATE agents
+SET project_id = NULL,
+    updated_at = NOW()
+WHERE project_id = $1
+`
+
+func (q *Queries) ClearAgentProjectBinding(ctx context.Context, projectID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, clearAgentProjectBinding, projectID)
+	return err
+}
+
 const getAgent = `-- name: GetAgent :one
 SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id FROM agents WHERE id = $1
 `

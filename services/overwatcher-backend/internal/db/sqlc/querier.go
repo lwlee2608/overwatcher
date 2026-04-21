@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	BindAgentToProject(ctx context.Context, arg BindAgentToProjectParams) (Agent, error)
+	ClearAgentProjectBinding(ctx context.Context, projectID pgtype.UUID) error
 	CompleteDeployIntent(ctx context.Context, arg CompleteDeployIntentParams) (DeployIntent, error)
 	CountDeployIntentsByStatus(ctx context.Context, status string) (int64, error)
 	// Webhook redeliveries dedup on (delivery_id, project_id) via the partial

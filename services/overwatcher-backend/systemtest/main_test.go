@@ -49,7 +49,7 @@ func TestSystemIntegration(t *testing.T) {
 
 	queries := sqlc.New(pool)
 
-	agentSvc := agent.NewService(queries, 60*time.Second)
+	agentSvc := agent.NewService(pool, queries, 60*time.Second)
 	eventLogSvc := eventlog.NewService(queries)
 	userSvc := user.NewService(pool)
 	projectSvc := project.NewService(pool)
