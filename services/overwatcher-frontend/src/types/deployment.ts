@@ -4,6 +4,7 @@ export interface Deployment {
   id: string;
   created_at: string;
   delivery_id: string;
+  project_id?: string;
   repo: string;
   ref: string;
   sha: string;

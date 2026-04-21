@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import type { Deployment } from "../types/deployment";
+import type { ProjectResponse } from "../types/project";
 import { fetchDeployments, redeployDeployment } from "../api/deployments";
+import { fetchProjects } from "../api/projects";
 import { timeAgo } from "../utils/time";
 
 const statusColors: Record<string, string> = {
@@ -21,14 +24,16 @@ const defaultStatusColor =
 
 export function DeploymentDashboard() {
   const [deployments, setDeployments] = useState<Deployment[]>([]);
+  const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [redeployingId, setRedeployingId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const data = await fetchDeployments(100);
-      setDeployments(data.deployments ?? []);
+      const [d, p] = await Promise.all([fetchDeployments(100), fetchProjects()]);
+      setDeployments(d.deployments ?? []);
+      setProjects(p.projects ?? []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch");
@@ -36,6 +41,8 @@ export function DeploymentDashboard() {
       setLoading(false);
     }
   }, []);
+
+  const projectById = new Map(projects.map((p) => [p.id, p]));
 
   useEffect(() => {
     refresh();
@@ -91,6 +98,7 @@ export function DeploymentDashboard() {
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Project</th>
                 <th className="px-4 py-3">Repository</th>
                 <th className="px-4 py-3">SHA</th>
                 <th className="px-4 py-3">Agent</th>
@@ -101,7 +109,11 @@ export function DeploymentDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-              {deployments.map((d) => (
+              {deployments.map((d) => {
+                const project = d.project_id
+                  ? projectById.get(d.project_id)
+                  : undefined;
+                return (
                 <tr key={d.id}>
                   <td className="px-4 py-3">
                     <span
@@ -109,6 +121,18 @@ export function DeploymentDashboard() {
                     >
                       {d.status}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                    {project ? (
+                      <Link
+                        to={`/projects/${project.id}`}
+                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                      >
+                        {project.name}
+                      </Link>
+                    ) : (
+                      <span className="text-gray-400 dark:text-gray-500">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 font-mono text-gray-900 dark:text-gray-100">
                     {d.repo}
@@ -159,7 +183,8 @@ export function DeploymentDashboard() {
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
