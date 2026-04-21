@@ -1,6 +1,6 @@
 # Projects Redesign — Remaining Work
 
-Companion to [projects-redesign.md](./projects-redesign.md). Steps 1–3 are done; this file tracks what's left before the redesign is complete.
+Companion to [projects-redesign.md](./projects-redesign.md). Steps 1–4 are done; this file tracks what's left before the redesign is complete.
 
 ## Done
 
@@ -8,20 +8,11 @@ Companion to [projects-redesign.md](./projects-redesign.md). Steps 1–3 are don
 - **Step 1b** — sqlc queries for users/projects/services.
 - **Step 2** — `user` and `project` service packages, HTTP handlers (`/api/v1/users`, `/api/v1/projects`, nested `/services`), DTOs, router wiring, and a 14-case system test suite.
 - **Step 3** — Webhook cutover. `handlePush` matches by `(repo, branch)`, filters by `root_directory ∩ changed paths`, groups by project, and enqueues one intent per project. Intent dedup moved to partial unique `(delivery_id, project_id)`. `compose_file` is now a property of the project and rides on each intent; `X-Agent-Compose-File` header and `agent.compose_file` config removed. Migration 0011 backfills a bootstrap user + project per legacy mapping and binds agents.
+- **Step 4** — Frontend. Users page (CRUD), Projects page (list grouped by owner + CRUD), Project detail page with inline services editor (reorderable rows, "Save services" posts the full list via `PUT /projects/:id/services`), Deployments table with a project column linking to the detail page. Mappings page left in place until parity is confirmed.
 
-## Step 4 — Frontend Projects/Services pages
-
-Goal: user can manage projects and their services in the UI.
-
-- Users page: list, create, rename, delete. (Auth is out of scope — "bootstrap admin" only for now.)
-- Projects page: list grouped by user, create (select user + agent), edit (name/description/compose_file/environment/enabled), delete.
-- Project detail: service list with inline edit (repo / root_directory / branch / image / tag / position) and "replace all" save via `PUT /projects/:id/services`.
-- Dashboard: deployments table already carries `project_id`; add a project column and link to the project page.
-- Kill the old Mappings page once Projects is feature-parity.
-
-Open questions:
+Open questions (deferred — Mappings page still available as fallback):
 - Multi-service compose stacks across multiple repos — the UI should make it clear that services in one project can come from different repos.
-- Where agent binding lives: on the Agents page or on the Project edit page? Doc says Project↔Agent is 1:1 — editing it from either side is fine but we should pick one and hide the other.
+- Where agent binding lives: on the Agents page or on the Project edit page? Doc says Project↔Agent is 1:1 — neither edge currently exposes it; the DB has `agents.project_id` but no UI surface yet. Pick one side before Step 5 or agents will be orphaned.
 
 ## Step 5 — Drop legacy
 
