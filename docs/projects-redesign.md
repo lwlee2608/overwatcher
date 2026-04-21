@@ -13,13 +13,17 @@ Railway solves both with a **Project** as the unit of deployment: one compose fi
 
 | Concept | What it is | Relationship |
 |---|---|---|
-| **Project** | The deployable unit. Owns exactly one compose file and exactly one agent. | 1 project — 1 agent, 1 project — N services |
+| **User** | The owner of projects. The unit of authentication for the UI and of isolation between tenants. | 1 user — N projects |
+| **Project** | The deployable unit. Owns exactly one compose file and exactly one agent. | N projects — 1 user, 1 project — 1 agent, 1 project — N services |
 | **Agent** | The process on a VM that runs `docker compose` for its project. Binds to a pre-existing project on first poll via a project-scoped token. | 1 agent — 1 project |
 | **Service** | A compose service. Links to one GitHub repo (+ root directory) and one image:tag. | N services — 1 project. Many services can share a repo. |
 | **DeployIntent** | Queue item: "project P, deploy services [s1, s2] at SHA X". Immutable event log. | N intents — 1 project |
 
 Key invariants:
 
+- **A project belongs to exactly one user.** Enforced by `projects.user_id NOT NULL`. Deleting a user cascades to their projects (and through them to services and agents); historical `deploy_intents` rows are preserved with `project_id = NULL`, same as project deletion today.
+- **Project names are unique per user, not globally.** Two users can both own a project called `staging`. Enforced by `UNIQUE(user_id, name)` on `projects`.
+- **Repos are not scoped to users.** The webhook handler fans out across every user's services that match the pushed repo. A single GitHub repo can feed projects owned by different users without any cross-tenant coordination.
 - **Project ↔ Agent is 1:1.** An agent can't serve two projects; a project can't have two agents. Enforced by `agents.project_id UNIQUE`.
 - **A repo may appear in many services across many projects.** A webhook for `owner/repo` fans out to every service whose `repo = 'owner/repo'` and whose `root_directory` matches the push's changed paths.
 - **Intents are per-project, not per-service.** A single webhook that affects services `web` and `api` in the same project produces one intent with two services in its spec, so compose is invoked once.
@@ -74,16 +78,30 @@ A push to `owner/monorepo` touching `web/src/App.tsx` triggers exactly one inten
 
 ```
  ┌──────────────────────────────────┐
+ │             users                │
+ ├──────────────────────────────────┤
+ │ id            UUID PK            │
+ │ email         VARCHAR(255) UQ    │
+ │ name          VARCHAR(255)       │
+ │ created_at    TIMESTAMPTZ        │
+ │ updated_at    TIMESTAMPTZ        │
+ └──────────────┬───────────────────┘
+                │ 1:N
+                ▼
+ ┌──────────────────────────────────┐
  │            projects              │
  ├──────────────────────────────────┤
  │ id            UUID PK            │
- │ name          VARCHAR(255) UQ    │
+ │ user_id       UUID FK → users (CASCADE) NOT NULL │
+ │ name          VARCHAR(255)       │
  │ description   TEXT               │
  │ compose_file  VARCHAR(512)       │  ← path on the agent VM
  │ environment   VARCHAR(64)        │  ← prod/staging/etc.
  │ enabled       BOOLEAN            │
  │ created_at    TIMESTAMPTZ        │
  │ updated_at    TIMESTAMPTZ        │
+ │                                  │
+ │ UQ(user_id, name)                │
  └──────────────┬───────────────────┘
                 │ 1:1                │ 1:N
                 ▼                    ▼
@@ -132,6 +150,8 @@ A push to `owner/monorepo` touching `web/src/App.tsx` triggers exactly one inten
 
 ### Notes on the schema
 
+- **`users` is the tenant root.** Every project has a non-null `user_id`; deleting a user cascades through projects → services and agents. `deploy_intents` do not FK to users (they reach users transitively via `project_id`), so a user deletion preserves deployment history the same way a project deletion does today.
+- **`projects.name` is unique *per user*, not globally.** The index is `UNIQUE(user_id, name)` so two users can each have a `staging` project. This also means the project-scoped registration token — not the name — is what the agent uses to identify which project to bind to.
 - **`projects` owns the compose file.** It was previously on `agents`; moving it reflects that the compose file is a property of the deployment, not the runtime.
 - **`agents.project_id UNIQUE`** enforces the 1:1. An agent registers by claiming a project (e.g. via a project-scoped token); if the project already has a live agent, the registration fails or rotates.
 - **`services` replaces `deploy_mappings` + `deploy_mapping_services`.** The repo moves from mapping-level to service-level, which is the whole point of the redesign.
@@ -153,10 +173,10 @@ The dispatch side (agent long-poll, runner, result reporting) is unchanged, exce
 
 ## Migration path
 
-Every existing `deploy_mapping` becomes one project:
+Every existing `deploy_mapping` becomes one project under a single bootstrap user:
 
-1. Create `projects`, `services` tables. Keep `agents`, `deploy_mappings`, `deploy_mapping_services` in place.
-2. **Backfill**: for each `deploy_mapping` row, insert a `project` (name = `{repo}-{environment}` or similar), move `agents.compose_file` → `projects.compose_file`, set `agents.project_id`. Copy `deploy_mapping_services` rows to `services` with `repo = deploy_mappings.repo`, `root_directory = '/'`, `branch = 'main'`.
+1. Create `users`, `projects`, `services` tables. Keep `agents`, `deploy_mappings`, `deploy_mapping_services` in place.
+2. **Backfill**: insert a bootstrap user (e.g. email `admin@local`) to own all pre-existing deployments. For each `deploy_mapping` row, insert a `project` under the bootstrap user (name = `{repo}-{environment}` or similar), move `agents.compose_file` → `projects.compose_file`, set `agents.project_id`. Copy `deploy_mapping_services` rows to `services` with `repo = deploy_mappings.repo`, `root_directory = '/'`, `branch = 'main'`.
 3. Cut the webhook handler over to the new query path.
 4. Drop `deploy_mappings`, `deploy_mapping_services`, and the `compose_file` column on `agents`.
 
