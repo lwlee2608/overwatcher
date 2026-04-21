@@ -10,9 +10,10 @@ Companion to [projects-redesign.md](./projects-redesign.md). Steps 1–4 are don
 - **Step 3** — Webhook cutover. `handlePush` matches by `(repo, branch)`, filters by `root_directory ∩ changed paths`, groups by project, and enqueues one intent per project. Intent dedup moved to partial unique `(delivery_id, project_id)`. `compose_file` is now a property of the project and rides on each intent; `X-Agent-Compose-File` header and `agent.compose_file` config removed. Migration 0011 backfills a bootstrap user + project per legacy mapping and binds agents.
 - **Step 4** — Frontend. Users page (CRUD), Projects page (list grouped by owner + CRUD), Project detail page with inline services editor (reorderable rows, "Save services" posts the full list via `PUT /projects/:id/services`), Deployments table with a project column linking to the detail page. Mappings page left in place until parity is confirmed.
 
+- **Step 4b** — Agent binding. `PUT /api/v1/agents/:id/project` binds (or clears with empty `project_id`) the agent↔project link. `AgentStatusResponse` now carries `project_id`. Project detail page has an Agent panel with a selector and connection indicator; reassigning moves future deploys to the new agent.
+
 Open questions (deferred — Mappings page still available as fallback):
 - Multi-service compose stacks across multiple repos — the UI should make it clear that services in one project can come from different repos.
-- Where agent binding lives: on the Agents page or on the Project edit page? Doc says Project↔Agent is 1:1 — neither edge currently exposes it; the DB has `agents.project_id` but no UI surface yet. Pick one side before Step 5 or agents will be orphaned.
 
 ## Step 5 — Drop legacy
 

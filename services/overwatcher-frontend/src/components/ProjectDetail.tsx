@@ -4,7 +4,9 @@ import type {
   ComposeServiceResponse,
   ProjectResponse,
 } from "../types/project";
+import type { AgentStatus } from "../types/agent";
 import { fetchProject, replaceProjectServices } from "../api/projects";
+import { bindAgentProject, fetchAgents } from "../api/agents";
 
 interface ServiceRow {
   name: string;
@@ -39,6 +41,9 @@ export function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [rows, setRows] = useState<ServiceRow[]>([]);
+  const [agents, setAgents] = useState<AgentStatus[]>([]);
+  const [agentSelection, setAgentSelection] = useState<string>("");
+  const [bindingAgent, setBindingAgent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -47,9 +52,13 @@ export function ProjectDetail() {
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const p = await fetchProject(id);
+      const [p, a] = await Promise.all([fetchProject(id), fetchAgents()]);
       setProject(p);
       setRows((p.services ?? []).map(toRow));
+      const agentList = a.agents ?? [];
+      setAgents(agentList);
+      const bound = agentList.find((ag) => ag.project_id === p.id);
+      setAgentSelection(bound?.id ?? "");
       setDirty(false);
       setError(null);
       setLoading(false);
@@ -87,6 +96,27 @@ export function ProjectDetail() {
       return copy;
     });
     setDirty(true);
+  }
+
+  async function handleBindAgent() {
+    if (!project) return;
+    setBindingAgent(true);
+    setError(null);
+    try {
+      const boundNow = agents.find((ag) => ag.project_id === project.id);
+      if (agentSelection === "") {
+        if (boundNow) {
+          await bindAgentProject(boundNow.id, { project_id: "" });
+        }
+      } else {
+        await bindAgentProject(agentSelection, { project_id: project.id });
+      }
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bind failed");
+    } finally {
+      setBindingAgent(false);
+    }
   }
 
   async function handleSave() {
@@ -192,6 +222,71 @@ export function ProjectDetail() {
           {error}
         </div>
       )}
+
+      <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+            Agent
+          </h2>
+          {(() => {
+            const bound = agents.find((a) => a.project_id === project.id);
+            if (!bound) {
+              return (
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  Not bound
+                </span>
+              );
+            }
+            return (
+              <span
+                className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                  bound.connected
+                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                    : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                }`}
+              >
+                {bound.connected ? "connected" : "disconnected"}
+              </span>
+            );
+          })()}
+        </div>
+        <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+          One agent runs this project. Changing this moves future deploys to the
+          selected agent.
+        </p>
+        <div className="flex items-center gap-2">
+          <select
+            value={agentSelection}
+            onChange={(e) => setAgentSelection(e.target.value)}
+            className="flex-1 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+          >
+            <option value="">— Unbound —</option>
+            {agents.map((a) => {
+              const boundElsewhere =
+                a.project_id && a.project_id !== project.id;
+              return (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                  {boundElsewhere ? " (reassign)" : ""}
+                  {!a.connected ? " [offline]" : ""}
+                </option>
+              );
+            })}
+          </select>
+          <button
+            type="button"
+            onClick={handleBindAgent}
+            disabled={
+              bindingAgent ||
+              agentSelection ===
+                (agents.find((a) => a.project_id === project.id)?.id ?? "")
+            }
+            className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {bindingAgent ? "Saving..." : "Apply"}
+          </button>
+        </div>
+      </div>
 
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">

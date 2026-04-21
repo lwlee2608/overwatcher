@@ -17,6 +17,7 @@ type AgentStatus struct {
 	LastSeen    time.Time `json:"last_seen"`
 	RemoteIP    string    `json:"remote_ip"`
 	Connected   bool      `json:"connected"`
+	ProjectID   string    `json:"project_id,omitempty"`
 }
 
 // Service manages agent registration and heartbeats backed by PostgreSQL.
@@ -68,6 +69,29 @@ func (s *Service) GetByID(ctx context.Context, id string) (*AgentStatus, error) 
 	return &status, nil
 }
 
+// BindProject sets (or clears, when projectID is empty) the project binding on an agent.
+func (s *Service) BindProject(ctx context.Context, agentID string, projectID string) (*AgentStatus, error) {
+	aid := pgtype.UUID{}
+	if err := aid.Scan(agentID); err != nil {
+		return nil, err
+	}
+	pid := pgtype.UUID{}
+	if projectID != "" {
+		if err := pid.Scan(projectID); err != nil {
+			return nil, err
+		}
+	}
+	a, err := s.q.BindAgentToProject(ctx, sqlc.BindAgentToProjectParams{
+		ID:        aid,
+		ProjectID: pid,
+	})
+	if err != nil {
+		return nil, err
+	}
+	status := s.toStatus(a, time.Now())
+	return &status, nil
+}
+
 func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
 	lastSeen := a.LastSeenAt.Time
 	return AgentStatus{
@@ -77,6 +101,7 @@ func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
 		LastSeen:    lastSeen,
 		RemoteIP:    a.RemoteIp,
 		Connected:   now.Sub(lastSeen) < s.ttl,
+		ProjectID:   util.UUIDToString(a.ProjectID),
 	}
 }
 

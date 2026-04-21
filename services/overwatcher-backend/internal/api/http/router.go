@@ -62,6 +62,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 
 		apis.GET("/agents", agentHandler.List)
 		apis.GET("/agents/:id", agentHandler.Get)
+		apis.PUT("/agents/:id/project", agentHandler.BindProject)
 
 		apis.GET("/mappings", mappingHandler.List)
 		apis.POST("/mappings", mappingHandler.Create)
