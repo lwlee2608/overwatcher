@@ -8,6 +8,8 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/mapping"
+	"github.com/lwlee2608/overwatcher/internal/service/project"
+	"github.com/lwlee2608/overwatcher/internal/service/user"
 	"github.com/lwlee2608/overwatcher/internal/service/webhook"
 )
 
@@ -21,6 +23,8 @@ type Services struct {
 	AgentService      *agent.Service
 	MappingService    *mapping.Service
 	EventLogService   *eventlog.Service
+	UserService       *user.Service
+	ProjectService    *project.Service
 	WebhookSecret     string
 	AgentSharedSecret string
 }
@@ -35,6 +39,8 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	agentHandler := handler.NewAgentHandler(srvs.AgentService)
 	mappingHandler := handler.NewMappingHandler(srvs.MappingService)
 	eventLogHandler := handler.NewEventLogHandler(srvs.EventLogService)
+	userHandler := handler.NewUserHandler(srvs.UserService)
+	projectHandler := handler.NewProjectHandler(srvs.ProjectService)
 
 	engine.GET("/health", healthHandler.Check)
 
@@ -61,6 +67,22 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 		apis.POST("/mappings", mappingHandler.Create)
 		apis.PUT("/mappings/:id", mappingHandler.Update)
 		apis.DELETE("/mappings/:id", mappingHandler.Delete)
+
+		apis.GET("/users", userHandler.List)
+		apis.POST("/users", userHandler.Create)
+		apis.GET("/users/:id", userHandler.Get)
+		apis.PUT("/users/:id", userHandler.Update)
+		apis.DELETE("/users/:id", userHandler.Delete)
+
+		apis.GET("/projects", projectHandler.List)
+		apis.POST("/projects", projectHandler.Create)
+		apis.GET("/projects/:id", projectHandler.Get)
+		apis.PUT("/projects/:id", projectHandler.Update)
+		apis.DELETE("/projects/:id", projectHandler.Delete)
+		apis.GET("/projects/:id/services", projectHandler.ListServices)
+		apis.POST("/projects/:id/services", projectHandler.CreateService)
+		apis.PUT("/projects/:id/services", projectHandler.ReplaceServices)
+		apis.DELETE("/projects/:id/services/:serviceID", projectHandler.DeleteService)
 
 		apis.GET("/events", eventLogHandler.List)
 		apis.GET("/deployments", deployHandler.ListDeployments)
