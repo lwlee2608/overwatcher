@@ -21,7 +21,6 @@ type AgentConfig struct {
 	CoordinatorURL string        `mapstructure:"coordinator_url"`
 	SharedSecret   string        `mapstructure:"shared_secret" mask:"true"`
 	PollTimeout    time.Duration `mapstructure:"poll_timeout"`
-	ComposeFile    string        `mapstructure:"compose_file"`
 }
 
 type Config struct {
@@ -90,12 +89,6 @@ func validate() error {
 	}
 	if config.Agent.SharedSecret == "" {
 		return errors.New("AGENT_SHARED_SECRET must be set")
-	}
-	if config.Agent.ComposeFile == "" {
-		return errors.New("agent.compose_file must be set")
-	}
-	if _, err := os.Stat(config.Agent.ComposeFile); err != nil {
-		return fmt.Errorf("agent.compose_file %q not accessible: %w", config.Agent.ComposeFile, err)
 	}
 	return nil
 }

@@ -10,14 +10,12 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 )
 
-// Runner executes a deploy intent by shelling out to `docker compose`.
-type Runner struct {
-	composeFile string
-}
+// Runner executes a deploy intent by shelling out to `docker compose`. The
+// compose file path is carried on each intent (projects.compose_file on the
+// coordinator) rather than configured per-agent.
+type Runner struct{}
 
-func NewRunner(composeFile string) *Runner {
-	return &Runner{composeFile: composeFile}
-}
+func NewRunner() *Runner { return &Runner{} }
 
 // Run executes `docker compose pull` followed by `up -d` for each service in
 // the intent. Each service carries its own image and tag, exported as IMAGE
@@ -27,14 +25,17 @@ func (r *Runner) Run(ctx context.Context, intent *dto.DeployIntentResponse) erro
 	if len(intent.Services) == 0 {
 		return fmt.Errorf("intent has no services")
 	}
+	if intent.ComposeFile == "" {
+		return fmt.Errorf("intent has no compose_file")
+	}
 	for _, svc := range intent.Services {
 		env := append(os.Environ(),
 			"IMAGE="+svc.Image,
 			"IMAGE_TAG="+svc.Tag,
 		)
 
-		pullArgs := []string{"compose", "-f", r.composeFile, "pull"}
-		upArgs := []string{"compose", "-f", r.composeFile, "up", "-d"}
+		pullArgs := []string{"compose", "-f", intent.ComposeFile, "pull"}
+		upArgs := []string{"compose", "-f", intent.ComposeFile, "up", "-d"}
 		if svc.Name != "" {
 			pullArgs = append(pullArgs, svc.Name)
 			upArgs = append(upArgs, svc.Name)

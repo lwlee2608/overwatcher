@@ -4,8 +4,6 @@ import (
 	"context"
 	"sync"
 	"time"
-
-	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 )
 
 // Status tracks a DeployIntent through its lifecycle.
@@ -19,18 +17,28 @@ const (
 	StatusPermanentlyFailed Status = "permanently_failed"
 )
 
+// ServiceSpec is the snapshot of a compose service embedded in an intent.
+// An empty Name means "apply to every service in the compose file".
+type ServiceSpec struct {
+	Name  string `json:"name"`
+	Image string `json:"image"`
+	Tag   string `json:"tag"`
+}
+
 // DeployIntent is everything an agent needs to perform a deploy. It is produced
-// on a push webhook when the repo matches a mapping.Entry.
+// on a push webhook when the repo matches services within an enabled project.
 type DeployIntent struct {
 	ID             string
 	CreatedAt      time.Time
 	DeliveryID     string
-	StackIndex     int
+	ProjectID      string
+	ProjectName    string
+	ComposeFile    string
 	Repo           string
 	Ref            string
 	SHA            string
 	Stack          string
-	Services       []mapping.ServiceSpec
+	Services       []ServiceSpec
 	Environment    string
 	DeploymentID   int64
 	InstallationID int64

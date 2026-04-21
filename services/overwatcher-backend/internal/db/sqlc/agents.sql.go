@@ -11,12 +11,61 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const bindAgentToProject = `-- name: BindAgentToProject :one
+UPDATE agents
+SET project_id = $2,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at, project_id
+`
+
+type BindAgentToProjectParams struct {
+	ID        pgtype.UUID `json:"id"`
+	ProjectID pgtype.UUID `json:"project_id"`
+}
+
+func (q *Queries) BindAgentToProject(ctx context.Context, arg BindAgentToProjectParams) (Agent, error) {
+	row := q.db.QueryRow(ctx, bindAgentToProject, arg.ID, arg.ProjectID)
+	var i Agent
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.ComposeFile,
+		&i.RemoteIp,
+		&i.LastSeenAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProjectID,
+	)
+	return i, err
+}
+
 const getAgent = `-- name: GetAgent :one
 SELECT id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at, project_id FROM agents WHERE id = $1
 `
 
 func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error) {
 	row := q.db.QueryRow(ctx, getAgent, id)
+	var i Agent
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.ComposeFile,
+		&i.RemoteIp,
+		&i.LastSeenAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProjectID,
+	)
+	return i, err
+}
+
+const getAgentByName = `-- name: GetAgentByName :one
+SELECT id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at, project_id FROM agents WHERE name = $1
+`
+
+func (q *Queries) GetAgentByName(ctx context.Context, name string) (Agent, error) {
+	row := q.db.QueryRow(ctx, getAgentByName, name)
 	var i Agent
 	err := row.Scan(
 		&i.ID,

@@ -37,6 +37,7 @@ type DeployIntent struct {
 	DispatchedAt   pgtype.Timestamp `json:"dispatched_at"`
 	ServicesSpec   []byte           `json:"services_spec"`
 	ProjectID      pgtype.UUID      `json:"project_id"`
+	ComposeFile    string           `json:"compose_file"`
 }
 
 type DeployMapping struct {

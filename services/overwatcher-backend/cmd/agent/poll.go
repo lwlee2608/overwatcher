@@ -89,7 +89,6 @@ func (p *Poller) fetchNext(ctx context.Context) (*dto.DeployIntentResponse, erro
 	}
 	req.Header.Set("Authorization", "Bearer "+p.cfg.SharedSecret)
 	req.Header.Set("X-Agent-Name", p.cfg.Name)
-	req.Header.Set("X-Agent-Compose-File", p.cfg.ComposeFile)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
@@ -158,7 +157,6 @@ func (p *Poller) postResult(ctx context.Context, intentID string, success bool, 
 	req.Header.Set("Authorization", "Bearer "+p.cfg.SharedSecret)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Agent-Name", p.cfg.Name)
-	req.Header.Set("X-Agent-Compose-File", p.cfg.ComposeFile)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {

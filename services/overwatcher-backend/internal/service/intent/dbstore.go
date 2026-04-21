@@ -13,14 +13,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
-	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 )
 
 var _ Store = (*DBStore)(nil)
 
 // DBStore is a PostgreSQL-backed implementation of Store. Intents survive
-// coordinator restarts and webhook redeliveries are deduped via a unique
-// constraint on (delivery_id, stack_index).
+// coordinator restarts and webhook redeliveries are deduped via a partial
+// unique index on (delivery_id, project_id).
 type DBStore struct {
 	q      *sqlc.Queries
 	notify chan struct{}
@@ -43,21 +42,30 @@ func (s *DBStore) Enqueue(i *DeployIntent) {
 		return
 	}
 
+	projectID := pgtype.UUID{}
+	if i.ProjectID != "" {
+		if err := projectID.Scan(i.ProjectID); err != nil {
+			slog.Error("Invalid project_id", "project_id", i.ProjectID, "error", err)
+			return
+		}
+	}
+
 	_, err = s.q.CreateDeployIntent(ctx, sqlc.CreateDeployIntentParams{
 		DeliveryID:     i.DeliveryID,
-		StackIndex:     int32(i.StackIndex),
+		ProjectID:      projectID,
 		Repo:           i.Repo,
 		GitRef:         i.Ref,
 		Sha:            i.SHA,
 		Stack:          i.Stack,
 		ServicesSpec:   spec,
 		Environment:    i.Environment,
+		ComposeFile:    i.ComposeFile,
 		DeploymentID:   i.DeploymentID,
 		InstallationID: i.InstallationID,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			slog.Info("Duplicate webhook delivery, skipping", "delivery_id", i.DeliveryID, "stack_index", i.StackIndex)
+			slog.Info("Duplicate webhook delivery, skipping", "delivery_id", i.DeliveryID, "project_id", i.ProjectID)
 			return
 		}
 		slog.Error("Failed to enqueue intent", "delivery_id", i.DeliveryID, "error", err)
@@ -243,7 +251,7 @@ func (s *DBStore) Len() int {
 
 // fromRow converts a sqlc-generated DeployIntent to the domain model.
 func fromRow(row sqlc.DeployIntent) *DeployIntent {
-	var services []mapping.ServiceSpec
+	var services []ServiceSpec
 	if len(row.ServicesSpec) > 0 {
 		if err := json.Unmarshal(row.ServicesSpec, &services); err != nil {
 			slog.Error("Failed to unmarshal services spec", "intent_id", uuidToString(row.ID), "error", err)
@@ -252,7 +260,8 @@ func fromRow(row sqlc.DeployIntent) *DeployIntent {
 	di := &DeployIntent{
 		ID:             uuidToString(row.ID),
 		DeliveryID:     row.DeliveryID,
-		StackIndex:     int(row.StackIndex),
+		ProjectID:      uuidToString(row.ProjectID),
+		ComposeFile:    row.ComposeFile,
 		Repo:           row.Repo,
 		Ref:            row.GitRef,
 		SHA:            row.Sha,

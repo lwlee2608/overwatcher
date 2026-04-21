@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
-	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 )
 
 func TestRedeploy_SourceNotFound(t *testing.T) {
@@ -28,7 +27,7 @@ func TestRedeploy_MissingInstallationID(t *testing.T) {
 		Ref:            "refs/heads/main",
 		SHA:            "abcdef1234567890",
 		Stack:          "prod-agent",
-		Services:       []mapping.ServiceSpec{{Name: "web", Image: "x", Tag: "v1"}},
+		Services:       []intent.ServiceSpec{{Name: "web", Image: "x", Tag: "v1"}},
 		Environment:    "production",
 		InstallationID: 0,
 		Status:         intent.StatusCreated,
@@ -63,3 +62,27 @@ func TestRedeploy_MalformedRepo(t *testing.T) {
 	}
 }
 
+func TestPathMatchesRoot(t *testing.T) {
+	cases := []struct {
+		name    string
+		root    string
+		changed []string
+		want    bool
+	}{
+		{"root /, any path", "/", []string{"README.md"}, true},
+		{"empty root, any path", "", []string{"a.go"}, true},
+		{"exact prefix match", "/services/web", []string{"services/web/index.ts"}, true},
+		{"nested match", "services/web", []string{"services/web/deep/nested/file.ts"}, true},
+		{"no changed paths (truncated)", "/services/web", nil, true},
+		{"different root", "/services/web", []string{"services/api/main.go"}, false},
+		{"root prefix but different dir", "/services/web", []string{"services/webfoo/x"}, false},
+		{"exact file match", "/services/web/x.go", []string{"services/web/x.go"}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := pathMatchesRoot(tc.root, tc.changed); got != tc.want {
+				t.Errorf("root=%q changed=%v: got %v, want %v", tc.root, tc.changed, got, tc.want)
+			}
+		})
+	}
+}

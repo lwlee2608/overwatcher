@@ -38,7 +38,7 @@ func (h *DeployHandler) Next(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), longPollTimeout)
 	defer cancel()
 
-	intent, err := h.dispatchService.Next(ctx)
+	intentRow, err := h.dispatchService.Next(ctx)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			c.Status(http.StatusNoContent)
@@ -50,16 +50,18 @@ func (h *DeployHandler) Next(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, dto.DeployIntentResponse{
-		ID:           intent.ID,
-		CreatedAt:    intent.CreatedAt,
-		DeliveryID:   intent.DeliveryID,
-		Repo:         intent.Repo,
-		Ref:          intent.Ref,
-		SHA:          intent.SHA,
-		Stack:        intent.Stack,
-		Services:     servicesToDTO(intent.Services),
-		Environment:  intent.Environment,
-		DeploymentID: intent.DeploymentID,
+		ID:           intentRow.ID,
+		CreatedAt:    intentRow.CreatedAt,
+		DeliveryID:   intentRow.DeliveryID,
+		ProjectID:    intentRow.ProjectID,
+		ComposeFile:  intentRow.ComposeFile,
+		Repo:         intentRow.Repo,
+		Ref:          intentRow.Ref,
+		SHA:          intentRow.SHA,
+		Stack:        intentRow.Stack,
+		Services:     intentServicesToDTO(intentRow.Services),
+		Environment:  intentRow.Environment,
+		DeploymentID: intentRow.DeploymentID,
 	})
 }
 
@@ -85,11 +87,12 @@ func (h *DeployHandler) ListDeployments(c *gin.Context) {
 			ID:          d.ID,
 			CreatedAt:   d.CreatedAt,
 			DeliveryID:  d.DeliveryID,
+			ProjectID:   d.ProjectID,
 			Repo:        d.Repo,
 			Ref:         d.Ref,
 			SHA:         d.SHA,
 			Stack:       d.Stack,
-			Services:    servicesToDTO(d.Services),
+			Services:    intentServicesToDTO(d.Services),
 			Environment: d.Environment,
 			Status:      string(d.Status),
 			Attempts:    d.Attempts,
@@ -120,6 +123,14 @@ func (h *DeployHandler) Redeploy(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusAccepted)
+}
+
+func intentServicesToDTO(specs []intent.ServiceSpec) []dto.ServiceSpecDTO {
+	out := make([]dto.ServiceSpecDTO, len(specs))
+	for i, s := range specs {
+		out[i] = dto.ServiceSpecDTO{Name: s.Name, Image: s.Image, Tag: s.Tag}
+	}
+	return out
 }
 
 // Result records an agent's deploy outcome. Returns 404 for unknown intent

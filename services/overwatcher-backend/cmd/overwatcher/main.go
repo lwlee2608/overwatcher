@@ -57,7 +57,7 @@ func main() {
 	eventLogSvc := eventlog.NewService(queries)
 	userSvc := user.NewService(pool)
 	projectSvc := project.NewService(pool)
-	webhookSvc := webhook.New(ghClient, mappingSvc, intentStore, eventLogSvc)
+	webhookSvc := webhook.New(ghClient, projectSvc, intentStore, eventLogSvc)
 	dispatchSvc := dispatch.New(ghClient, intentStore)
 
 	services := &internalhttp.Services{

@@ -292,6 +292,57 @@ func (s *Service) DeleteComposeService(ctx context.Context, id string) error {
 	return nil
 }
 
+// RepoMatch is one row returned by ListEnabledServicesByRepoAndBranch — a
+// compose service joined with its owning project. The webhook handler groups
+// these by ProjectID to produce one intent per project.
+type RepoMatch struct {
+	ServiceID          string
+	ProjectID          string
+	ProjectName        string
+	ProjectUserID      string
+	ProjectComposeFile string
+	ProjectEnvironment string
+	ServiceName        string
+	Repo               string
+	RootDirectory      string
+	Branch             string
+	Image              string
+	Tag                string
+	Position           int
+}
+
+// ListEnabledServicesByRepoAndBranch returns every enabled service whose repo
+// and branch match. Callers still have to filter by root_directory against
+// the pushed changed paths before enqueueing.
+func (s *Service) ListEnabledServicesByRepoAndBranch(ctx context.Context, repo, branch string) ([]RepoMatch, error) {
+	rows, err := s.q.ListEnabledServicesByRepoAndBranch(ctx, sqlc.ListEnabledServicesByRepoAndBranchParams{
+		Lower:  repo,
+		Branch: branch,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RepoMatch, len(rows))
+	for i, r := range rows {
+		out[i] = RepoMatch{
+			ServiceID:          util.UUIDToString(r.ID),
+			ProjectID:          util.UUIDToString(r.ProjectID),
+			ProjectName:        r.ProjectName,
+			ProjectUserID:      util.UUIDToString(r.ProjectUserID),
+			ProjectComposeFile: r.ProjectComposeFile,
+			ProjectEnvironment: r.ProjectEnvironment,
+			ServiceName:        r.Name,
+			Repo:               r.Repo,
+			RootDirectory:      r.RootDirectory,
+			Branch:             r.Branch,
+			Image:              r.Image,
+			Tag:                r.Tag,
+			Position:           int(r.Position),
+		}
+	}
+	return out, nil
+}
+
 // ReplaceComposeServices rewrites the services list for a project
 // transactionally — used by the "edit project" UI path.
 func (s *Service) ReplaceComposeServices(ctx context.Context, projectID string, services []CreateComposeServiceParams) ([]ComposeService, error) {

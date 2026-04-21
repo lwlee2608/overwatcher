@@ -11,11 +11,12 @@ import (
 )
 
 type Querier interface {
+	BindAgentToProject(ctx context.Context, arg BindAgentToProjectParams) (Agent, error)
 	CompleteDeployIntent(ctx context.Context, arg CompleteDeployIntentParams) (DeployIntent, error)
 	CountDeployIntentsByStatus(ctx context.Context, status string) (int64, error)
-	// Webhook redeliveries dedup on (delivery_id, stack_index): on conflict the
-	// insert is skipped and sqlc returns pgx.ErrNoRows, which callers treat as
-	// "already enqueued, do nothing".
+	// Webhook redeliveries dedup on (delivery_id, project_id) via the partial
+	// unique index idx_deploy_intents_delivery_project. On conflict sqlc returns
+	// pgx.ErrNoRows, which callers treat as "already enqueued, do nothing".
 	CreateDeployIntent(ctx context.Context, arg CreateDeployIntentParams) (DeployIntent, error)
 	CreateDeployMapping(ctx context.Context, arg CreateDeployMappingParams) (DeployMapping, error)
 	CreateEventLog(ctx context.Context, arg CreateEventLogParams) (EventLog, error)
@@ -32,6 +33,7 @@ type Querier interface {
 	DeleteUser(ctx context.Context, id pgtype.UUID) (User, error)
 	FailTimedOutIntents(ctx context.Context, arg FailTimedOutIntentsParams) ([]DeployIntent, error)
 	GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error)
+	GetAgentByName(ctx context.Context, name string) (Agent, error)
 	GetDeployIntentByID(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	GetDeployMapping(ctx context.Context, id pgtype.UUID) (GetDeployMappingRow, error)
 	GetProject(ctx context.Context, id pgtype.UUID) (Project, error)

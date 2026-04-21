@@ -43,8 +43,9 @@ func TestRunner_Run_SingleService(t *testing.T) {
 	logPath, restore := stubDocker(t, 0)
 	defer restore()
 
-	r := NewRunner(composeFile)
+	r := NewRunner()
 	intent := &dto.DeployIntentResponse{
+		ComposeFile: composeFile,
 		Services: []dto.ServiceSpecDTO{
 			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "abc1234"},
 		},
@@ -75,8 +76,9 @@ func TestRunner_Run_MultipleServicesUseOwnImageTag(t *testing.T) {
 	logPath, restore := stubDocker(t, 0)
 	defer restore()
 
-	r := NewRunner(composeFile)
+	r := NewRunner()
 	intent := &dto.DeployIntentResponse{
+		ComposeFile: composeFile,
 		Services: []dto.ServiceSpecDTO{
 			{Name: "web", Image: "ghcr.io/owner/web", Tag: "v1"},
 			{Name: "api", Image: "ghcr.io/owner/api", Tag: "v2"},
@@ -107,8 +109,9 @@ func TestRunner_Run_EmptyNameAppliesToWholeStack(t *testing.T) {
 	logPath, restore := stubDocker(t, 0)
 	defer restore()
 
-	r := NewRunner(composeFile)
+	r := NewRunner()
 	intent := &dto.DeployIntentResponse{
+		ComposeFile: composeFile,
 		Services: []dto.ServiceSpecDTO{
 			{Name: "", Image: "ghcr.io/owner/repo", Tag: "v1"},
 		},
@@ -131,8 +134,9 @@ func TestRunner_Run_PullFailure(t *testing.T) {
 	_, restore := stubDocker(t, 1)
 	defer restore()
 
-	r := NewRunner(composeFile)
+	r := NewRunner()
 	intent := &dto.DeployIntentResponse{
+		ComposeFile: composeFile,
 		Services: []dto.ServiceSpecDTO{
 			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "v1"},
 		},
@@ -147,9 +151,19 @@ func TestRunner_Run_PullFailure(t *testing.T) {
 }
 
 func TestRunner_Run_NoServicesReturnsError(t *testing.T) {
-	r := NewRunner(filepath.Join(t.TempDir(), "compose.yml"))
-	err := r.Run(context.Background(), &dto.DeployIntentResponse{})
+	r := NewRunner()
+	err := r.Run(context.Background(), &dto.DeployIntentResponse{ComposeFile: filepath.Join(t.TempDir(), "compose.yml")})
 	if err == nil {
 		t.Fatal("expected error for empty services")
+	}
+}
+
+func TestRunner_Run_NoComposeFileReturnsError(t *testing.T) {
+	r := NewRunner()
+	err := r.Run(context.Background(), &dto.DeployIntentResponse{
+		Services: []dto.ServiceSpecDTO{{Name: "app", Image: "x", Tag: "v1"}},
+	})
+	if err == nil {
+		t.Fatal("expected error for missing compose file")
 	}
 }

@@ -57,7 +57,7 @@ func TestSystemIntegration(t *testing.T) {
 	projectSvc := project.NewService(pool)
 	intentStore := intent.NewDBStore(pool)
 	dispatchSvc := dispatch.NewForTest(intentStore)
-	webhookSvc := webhook.New(nil, mappingSvc, intentStore, eventLogSvc)
+	webhookSvc := webhook.New(nil, projectSvc, intentStore, eventLogSvc)
 
 	services := &internalhttp.Services{
 		WebhookService:    webhookSvc,

@@ -4,11 +4,14 @@ import "time"
 
 // DeployIntentResponse is the wire shape returned to agents on /deploy/next.
 // It is a subset of intent.DeployIntent — internal fields like InstallationID
-// and Status are deliberately omitted.
+// and Status are deliberately omitted. ComposeFile is the absolute path on
+// the agent VM that was recorded on the project at enqueue time.
 type DeployIntentResponse struct {
 	ID           string           `json:"id"`
 	CreatedAt    time.Time        `json:"created_at"`
 	DeliveryID   string           `json:"delivery_id"`
+	ProjectID    string           `json:"project_id"`
+	ComposeFile  string           `json:"compose_file"`
 	Repo         string           `json:"repo"`
 	Ref          string           `json:"ref"`
 	SHA          string           `json:"sha"`
@@ -29,6 +32,7 @@ type DeploymentResponse struct {
 	ID          string           `json:"id"`
 	CreatedAt   time.Time        `json:"created_at"`
 	DeliveryID  string           `json:"delivery_id"`
+	ProjectID   string           `json:"project_id,omitempty"`
 	Repo        string           `json:"repo"`
 	Ref         string           `json:"ref"`
 	SHA         string           `json:"sha"`

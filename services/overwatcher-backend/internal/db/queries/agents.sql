@@ -14,3 +14,13 @@ SELECT * FROM agents WHERE id = $1;
 
 -- name: ListAgents :many
 SELECT * FROM agents ORDER BY name ASC;
+
+-- name: GetAgentByName :one
+SELECT * FROM agents WHERE name = $1;
+
+-- name: BindAgentToProject :one
+UPDATE agents
+SET project_id = $2,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;
