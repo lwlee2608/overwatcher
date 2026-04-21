@@ -16,6 +16,7 @@ type Agent struct {
 	LastSeenAt  pgtype.Timestamptz `json:"last_seen_at"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ProjectID   pgtype.UUID        `json:"project_id"`
 }
 
 type DeployIntent struct {
@@ -35,6 +36,7 @@ type DeployIntent struct {
 	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
 	DispatchedAt   pgtype.Timestamp `json:"dispatched_at"`
 	ServicesSpec   []byte           `json:"services_spec"`
+	ProjectID      pgtype.UUID      `json:"project_id"`
 }
 
 type DeployMapping struct {
@@ -64,4 +66,38 @@ type EventLog struct {
 	Sender     string             `json:"sender"`
 	Summary    string             `json:"summary"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type Project struct {
+	ID          pgtype.UUID        `json:"id"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	ComposeFile string             `json:"compose_file"`
+	Environment string             `json:"environment"`
+	Enabled     bool               `json:"enabled"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Service struct {
+	ID            pgtype.UUID        `json:"id"`
+	ProjectID     pgtype.UUID        `json:"project_id"`
+	Name          string             `json:"name"`
+	Repo          string             `json:"repo"`
+	RootDirectory string             `json:"root_directory"`
+	Branch        string             `json:"branch"`
+	Image         string             `json:"image"`
+	Tag           string             `json:"tag"`
+	Position      int32              `json:"position"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type User struct {
+	ID        pgtype.UUID        `json:"id"`
+	Email     string             `json:"email"`
+	Name      string             `json:"name"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }

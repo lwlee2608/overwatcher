@@ -20,19 +20,39 @@ type Querier interface {
 	CreateDeployMapping(ctx context.Context, arg CreateDeployMappingParams) (DeployMapping, error)
 	CreateEventLog(ctx context.Context, arg CreateEventLogParams) (EventLog, error)
 	CreateMappingService(ctx context.Context, arg CreateMappingServiceParams) error
+	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
+	CreateService(ctx context.Context, arg CreateServiceParams) (Service, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteDeployMapping(ctx context.Context, id pgtype.UUID) (DeployMapping, error)
 	DeleteMappingServicesByMapping(ctx context.Context, mappingID pgtype.UUID) error
 	DeleteOldEventLogs(ctx context.Context, offset int32) (int64, error)
+	DeleteProject(ctx context.Context, id pgtype.UUID) (Project, error)
+	DeleteService(ctx context.Context, id pgtype.UUID) (Service, error)
+	DeleteServicesByProject(ctx context.Context, projectID pgtype.UUID) error
+	DeleteUser(ctx context.Context, id pgtype.UUID) (User, error)
 	FailTimedOutIntents(ctx context.Context, arg FailTimedOutIntentsParams) ([]DeployIntent, error)
 	GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error)
 	GetDeployIntentByID(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	GetDeployMapping(ctx context.Context, id pgtype.UUID) (GetDeployMappingRow, error)
+	GetProject(ctx context.Context, id pgtype.UUID) (Project, error)
+	GetProjectByUserAndName(ctx context.Context, arg GetProjectByUserAndNameParams) (Project, error)
+	GetService(ctx context.Context, id pgtype.UUID) (Service, error)
+	GetUser(ctx context.Context, id pgtype.UUID) (User, error)
+	GetUserByEmail(ctx context.Context, lower string) (User, error)
 	ListAgents(ctx context.Context) ([]Agent, error)
 	ListDeployIntentsByStatus(ctx context.Context, status string) ([]DeployIntent, error)
 	ListDeployMappings(ctx context.Context) ([]ListDeployMappingsRow, error)
 	ListEnabledMappingsByRepo(ctx context.Context, lower string) ([]ListEnabledMappingsByRepoRow, error)
+	// Webhook matching: returns every service in an enabled project whose repo
+	// matches (case-insensitive). The webhook handler still has to filter by
+	// root_directory against the pushed file paths before enqueueing intents.
+	ListEnabledServicesByRepoAndBranch(ctx context.Context, arg ListEnabledServicesByRepoAndBranchParams) ([]ListEnabledServicesByRepoAndBranchRow, error)
 	ListEventLogs(ctx context.Context, limit int32) ([]EventLog, error)
+	ListProjects(ctx context.Context) ([]ListProjectsRow, error)
+	ListProjectsByUser(ctx context.Context, userID pgtype.UUID) ([]Project, error)
 	ListRecentDeployIntents(ctx context.Context, limit int32) ([]DeployIntent, error)
+	ListServicesByProject(ctx context.Context, projectID pgtype.UUID) ([]Service, error)
+	ListUsers(ctx context.Context) ([]User, error)
 	RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOutIntentsParams) ([]DeployIntent, error)
 	// Atomically claim the oldest dispatchable intent. The CTE skips stacks that
@@ -40,6 +60,8 @@ type Querier interface {
 	// SKIP LOCKED so concurrent callers don't block each other.
 	TakeNextDeployIntent(ctx context.Context) (DeployIntent, error)
 	UpdateDeployMapping(ctx context.Context, arg UpdateDeployMappingParams) (DeployMapping, error)
+	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
+	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpsertAgent(ctx context.Context, arg UpsertAgentParams) (Agent, error)
 }
 

@@ -12,7 +12,7 @@ import (
 )
 
 const getAgent = `-- name: GetAgent :one
-SELECT id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at FROM agents WHERE id = $1
+SELECT id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at, project_id FROM agents WHERE id = $1
 `
 
 func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error) {
@@ -26,12 +26,13 @@ func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error) {
 		&i.LastSeenAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProjectID,
 	)
 	return i, err
 }
 
 const listAgents = `-- name: ListAgents :many
-SELECT id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at FROM agents ORDER BY name ASC
+SELECT id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at, project_id FROM agents ORDER BY name ASC
 `
 
 func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
@@ -51,6 +52,7 @@ func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
 			&i.LastSeenAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ProjectID,
 		); err != nil {
 			return nil, err
 		}
@@ -71,7 +73,7 @@ DO UPDATE SET
     remote_ip     = EXCLUDED.remote_ip,
     last_seen_at  = NOW(),
     updated_at    = NOW()
-RETURNING id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at
+RETURNING id, name, compose_file, remote_ip, last_seen_at, created_at, updated_at, project_id
 `
 
 type UpsertAgentParams struct {
@@ -91,6 +93,7 @@ func (q *Queries) UpsertAgent(ctx context.Context, arg UpsertAgentParams) (Agent
 		&i.LastSeenAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProjectID,
 	)
 	return i, err
 }
