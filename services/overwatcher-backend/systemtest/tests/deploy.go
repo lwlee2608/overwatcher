@@ -12,7 +12,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
-	"github.com/lwlee2608/overwatcher/internal/service/mapping"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,15 +20,14 @@ func authReq(req *http.Request, secret string) {
 	req.Header.Set("Authorization", "Bearer "+secret)
 }
 
-func webSvc(tag string) []mapping.ServiceSpec {
-	return []mapping.ServiceSpec{{Name: "web", Image: "ghcr.io/owner/repo", Tag: tag}}
+func webSvc(tag string) []intent.ServiceSpec {
+	return []intent.ServiceSpec{{Name: "web", Image: "ghcr.io/owner/repo", Tag: tag}}
 }
 
 func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToken string) {
 	t.Run("EnqueueAndNext", func(t *testing.T) {
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-1",
-			StackIndex:     0,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "abc123",
@@ -70,7 +68,6 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 	t.Run("ReportSuccess", func(t *testing.T) {
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-success",
-			StackIndex:     0,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "def456",
@@ -106,7 +103,6 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 	t.Run("ReportFailure", func(t *testing.T) {
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-failure",
-			StackIndex:     0,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "ghi789",
@@ -151,7 +147,6 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 	t.Run("ConcurrencyGuardSameStack", func(t *testing.T) {
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-guard-1",
-			StackIndex:     0,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "aaa111",
@@ -163,7 +158,6 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 		})
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-guard-2",
-			StackIndex:     0,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "bbb222",
@@ -199,9 +193,13 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 	})
 
 	t.Run("WebhookDedup", func(t *testing.T) {
+		// Dedup is keyed on (delivery_id, project_id) via a partial unique
+		// index (WHERE project_id IS NOT NULL), so both rows must carry the
+		// same project_id for the conflict to fire.
+		dupProjectID := "11111111-1111-1111-1111-111111111111"
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-dup",
-			StackIndex:     0,
+			ProjectID:      dupProjectID,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "ccc333",
@@ -211,10 +209,9 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 			DeploymentID:   300,
 			InstallationID: 1,
 		})
-		// Second enqueue with same delivery_id+stack_index should be deduped.
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-dup",
-			StackIndex:     0,
+			ProjectID:      dupProjectID,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "ccc333",
@@ -244,7 +241,6 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 	t.Run("SweepTimedOutRequeue", func(t *testing.T) {
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-sweep-rq",
-			StackIndex:     0,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "ddd444",
@@ -278,7 +274,6 @@ func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToke
 	t.Run("SweepTimedOutPermanentFailure", func(t *testing.T) {
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-sweep-fail",
-			StackIndex:     0,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "eee555",

@@ -9,19 +9,18 @@ import (
 )
 
 type Agent struct {
-	ID          pgtype.UUID        `json:"id"`
-	Name        string             `json:"name"`
-	ComposeFile string             `json:"compose_file"`
-	RemoteIp    string             `json:"remote_ip"`
-	LastSeenAt  pgtype.Timestamptz `json:"last_seen_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID         pgtype.UUID        `json:"id"`
+	Name       string             `json:"name"`
+	RemoteIp   string             `json:"remote_ip"`
+	LastSeenAt pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	ProjectID  pgtype.UUID        `json:"project_id"`
 }
 
 type DeployIntent struct {
 	ID             pgtype.UUID      `json:"id"`
 	DeliveryID     string           `json:"delivery_id"`
-	StackIndex     int32            `json:"stack_index"`
 	Repo           string           `json:"repo"`
 	GitRef         string           `json:"git_ref"`
 	Sha            string           `json:"sha"`
@@ -35,25 +34,8 @@ type DeployIntent struct {
 	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
 	DispatchedAt   pgtype.Timestamp `json:"dispatched_at"`
 	ServicesSpec   []byte           `json:"services_spec"`
-}
-
-type DeployMapping struct {
-	ID          pgtype.UUID        `json:"id"`
-	Repo        string             `json:"repo"`
-	AgentID     pgtype.UUID        `json:"agent_id"`
-	Environment string             `json:"environment"`
-	Enabled     bool               `json:"enabled"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-}
-
-type DeployMappingService struct {
-	ID        pgtype.UUID `json:"id"`
-	MappingID pgtype.UUID `json:"mapping_id"`
-	Name      string      `json:"name"`
-	Image     string      `json:"image"`
-	Tag       string      `json:"tag"`
-	Position  int32       `json:"position"`
+	ProjectID      pgtype.UUID      `json:"project_id"`
+	ComposeFile    string           `json:"compose_file"`
 }
 
 type EventLog struct {
@@ -64,4 +46,38 @@ type EventLog struct {
 	Sender     string             `json:"sender"`
 	Summary    string             `json:"summary"`
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type Project struct {
+	ID          pgtype.UUID        `json:"id"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	ComposeFile string             `json:"compose_file"`
+	Environment string             `json:"environment"`
+	Enabled     bool               `json:"enabled"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Service struct {
+	ID            pgtype.UUID        `json:"id"`
+	ProjectID     pgtype.UUID        `json:"project_id"`
+	Name          string             `json:"name"`
+	Repo          string             `json:"repo"`
+	RootDirectory string             `json:"root_directory"`
+	Branch        string             `json:"branch"`
+	Image         string             `json:"image"`
+	Tag           string             `json:"tag"`
+	Position      int32              `json:"position"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type User struct {
+	ID        pgtype.UUID        `json:"id"`
+	Email     string             `json:"email"`
+	Name      string             `json:"name"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }

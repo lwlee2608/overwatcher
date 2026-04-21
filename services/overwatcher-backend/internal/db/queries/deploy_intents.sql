@@ -1,17 +1,17 @@
 -- name: CreateDeployIntent :one
--- Webhook redeliveries dedup on (delivery_id, stack_index): on conflict the
--- insert is skipped and sqlc returns pgx.ErrNoRows, which callers treat as
--- "already enqueued, do nothing".
+-- Webhook redeliveries dedup on (delivery_id, project_id) via the partial
+-- unique index idx_deploy_intents_delivery_project. On conflict sqlc returns
+-- pgx.ErrNoRows, which callers treat as "already enqueued, do nothing".
 INSERT INTO deploy_intents (
-    delivery_id, stack_index, repo, git_ref, sha,
-    stack, services_spec, environment,
+    delivery_id, project_id, repo, git_ref, sha,
+    stack, services_spec, environment, compose_file,
     deployment_id, installation_id
 ) VALUES (
     $1, $2, $3, $4, $5,
-    $6, $7, $8,
-    $9, $10
+    $6, $7, $8, $9,
+    $10, $11
 )
-ON CONFLICT (delivery_id, stack_index) DO NOTHING
+ON CONFLICT (delivery_id, project_id) WHERE project_id IS NOT NULL DO NOTHING
 RETURNING *;
 
 -- name: ListDeployIntentsByStatus :many

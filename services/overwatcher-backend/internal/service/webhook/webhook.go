@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path"
 	"strings"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
-	"github.com/lwlee2608/overwatcher/internal/service/mapping"
+	"github.com/lwlee2608/overwatcher/internal/service/project"
 	"github.com/lwlee2608/overwatcher/internal/util"
 )
 
@@ -27,13 +28,13 @@ var (
 
 type Service struct {
 	ghClient *internalgithub.Client
-	mapping  *mapping.Service
+	projects *project.Service
 	store    intent.Store
 	eventLog *eventlog.Service
 }
 
-func New(ghClient *internalgithub.Client, m *mapping.Service, store intent.Store, el *eventlog.Service) *Service {
-	return &Service{ghClient: ghClient, mapping: m, store: store, eventLog: el}
+func New(ghClient *internalgithub.Client, p *project.Service, store intent.Store, el *eventlog.Service) *Service {
+	return &Service{ghClient: ghClient, projects: p, store: store, eventLog: el}
 }
 
 func (s *Service) HandleEvent(ctx context.Context, eventType string, deliveryID string, payload []byte) error {
@@ -111,7 +112,8 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 		"commits", len(event.Commits),
 	)
 
-	if ref != "refs/heads/main" && ref != "refs/heads/master" {
+	branch := strings.TrimPrefix(ref, "refs/heads/")
+	if branch == ref {
 		return
 	}
 
@@ -126,13 +128,13 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 		return
 	}
 
-	matches, err := s.mapping.Match(ctx, repo)
+	matches, err := s.projects.ListEnabledServicesByRepoAndBranch(ctx, repo, branch)
 	if err != nil {
-		slog.Error("Failed to match mappings", "delivery_id", deliveryID, "repo", repo, "error", err)
+		slog.Error("Failed to list services for push", "delivery_id", deliveryID, "repo", repo, "branch", branch, "error", err)
 		return
 	}
 	if len(matches) == 0 {
-		slog.Info("No mapping for repo, skipping", "delivery_id", deliveryID, "repo", repo)
+		slog.Info("No enabled service for repo/branch, skipping", "delivery_id", deliveryID, "repo", repo, "branch", branch)
 		return
 	}
 
@@ -151,6 +153,47 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 	owner := event.GetRepo().GetOwner().GetLogin()
 	repoName := event.GetRepo().GetName()
 
+	changedPaths := changedPathsFromPush(event)
+
+	// Filter by root_directory ∩ changed paths, then group surviving services
+	// by project_id preserving input order (ORDER BY p.id, s.position).
+	type group struct {
+		projectID   string
+		projectName string
+		composeFile string
+		environment string
+		services    []intent.ServiceSpec
+	}
+	groups := make(map[string]*group)
+	var order []string
+
+	for _, m := range matches {
+		if !pathMatchesRoot(m.RootDirectory, changedPaths) {
+			continue
+		}
+		g, ok := groups[m.ProjectID]
+		if !ok {
+			g = &group{
+				projectID:   m.ProjectID,
+				projectName: m.ProjectName,
+				composeFile: m.ProjectComposeFile,
+				environment: m.ProjectEnvironment,
+			}
+			groups[m.ProjectID] = g
+			order = append(order, m.ProjectID)
+		}
+		g.services = append(g.services, intent.ServiceSpec{
+			Name:  m.ServiceName,
+			Image: m.Image,
+			Tag:   m.Tag,
+		})
+	}
+
+	if len(order) == 0 {
+		slog.Info("Push touched no service roots, skipping", "delivery_id", deliveryID, "repo", repo, "branch", branch)
+		return
+	}
+
 	commitMsg := ""
 	if event.GetHeadCommit() != nil {
 		commitMsg = event.GetHeadCommit().GetMessage()
@@ -159,33 +202,33 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 		}
 	}
 
-	for i, entry := range matches {
-		environment := entry.Environment
-
-		description := fmt.Sprintf("Deployment queued for agent %s", entry.AgentName)
+	for _, pid := range order {
+		g := groups[pid]
+		description := fmt.Sprintf("Deployment queued for project %s", g.projectName)
 		if commitMsg != "" {
 			description = fmt.Sprintf("%s: %s", description, commitMsg)
 		}
 
-		deploymentID, err := s.createGitHubDeployment(ctx, client, owner, repoName, sha, environment, description)
+		deploymentID, err := s.createGitHubDeployment(ctx, client, owner, repoName, sha, g.environment, description)
 		if err != nil {
-			slog.Error("Failed to create deployment", "delivery_id", deliveryID, "repo", repo, "agent", entry.AgentName, "sha", sha, "error", err)
+			slog.Error("Failed to create deployment", "delivery_id", deliveryID, "repo", repo, "project", g.projectName, "sha", sha, "error", err)
 			continue
 		}
 
-		slog.Info("Deployment created", "delivery_id", deliveryID, "repo", repo, "agent", entry.AgentName, "deployment_id", deploymentID, "sha", sha)
+		slog.Info("Deployment created", "delivery_id", deliveryID, "repo", repo, "project", g.projectName, "deployment_id", deploymentID, "sha", sha)
 
 		di := &intent.DeployIntent{
-			ID:             fmt.Sprintf("%s-%d", deliveryID, i),
 			CreatedAt:      time.Now(),
 			DeliveryID:     deliveryID,
-			StackIndex:     i,
+			ProjectID:      g.projectID,
+			ProjectName:    g.projectName,
+			ComposeFile:    g.composeFile,
 			Repo:           repo,
 			Ref:            ref,
 			SHA:            sha,
-			Stack:          entry.AgentName,
-			Services:       entry.Services,
-			Environment:    environment,
+			Stack:          g.projectName,
+			Services:       g.services,
+			Environment:    g.environment,
 			DeploymentID:   deploymentID,
 			InstallationID: installationID,
 			Status:         intent.StatusCreated,
@@ -194,13 +237,70 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 
 		slog.Info("Deploy intent enqueued",
 			"delivery_id", deliveryID,
-			"intent_id", di.ID,
+			"project", g.projectName,
 			"repo", repo,
-			"agent", entry.AgentName,
-			"services", len(entry.Services),
-			"environment", environment,
+			"services", len(g.services),
+			"environment", g.environment,
 		)
 	}
+}
+
+// changedPathsFromPush returns the union of modified/added/removed paths across
+// every commit in the push payload. GitHub truncates the commits array at 20
+// entries, and for very large pushes the file lists can be omitted. In those
+// cases an empty slice is returned and pathMatchesRoot will conservatively
+// dispatch everything (treat as "unknown, dispatch to be safe").
+//
+// TODO: for truncated pushes, fetch full commit diff via the Compare API.
+func changedPathsFromPush(event *gh.PushEvent) []string {
+	seen := map[string]struct{}{}
+	for _, c := range event.Commits {
+		for _, p := range c.Modified {
+			seen[p] = struct{}{}
+		}
+		for _, p := range c.Added {
+			seen[p] = struct{}{}
+		}
+		for _, p := range c.Removed {
+			seen[p] = struct{}{}
+		}
+	}
+	if head := event.GetHeadCommit(); head != nil {
+		for _, p := range head.Modified {
+			seen[p] = struct{}{}
+		}
+		for _, p := range head.Added {
+			seen[p] = struct{}{}
+		}
+		for _, p := range head.Removed {
+			seen[p] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for p := range seen {
+		out = append(out, p)
+	}
+	return out
+}
+
+// pathMatchesRoot reports whether any changed path falls under the service's
+// root_directory. Root "/" (or "") matches everything. If no changed paths
+// were reported (truncated push), return true so we don't silently drop.
+func pathMatchesRoot(root string, changed []string) bool {
+	if len(changed) == 0 {
+		return true
+	}
+	norm := strings.Trim(path.Clean("/"+root), "/")
+	if norm == "" || norm == "." {
+		return true
+	}
+	for _, p := range changed {
+		cp := strings.TrimLeft(path.Clean(p), "/")
+		if cp == norm || strings.HasPrefix(cp, norm+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // createGitHubDeployment creates a GitHub Deployment and marks it queued.
@@ -238,7 +338,7 @@ func (s *Service) createGitHubDeployment(
 }
 
 // Redeploy clones an existing DeployIntent into a new one targeting the same
-// stack/SHA/services. A fresh GitHub Deployment is created so the manual
+// project/SHA/services. A fresh GitHub Deployment is created so the manual
 // trigger has its own status timeline. The new intent flows through the same
 // agent long-poll + concurrency guard as webhook-produced ones.
 func (s *Service) Redeploy(ctx context.Context, sourceID string) error {
@@ -275,7 +375,9 @@ func (s *Service) Redeploy(ctx context.Context, sourceID string) error {
 	di := &intent.DeployIntent{
 		CreatedAt:      time.Now(),
 		DeliveryID:     deliveryID,
-		StackIndex:     0,
+		ProjectID:      src.ProjectID,
+		ProjectName:    src.ProjectName,
+		ComposeFile:    src.ComposeFile,
 		Repo:           src.Repo,
 		Ref:            src.Ref,
 		SHA:            src.SHA,
@@ -298,4 +400,3 @@ func (s *Service) Redeploy(ctx context.Context, sourceID string) error {
 	)
 	return nil
 }
-

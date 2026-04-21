@@ -1,0 +1,372 @@
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import type { ProjectResponse } from "../types/project";
+import type { UserResponse } from "../types/user";
+import {
+  createProject,
+  deleteProject,
+  fetchProjects,
+  updateProject,
+} from "../api/projects";
+import { fetchUsers } from "../api/users";
+
+interface FormState {
+  user_id: string;
+  name: string;
+  description: string;
+  compose_file: string;
+  environment: string;
+  enabled: boolean;
+}
+
+const emptyForm: FormState = {
+  user_id: "",
+  name: "",
+  description: "",
+  compose_file: "",
+  environment: "production",
+  enabled: true,
+};
+
+export function ProjectsDashboard() {
+  const [projects, setProjects] = useState<ProjectResponse[]>([]);
+  const [users, setUsers] = useState<UserResponse[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<FormState>(emptyForm);
+  const [saving, setSaving] = useState(false);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [p, u] = await Promise.all([fetchProjects(), fetchUsers()]);
+      setProjects(p.projects ?? []);
+      setUsers(u.users ?? []);
+      setError(null);
+      setLoading(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch");
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+    const id = setInterval(loadData, 10_000);
+    return () => clearInterval(id);
+  }, [loadData]);
+
+  function openCreate() {
+    setEditingId(null);
+    setForm({ ...emptyForm, user_id: users[0]?.id ?? "" });
+    setShowForm(true);
+  }
+
+  function openEdit(p: ProjectResponse) {
+    setEditingId(p.id);
+    setForm({
+      user_id: p.user_id,
+      name: p.name,
+      description: p.description,
+      compose_file: p.compose_file,
+      environment: p.environment,
+      enabled: p.enabled,
+    });
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setForm(emptyForm);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+
+    try {
+      if (editingId) {
+        await updateProject(editingId, {
+          name: form.name.trim(),
+          description: form.description.trim(),
+          compose_file: form.compose_file.trim(),
+          environment: form.environment.trim() || "production",
+          enabled: form.enabled,
+        });
+      } else {
+        await createProject({
+          user_id: form.user_id,
+          name: form.name.trim(),
+          description: form.description.trim(),
+          compose_file: form.compose_file.trim(),
+          environment: form.environment.trim() || "production",
+          enabled: form.enabled,
+        });
+      }
+      closeForm();
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(p: ProjectResponse) {
+    if (!window.confirm(`Delete project ${p.name}?`)) return;
+    try {
+      await deleteProject(p.id);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto text-center py-12 text-gray-400 dark:text-gray-500">
+        Loading...
+      </div>
+    );
+  }
+
+  const grouped = new Map<string, ProjectResponse[]>();
+  for (const p of projects) {
+    const key = p.user_email || p.user_id;
+    const list = grouped.get(key) ?? [];
+    list.push(p);
+    grouped.set(key, list);
+  }
+  const groups = Array.from(grouped.entries()).sort(([a], [b]) =>
+    a.localeCompare(b)
+  );
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      {error && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+          {error}
+        </div>
+      )}
+
+      <div className="mb-6 flex items-center justify-between">
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          <span className="font-semibold text-gray-900 dark:text-gray-100">
+            {projects.length}
+          </span>{" "}
+          project{projects.length !== 1 && "s"}
+        </div>
+        {!showForm && (
+          <button
+            onClick={openCreate}
+            disabled={users.length === 0}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            title={users.length === 0 ? "Create a user first" : ""}
+          >
+            Add project
+          </button>
+        )}
+      </div>
+
+      {showForm && (
+        <form
+          onSubmit={handleSubmit}
+          className="mb-6 rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+        >
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            {editingId ? "Edit project" : "New project"}
+          </h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {!editingId && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Owner
+                </label>
+                <select
+                  required
+                  value={form.user_id}
+                  onChange={(e) =>
+                    setForm({ ...form, user_id: e.target.value })
+                  }
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                >
+                  <option value="">Select a user</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Name
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="my-app"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Description
+              </label>
+              <input
+                type="text"
+                placeholder="What is this project?"
+                value={form.description}
+                onChange={(e) =>
+                  setForm({ ...form, description: e.target.value })
+                }
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Compose file (absolute path on agent host)
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="/opt/stacks/my-app/docker-compose.yml"
+                value={form.compose_file}
+                onChange={(e) =>
+                  setForm({ ...form, compose_file: e.target.value })
+                }
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                Environment
+              </label>
+              <input
+                type="text"
+                placeholder="production"
+                value={form.environment}
+                onChange={(e) =>
+                  setForm({ ...form, environment: e.target.value })
+                }
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={form.enabled}
+                onChange={(e) =>
+                  setForm({ ...form, enabled: e.target.checked })
+                }
+                className="rounded border-gray-300 dark:border-gray-600"
+              />
+              Enabled
+            </label>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <button
+              type="submit"
+              disabled={saving}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? "Saving..." : editingId ? "Update" : "Create"}
+            </button>
+            <button
+              type="button"
+              onClick={closeForm}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {projects.length === 0 && !error && (
+        <div className="text-center py-12 text-gray-400 dark:text-gray-500">
+          No projects yet
+        </div>
+      )}
+
+      {groups.map(([ownerLabel, owned]) => (
+        <div key={ownerLabel} className="mb-6">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            {ownerLabel}
+          </h3>
+          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 dark:bg-gray-800">
+                <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Environment</th>
+                  <th className="px-4 py-3">Compose file</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+                {owned.map((p) => (
+                  <tr key={p.id}>
+                    <td className="px-4 py-3">
+                      <Link
+                        to={`/projects/${p.id}`}
+                        className="font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                      >
+                        {p.name}
+                      </Link>
+                      {p.description && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {p.description}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                      {p.environment}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400 truncate max-w-xs">
+                      {p.compose_file}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                          p.enabled
+                            ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                            : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                        }`}
+                      >
+                        {p.enabled ? "enabled" : "disabled"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => openEdit(p)}
+                        className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(p)}
+                        className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

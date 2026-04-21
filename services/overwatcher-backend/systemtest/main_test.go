@@ -14,7 +14,8 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
-	"github.com/lwlee2608/overwatcher/internal/service/mapping"
+	"github.com/lwlee2608/overwatcher/internal/service/project"
+	"github.com/lwlee2608/overwatcher/internal/service/user"
 	"github.com/lwlee2608/overwatcher/internal/service/webhook"
 	"github.com/lwlee2608/overwatcher/systemtest/postgres"
 	"github.com/lwlee2608/overwatcher/systemtest/tests"
@@ -48,19 +49,21 @@ func TestSystemIntegration(t *testing.T) {
 
 	queries := sqlc.New(pool)
 
-	agentSvc := agent.NewService(queries, 60*time.Second)
-	mappingSvc := mapping.NewService(pool)
+	agentSvc := agent.NewService(pool, queries, 60*time.Second)
 	eventLogSvc := eventlog.NewService(queries)
+	userSvc := user.NewService(pool)
+	projectSvc := project.NewService(pool)
 	intentStore := intent.NewDBStore(pool)
 	dispatchSvc := dispatch.NewForTest(intentStore)
-	webhookSvc := webhook.New(nil, mappingSvc, intentStore, eventLogSvc)
+	webhookSvc := webhook.New(nil, projectSvc, intentStore, eventLogSvc)
 
 	services := &internalhttp.Services{
 		WebhookService:    webhookSvc,
 		DispatchService:   dispatchSvc,
 		AgentService:      agentSvc,
-		MappingService:    mappingSvc,
 		EventLogService:   eventLogSvc,
+		UserService:       userSvc,
+		ProjectService:    projectSvc,
 		WebhookSecret:     "test-webhook-secret",
 		AgentSharedSecret: "test-agent-secret",
 	}
@@ -71,6 +74,8 @@ func TestSystemIntegration(t *testing.T) {
 
 	t.Run("HealthCheck", func(t *testing.T) { tests.TestHealthCheck(t, engine) })
 	t.Run("Agents", func(t *testing.T) { tests.TestAgents(t, engine, agentSvc) })
-	t.Run("Mappings", func(t *testing.T) { tests.TestMappings(t, engine, agentSvc) })
+	var userID string
+	t.Run("Users", func(t *testing.T) { userID = tests.TestUsers(t, engine) })
+	t.Run("Projects", func(t *testing.T) { tests.TestProjects(t, engine, userID) })
 	t.Run("Deploy", func(t *testing.T) { tests.TestDeploy(t, engine, intentStore, services.AgentSharedSecret) })
 }
