@@ -62,6 +62,22 @@ func TestRedeploy_MalformedRepo(t *testing.T) {
 	}
 }
 
+func TestWorkflowFilename(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{"", ""},
+		{".github/workflows/build.yml", "build.yml"},
+		{"build.yml", "build.yml"},
+		{".github/workflows/nested/build-and-publish.yaml", "build-and-publish.yaml"},
+	}
+	for _, tc := range cases {
+		if got := workflowFilename(tc.in); got != tc.want {
+			t.Errorf("workflowFilename(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
 func TestPathMatchesRoot(t *testing.T) {
 	cases := []struct {
 		name    string

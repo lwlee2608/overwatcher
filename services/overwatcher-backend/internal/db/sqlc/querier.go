@@ -43,6 +43,10 @@ type Querier interface {
 	// matches (case-insensitive). The webhook handler still has to filter by
 	// root_directory against the pushed file paths before enqueueing intents.
 	ListEnabledServicesByRepoAndBranch(ctx context.Context, arg ListEnabledServicesByRepoAndBranchParams) ([]ListEnabledServicesByRepoAndBranchRow, error)
+	// workflow_run matching: like ListEnabledServicesByRepoAndBranch but keyed on
+	// the workflow filename (e.g. "build-and-publish.yml"). Used when a CI run
+	// finishes successfully and we want to deploy the matching services.
+	ListEnabledServicesByRepoAndWorkflow(ctx context.Context, arg ListEnabledServicesByRepoAndWorkflowParams) ([]ListEnabledServicesByRepoAndWorkflowRow, error)
 	ListEventLogs(ctx context.Context, limit int32) ([]EventLog, error)
 	ListProjects(ctx context.Context) ([]ListProjectsRow, error)
 	ListProjectsByUser(ctx context.Context, userID pgtype.UUID) ([]Project, error)
