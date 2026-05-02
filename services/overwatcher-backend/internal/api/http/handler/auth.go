@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -32,12 +33,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.Error("login failed", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	user, err := h.svc.GetUser(c.Request.Context(), sess.UserID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.Error("login user lookup failed", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	middleware.SetSessionCookie(c, sess.Token, sess.ExpiresAt, h.cookieCfg)
@@ -46,7 +49,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 func (h *AuthHandler) Logout(c *gin.Context) {
 	if token, err := c.Cookie(middleware.SessionCookieName); err == nil && token != "" {
-		_ = h.svc.Logout(c.Request.Context(), token)
+		if err := h.svc.Logout(c.Request.Context(), token); err != nil {
+			slog.Error("logout failed", "error", err)
+		}
 	}
 	middleware.ClearSessionCookie(c, h.cookieCfg)
 	c.Status(http.StatusNoContent)
@@ -64,7 +69,8 @@ func (h *AuthHandler) Me(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		slog.Error("me user lookup failed", "error", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
 	c.JSON(http.StatusOK, dto.MeResponse{ID: user.ID, Email: user.Email, Name: user.Name})
@@ -88,7 +94,8 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		case errors.Is(err, auth.ErrPasswordTooShort):
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			slog.Error("change password failed", "error", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		}
 		return
 	}
