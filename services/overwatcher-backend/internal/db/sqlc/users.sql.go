@@ -14,7 +14,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, name)
 VALUES ($1, $2)
-RETURNING id, email, name, created_at, updated_at
+RETURNING id, email, name, created_at, updated_at, password_hash
 `
 
 type CreateUserParams struct {
@@ -31,12 +31,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Name,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const deleteUser = `-- name: DeleteUser :one
-DELETE FROM users WHERE id = $1 RETURNING id, email, name, created_at, updated_at
+DELETE FROM users WHERE id = $1 RETURNING id, email, name, created_at, updated_at, password_hash
 `
 
 func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -48,12 +49,13 @@ func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) (User, error) 
 		&i.Name,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, email, name, created_at, updated_at FROM users WHERE id = $1
+SELECT id, email, name, created_at, updated_at, password_hash FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -65,12 +67,13 @@ func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (User, error) {
 		&i.Name,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, created_at, updated_at FROM users WHERE LOWER(email) = LOWER($1)
+SELECT id, email, name, created_at, updated_at, password_hash FROM users WHERE LOWER(email) = LOWER($1)
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (User, error) {
@@ -82,12 +85,30 @@ func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (User, error
 		&i.Name,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }
 
+const getUserPasswordHashByEmail = `-- name: GetUserPasswordHashByEmail :one
+SELECT id, email, password_hash FROM users WHERE LOWER(email) = LOWER($1)
+`
+
+type GetUserPasswordHashByEmailRow struct {
+	ID           pgtype.UUID `json:"id"`
+	Email        string      `json:"email"`
+	PasswordHash string      `json:"password_hash"`
+}
+
+func (q *Queries) GetUserPasswordHashByEmail(ctx context.Context, lower string) (GetUserPasswordHashByEmailRow, error) {
+	row := q.db.QueryRow(ctx, getUserPasswordHashByEmail, lower)
+	var i GetUserPasswordHashByEmailRow
+	err := row.Scan(&i.ID, &i.Email, &i.PasswordHash)
+	return i, err
+}
+
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, name, created_at, updated_at FROM users ORDER BY email ASC
+SELECT id, email, name, created_at, updated_at, password_hash FROM users ORDER BY email ASC
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
@@ -105,6 +126,7 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 			&i.Name,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PasswordHash,
 		); err != nil {
 			return nil, err
 		}
@@ -116,13 +138,30 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
+const setUserPasswordHash = `-- name: SetUserPasswordHash :exec
+UPDATE users
+SET password_hash = $2,
+    updated_at    = NOW()
+WHERE id = $1
+`
+
+type SetUserPasswordHashParams struct {
+	ID           pgtype.UUID `json:"id"`
+	PasswordHash string      `json:"password_hash"`
+}
+
+func (q *Queries) SetUserPasswordHash(ctx context.Context, arg SetUserPasswordHashParams) error {
+	_, err := q.db.Exec(ctx, setUserPasswordHash, arg.ID, arg.PasswordHash)
+	return err
+}
+
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
 SET email      = $2,
     name       = $3,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, email, name, created_at, updated_at
+RETURNING id, email, name, created_at, updated_at, password_hash
 `
 
 type UpdateUserParams struct {
@@ -140,6 +179,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.Name,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordHash,
 	)
 	return i, err
 }

@@ -37,6 +37,7 @@ type Querier interface {
 	GetService(ctx context.Context, id pgtype.UUID) (Service, error)
 	GetUser(ctx context.Context, id pgtype.UUID) (User, error)
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
+	GetUserPasswordHashByEmail(ctx context.Context, lower string) (GetUserPasswordHashByEmailRow, error)
 	ListAgents(ctx context.Context) ([]Agent, error)
 	ListDeployIntentsByStatus(ctx context.Context, status string) ([]DeployIntent, error)
 	// Webhook matching: returns every service in an enabled project whose repo
@@ -55,6 +56,7 @@ type Querier interface {
 	ListUsers(ctx context.Context) ([]User, error)
 	RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOutIntentsParams) ([]DeployIntent, error)
+	SetUserPasswordHash(ctx context.Context, arg SetUserPasswordHashParams) error
 	// Atomically claim the oldest dispatchable intent. The CTE skips stacks that
 	// already have a dispatched intent (concurrency guard) and uses FOR UPDATE
 	// SKIP LOCKED so concurrent callers don't block each other.
