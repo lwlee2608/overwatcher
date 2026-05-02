@@ -68,22 +68,6 @@ func InitConfig() error {
 		return fmt.Errorf("unmarshal config: %w", err)
 	}
 
-	if config.Dispatch.InFlightTimeout == 0 {
-		config.Dispatch.InFlightTimeout = 10 * time.Minute
-	}
-	if config.Dispatch.MaxAttempts == 0 {
-		config.Dispatch.MaxAttempts = 3
-	}
-	if config.Dispatch.SweepInterval == 0 {
-		config.Dispatch.SweepInterval = time.Minute
-	}
-	if config.Dispatch.ShutdownTimeout == 0 {
-		config.Dispatch.ShutdownTimeout = 30 * time.Second
-	}
-	if config.Auth.SessionTTL == 0 {
-		config.Auth.SessionTTL = 30 * 24 * time.Hour
-	}
-
 	if err := validate(); err != nil {
 		return err
 	}

@@ -54,10 +54,6 @@ func InitConfig() error {
 		return fmt.Errorf("unmarshal config: %w", err)
 	}
 
-	if config.Agent.PollTimeout == 0 {
-		config.Agent.PollTimeout = 30 * time.Second
-	}
-
 	if config.Agent.Name == "" {
 		if h, err := os.Hostname(); err == nil {
 			config.Agent.Name = h

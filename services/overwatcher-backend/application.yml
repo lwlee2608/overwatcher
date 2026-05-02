@@ -18,3 +18,8 @@ auth:
 database:
   url: ""      # required; override with DATABASE_URL
   schema: ""   # optional; defaults to "public"
+dispatch:
+  in_flight_timeout: 10m       # reaper timeout threshold
+  max_attempts: 3              # max retries before permanent failure
+  sweep_interval: 1m           # reaper scan frequency
+  shutdown_timeout: 30s        # graceful shutdown deadline
