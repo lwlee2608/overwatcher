@@ -66,8 +66,8 @@ func (r *Runner) Run(ctx context.Context, intent *dto.DeployIntentResponse) erro
 }
 
 // runPullWithRetry runs `docker compose pull` with bounded retries on
-// transient "manifest unknown" / "not found" failures. A successful CI run
-// can briefly precede registry availability of the new tag, so we don't want
+// transient manifest-not-yet-published failures. A successful CI run can
+// briefly precede registry availability of the new tag, so we don't want
 // the deploy to fail on the first try.
 func (r *Runner) runPullWithRetry(ctx context.Context, env []string, args []string) error {
 	attempts := r.pullAttempts
@@ -105,15 +105,16 @@ func (r *Runner) runPullWithRetry(ctx context.Context, env []string, args []stri
 }
 
 // isTransientPullError reports whether a pull failure looks like registry lag
-// (image/tag not yet published) rather than a permanent failure (auth,
-// network down, malformed compose, etc.).
+// (image/tag not yet published) rather than a permanent failure. Match only
+// manifest-specific markers so unrelated "not found" output (e.g. "command
+// not found", auth/socket errors) doesn't trigger pointless retries.
 func isTransientPullError(err error) bool {
 	if err == nil {
 		return false
 	}
 	msg := strings.ToLower(err.Error())
 	return strings.Contains(msg, "manifest unknown") ||
-		strings.Contains(msg, "not found")
+		strings.Contains(msg, "manifest for ")
 }
 
 func (r *Runner) runDocker(ctx context.Context, env []string, args ...string) error {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,6 +12,29 @@ import (
 
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 )
+
+func TestIsTransientPullError(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"nil", nil, false},
+		{"manifest unknown", errors.New("manifest unknown: tag does not exist"), true},
+		{"manifest for ... not found", errors.New("manifest for ghcr.io/owner/repo:abc not found"), true},
+		{"case-insensitive", errors.New("Manifest Unknown"), true},
+		{"bare not found is not transient", errors.New("command not found: docker"), false},
+		{"image not found from daemon is not transient", errors.New("image not found locally"), false},
+		{"auth", errors.New("unauthorized: authentication required"), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isTransientPullError(tc.err); got != tc.want {
+				t.Errorf("isTransientPullError(%v) = %v, want %v", tc.err, got, tc.want)
+			}
+		})
+	}
+}
 
 // stubDocker writes a fake `docker` script onto PATH that records every
 // invocation's argv plus the IMAGE/IMAGE_TAG env vars into a log file. Each

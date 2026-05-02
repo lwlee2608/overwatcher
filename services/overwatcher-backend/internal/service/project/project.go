@@ -3,6 +3,8 @@ package project
 import (
 	"context"
 	"errors"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -12,6 +14,18 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 	"github.com/lwlee2608/overwatcher/internal/util"
 )
+
+// normalizeWorkflow stores workflows by filename only. Users sometimes paste
+// the full path (".github/workflows/build.yml") because that's how GitHub
+// displays it; the workflow_run handler matches on path.Base(), so without
+// this normalization those services would silently never deploy.
+func normalizeWorkflow(w string) string {
+	w = strings.TrimSpace(w)
+	if w == "" {
+		return ""
+	}
+	return path.Base(w)
+}
 
 var (
 	ErrNotFound        = errors.New("project not found")
@@ -245,7 +259,7 @@ func (s *Service) CreateComposeService(ctx context.Context, p CreateComposeServi
 		Branch:        branch,
 		Image:         p.Image,
 		Tag:           tag,
-		Workflow:      p.Workflow,
+		Workflow:      normalizeWorkflow(p.Workflow),
 		Position:      int32(p.Position),
 	})
 	if err != nil {
@@ -423,7 +437,7 @@ func (s *Service) ReplaceComposeServices(ctx context.Context, projectID string, 
 			Branch:        branch,
 			Image:         p.Image,
 			Tag:           tag,
-			Workflow:      p.Workflow,
+			Workflow:      normalizeWorkflow(p.Workflow),
 			Position:      int32(i),
 		})
 		if err != nil {
