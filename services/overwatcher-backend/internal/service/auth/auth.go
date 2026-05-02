@@ -99,6 +99,13 @@ func (s *Service) Logout(ctx context.Context, token string) error {
 	return s.q.DeleteSession(ctx, token)
 }
 
+// ReapExpiredSessions deletes every session row whose expiry is in the
+// past. Cheap thanks to idx_sessions_expires_at; intended to be called
+// periodically from a background goroutine.
+func (s *Service) ReapExpiredSessions(ctx context.Context) error {
+	return s.q.DeleteExpiredSessions(ctx)
+}
+
 // GetUser returns the public profile for a session's user.
 func (s *Service) GetUser(ctx context.Context, userID string) (*User, error) {
 	uid := pgtype.UUID{}

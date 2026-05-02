@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -97,6 +98,7 @@ func main() {
 		config.Dispatch.SweepInterval,
 	)
 	go reaper.Run(ctx)
+	go runSessionReaper(ctx, authSvc, time.Hour)
 
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
@@ -135,4 +137,19 @@ func main() {
 		slog.Error("HTTP server shutdown error", "error", err)
 	}
 	slog.Info("Shutdown complete")
+}
+
+func runSessionReaper(ctx context.Context, svc *auth.Service, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := svc.ReapExpiredSessions(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				slog.Warn("session reaper failed", "error", err)
+			}
+		}
+	}
 }
