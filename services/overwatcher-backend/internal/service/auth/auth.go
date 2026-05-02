@@ -163,24 +163,24 @@ func (s *Service) ChangePassword(ctx context.Context, userID, oldPassword, newPa
 // password. Used by the env-var bootstrap on startup. Idempotent. Existing
 // sessions for the user are revoked when the hash changes so a rotated
 // bootstrap password kicks attackers (and the operator) out cleanly.
-func (s *Service) EnsureUserPassword(ctx context.Context, email, password, name string) error {
-	if len(password) < minPasswordLen {
+func (s *Service) EnsureUserPassword(ctx context.Context, cfg BootstrapConfig) error {
+	if len(cfg.Password) < minPasswordLen {
 		return ErrPasswordTooShort
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(cfg.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
-	row, err := s.q.GetUserByEmail(ctx, email)
+	row, err := s.q.GetUserByEmail(ctx, cfg.Email)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return err
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
-		row, err = s.q.CreateUser(ctx, sqlc.CreateUserParams{Email: email, Name: name})
+		row, err = s.q.CreateUser(ctx, sqlc.CreateUserParams{Email: cfg.Email, Name: cfg.Name})
 		if err != nil {
 			return err
 		}
-	} else if bcrypt.CompareHashAndPassword([]byte(row.PasswordHash), []byte(password)) == nil {
+	} else if bcrypt.CompareHashAndPassword([]byte(row.PasswordHash), []byte(cfg.Password)) == nil {
 		// Hash already matches the desired password; nothing to do.
 		return nil
 	}

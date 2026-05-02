@@ -10,7 +10,9 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/lwlee2608/adder"
 	"github.com/lwlee2608/overwatcher/internal/api/http"
+	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/db"
+	"github.com/lwlee2608/overwatcher/internal/service/auth"
 )
 
 type GitHubConfig struct {
@@ -30,13 +32,15 @@ type DispatchConfig struct {
 	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
 }
 
+// AuthConfig is the umbrella for everything under the `auth` yaml key.
+// It composes the session-service knobs, the cookie middleware config,
+// and the env-var bootstrap input — keeping HTTP/cookie concerns out of
+// the auth service package while still letting the operator group all
+// auth-related settings under one yaml namespace.
 type AuthConfig struct {
-	SessionTTL        time.Duration `mapstructure:"session_ttl"`
-	CookieSecure      bool          `mapstructure:"cookie_secure"`
-	CookieDomain      string        `mapstructure:"cookie_domain"`
-	BootstrapEmail    string        `mapstructure:"bootstrap_email"`
-	BootstrapPassword string        `mapstructure:"bootstrap_password" mask:"true"`
-	BootstrapName     string        `mapstructure:"bootstrap_name"`
+	SessionTTL time.Duration           `mapstructure:"session_ttl"`
+	Cookie     middleware.CookieConfig `mapstructure:"cookie"`
+	Bootstrap  auth.BootstrapConfig    `mapstructure:"bootstrap"`
 }
 
 type Config struct {

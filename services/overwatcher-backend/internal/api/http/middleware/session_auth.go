@@ -17,8 +17,8 @@ const (
 )
 
 type CookieConfig struct {
-	Secure bool
-	Domain string
+	Secure bool   `mapstructure:"secure"`
+	Domain string `mapstructure:"domain"`
 }
 
 // SessionAuth requires a valid session cookie. On success, the session's

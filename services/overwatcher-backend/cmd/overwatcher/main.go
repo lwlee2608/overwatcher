@@ -14,7 +14,6 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	internalhttp "github.com/lwlee2608/overwatcher/internal/api/http"
-	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/db"
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
@@ -62,15 +61,15 @@ func main() {
 	webhookSvc := webhook.New(ghClient, projectSvc, intentStore, eventLogSvc)
 	dispatchSvc := dispatch.New(ghClient, intentStore)
 
-	if config.Auth.BootstrapEmail != "" && config.Auth.BootstrapPassword != "" {
+	if config.Auth.Bootstrap.Enabled() {
 		bootstrapCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		if err := authSvc.EnsureUserPassword(bootstrapCtx, config.Auth.BootstrapEmail, config.Auth.BootstrapPassword, config.Auth.BootstrapName); err != nil {
+		if err := authSvc.EnsureUserPassword(bootstrapCtx, config.Auth.Bootstrap); err != nil {
 			cancel()
 			slog.Error("auth bootstrap failed", "error", err)
 			os.Exit(1)
 		}
 		cancel()
-		slog.Info("auth bootstrap user ensured", "email", config.Auth.BootstrapEmail)
+		slog.Info("auth bootstrap user ensured", "email", config.Auth.Bootstrap.Email)
 	}
 
 	services := &internalhttp.Services{
@@ -83,10 +82,7 @@ func main() {
 		AuthService:       authSvc,
 		WebhookSecret:     config.GitHub.WebhookSecret,
 		AgentSharedSecret: config.Agent.SharedSecret,
-		CookieConfig: middleware.CookieConfig{
-			Secure: config.Auth.CookieSecure,
-			Domain: config.Auth.CookieDomain,
-		},
+		CookieConfig:      config.Auth.Cookie,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
