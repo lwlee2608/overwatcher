@@ -51,6 +51,13 @@ type Config struct {
 
 var config Config
 
+// InitConfig loads application.yml and overlays env vars.
+//
+// Convention: application.yml is the source of truth for defaults. Do NOT
+// add `if config.X == 0 { config.X = ... }` fallbacks here — that
+// duplicates the value across two places and silently drifts. If a field
+// needs a default, set it in application.yml. Only runtime-resolved values
+// (e.g. hostname lookups) belong in code.
 func InitConfig() error {
 	_ = godotenv.Load()
 
