@@ -1,10 +1,14 @@
-import { Routes, Route, NavLink } from "react-router-dom";
+import { Routes, Route, NavLink, Outlet } from "react-router-dom";
 import { AgentDashboard } from "./components/AgentDashboard";
 import { UsersDashboard } from "./components/UsersDashboard";
 import { ProjectsDashboard } from "./components/ProjectsDashboard";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { EventLogDashboard } from "./components/EventLogDashboard";
 import { DeploymentDashboard } from "./components/DeploymentDashboard";
+import { LoginPage } from "./components/LoginPage";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { UserMenu } from "./components/UserMenu";
+import { BootstrapPasswordBanner } from "./components/BootstrapPasswordBanner";
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return `text-sm font-medium pb-0.5 ${
@@ -14,7 +18,7 @@ function navLinkClass({ isActive }: { isActive: boolean }) {
   }`;
 }
 
-function App() {
+function AppShell() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <nav className="border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
@@ -22,7 +26,7 @@ function App() {
           <span className="text-lg font-bold text-gray-900 dark:text-gray-100">
             Overwatcher
           </span>
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-1">
             <NavLink to="/" end className={navLinkClass}>
               Agents
             </NavLink>
@@ -39,20 +43,34 @@ function App() {
               Events
             </NavLink>
           </div>
+          <UserMenu />
         </div>
       </nav>
 
+      <BootstrapPasswordBanner />
+
       <div className="p-6">
-        <Routes>
-          <Route path="/" element={<AgentDashboard />} />
-          <Route path="/users" element={<UsersDashboard />} />
-          <Route path="/projects" element={<ProjectsDashboard />} />
-          <Route path="/projects/:id" element={<ProjectDetail />} />
-          <Route path="/deployments" element={<DeploymentDashboard />} />
-          <Route path="/events" element={<EventLogDashboard />} />
-        </Routes>
+        <Outlet />
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AppShell />}>
+          <Route index element={<AgentDashboard />} />
+          <Route path="users" element={<UsersDashboard />} />
+          <Route path="projects" element={<ProjectsDashboard />} />
+          <Route path="projects/:id" element={<ProjectDetail />} />
+          <Route path="deployments" element={<DeploymentDashboard />} />
+          <Route path="events" element={<EventLogDashboard />} />
+        </Route>
+      </Route>
+    </Routes>
   );
 }
 
