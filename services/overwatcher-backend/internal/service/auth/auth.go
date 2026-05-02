@@ -33,9 +33,10 @@ type Session struct {
 }
 
 type User struct {
-	ID    string
-	Email string
-	Name  string
+	ID                  string
+	Email               string
+	Name                string
+	PasswordIsBootstrap bool
 }
 
 type Service struct {
@@ -120,9 +121,10 @@ func (s *Service) GetUser(ctx context.Context, userID string) (*User, error) {
 		return nil, err
 	}
 	return &User{
-		ID:    util.UUIDToString(row.ID),
-		Email: row.Email,
-		Name:  row.Name,
+		ID:                  util.UUIDToString(row.ID),
+		Email:               row.Email,
+		Name:                row.Name,
+		PasswordIsBootstrap: row.PasswordIsBootstrap,
 	}, nil
 }
 
@@ -150,8 +152,9 @@ func (s *Service) ChangePassword(ctx context.Context, userID, oldPassword, newPa
 		return err
 	}
 	if err := s.q.SetUserPasswordHash(ctx, sqlc.SetUserPasswordHashParams{
-		ID:           uid,
-		PasswordHash: string(hash),
+		ID:                  uid,
+		PasswordHash:        string(hash),
+		PasswordIsBootstrap: false,
 	}); err != nil {
 		return err
 	}
@@ -185,8 +188,9 @@ func (s *Service) EnsureUserPassword(ctx context.Context, cfg BootstrapConfig) e
 		return nil
 	}
 	if err := s.q.SetUserPasswordHash(ctx, sqlc.SetUserPasswordHashParams{
-		ID:           row.ID,
-		PasswordHash: string(hash),
+		ID:                  row.ID,
+		PasswordHash:        string(hash),
+		PasswordIsBootstrap: true,
 	}); err != nil {
 		return err
 	}

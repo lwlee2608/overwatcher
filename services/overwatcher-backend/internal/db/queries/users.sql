@@ -28,6 +28,7 @@ SELECT id, email, password_hash FROM users WHERE LOWER(email) = LOWER($1);
 
 -- name: SetUserPasswordHash :exec
 UPDATE users
-SET password_hash = $2,
-    updated_at    = NOW()
+SET password_hash         = $2,
+    password_is_bootstrap = $3,
+    updated_at            = NOW()
 WHERE id = $1;

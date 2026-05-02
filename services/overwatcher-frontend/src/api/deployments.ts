@@ -1,15 +1,14 @@
 import type { DeploymentListResponse } from "../types/deployment";
+import { apiFetch, apiJSON } from "./client";
 
 export async function fetchDeployments(
   limit: number = 50
 ): Promise<DeploymentListResponse> {
-  const res = await fetch(`/api/v1/deployments?limit=${limit}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  return apiJSON<DeploymentListResponse>(`/api/v1/deployments?limit=${limit}`);
 }
 
 export async function redeployDeployment(id: string): Promise<void> {
-  const res = await fetch(`/api/v1/deployments/${id}/redeploy`, {
+  const res = await apiFetch(`/api/v1/deployments/${id}/redeploy`, {
     method: "POST",
   });
   if (!res.ok) {

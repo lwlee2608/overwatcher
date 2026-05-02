@@ -44,7 +44,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 	middleware.SetSessionCookie(c, sess.Token, sess.ExpiresAt, h.cookieCfg)
-	c.JSON(http.StatusOK, dto.MeResponse{ID: user.ID, Email: user.Email, Name: user.Name})
+	c.JSON(http.StatusOK, dto.MeResponse{
+		ID:                 user.ID,
+		Email:              user.Email,
+		Name:               user.Name,
+		MustChangePassword: user.PasswordIsBootstrap,
+	})
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
@@ -73,7 +78,12 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
 		return
 	}
-	c.JSON(http.StatusOK, dto.MeResponse{ID: user.ID, Email: user.Email, Name: user.Name})
+	c.JSON(http.StatusOK, dto.MeResponse{
+		ID:                 user.ID,
+		Email:              user.Email,
+		Name:               user.Name,
+		MustChangePassword: user.PasswordIsBootstrap,
+	})
 }
 
 func (h *AuthHandler) ChangePassword(c *gin.Context) {

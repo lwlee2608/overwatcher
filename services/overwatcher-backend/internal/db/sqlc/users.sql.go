@@ -14,7 +14,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, name)
 VALUES ($1, $2)
-RETURNING id, email, name, created_at, updated_at, password_hash
+RETURNING id, email, name, created_at, updated_at, password_hash, password_is_bootstrap
 `
 
 type CreateUserParams struct {
@@ -32,12 +32,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PasswordHash,
+		&i.PasswordIsBootstrap,
 	)
 	return i, err
 }
 
 const deleteUser = `-- name: DeleteUser :one
-DELETE FROM users WHERE id = $1 RETURNING id, email, name, created_at, updated_at, password_hash
+DELETE FROM users WHERE id = $1 RETURNING id, email, name, created_at, updated_at, password_hash, password_is_bootstrap
 `
 
 func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -50,12 +51,13 @@ func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) (User, error) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PasswordHash,
+		&i.PasswordIsBootstrap,
 	)
 	return i, err
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, email, name, created_at, updated_at, password_hash FROM users WHERE id = $1
+SELECT id, email, name, created_at, updated_at, password_hash, password_is_bootstrap FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -68,12 +70,13 @@ func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (User, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PasswordHash,
+		&i.PasswordIsBootstrap,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, created_at, updated_at, password_hash FROM users WHERE LOWER(email) = LOWER($1)
+SELECT id, email, name, created_at, updated_at, password_hash, password_is_bootstrap FROM users WHERE LOWER(email) = LOWER($1)
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (User, error) {
@@ -86,6 +89,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PasswordHash,
+		&i.PasswordIsBootstrap,
 	)
 	return i, err
 }
@@ -108,7 +112,7 @@ func (q *Queries) GetUserPasswordHashByEmail(ctx context.Context, lower string) 
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, name, created_at, updated_at, password_hash FROM users ORDER BY email ASC
+SELECT id, email, name, created_at, updated_at, password_hash, password_is_bootstrap FROM users ORDER BY email ASC
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
@@ -127,6 +131,7 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PasswordHash,
+			&i.PasswordIsBootstrap,
 		); err != nil {
 			return nil, err
 		}
@@ -140,18 +145,20 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 
 const setUserPasswordHash = `-- name: SetUserPasswordHash :exec
 UPDATE users
-SET password_hash = $2,
-    updated_at    = NOW()
+SET password_hash         = $2,
+    password_is_bootstrap = $3,
+    updated_at            = NOW()
 WHERE id = $1
 `
 
 type SetUserPasswordHashParams struct {
-	ID           pgtype.UUID `json:"id"`
-	PasswordHash string      `json:"password_hash"`
+	ID                  pgtype.UUID `json:"id"`
+	PasswordHash        string      `json:"password_hash"`
+	PasswordIsBootstrap bool        `json:"password_is_bootstrap"`
 }
 
 func (q *Queries) SetUserPasswordHash(ctx context.Context, arg SetUserPasswordHashParams) error {
-	_, err := q.db.Exec(ctx, setUserPasswordHash, arg.ID, arg.PasswordHash)
+	_, err := q.db.Exec(ctx, setUserPasswordHash, arg.ID, arg.PasswordHash, arg.PasswordIsBootstrap)
 	return err
 }
 
@@ -161,7 +168,7 @@ SET email      = $2,
     name       = $3,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, email, name, created_at, updated_at, password_hash
+RETURNING id, email, name, created_at, updated_at, password_hash, password_is_bootstrap
 `
 
 type UpdateUserParams struct {
@@ -180,6 +187,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PasswordHash,
+		&i.PasswordIsBootstrap,
 	)
 	return i, err
 }
