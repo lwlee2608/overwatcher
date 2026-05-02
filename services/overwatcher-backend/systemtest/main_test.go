@@ -11,6 +11,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/db"
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 	"github.com/lwlee2608/overwatcher/internal/service/agent"
+	"github.com/lwlee2608/overwatcher/internal/service/auth"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
@@ -53,6 +54,7 @@ func TestSystemIntegration(t *testing.T) {
 	eventLogSvc := eventlog.NewService(queries)
 	userSvc := user.NewService(pool)
 	projectSvc := project.NewService(pool)
+	authSvc := auth.NewService(pool, time.Hour)
 	intentStore := intent.NewDBStore(pool)
 	dispatchSvc := dispatch.NewForTest(intentStore)
 	webhookSvc := webhook.New(nil, projectSvc, intentStore, eventLogSvc)
@@ -64,18 +66,28 @@ func TestSystemIntegration(t *testing.T) {
 		EventLogService:   eventLogSvc,
 		UserService:       userSvc,
 		ProjectService:    projectSvc,
+		AuthService:       authSvc,
 		WebhookSecret:     "test-webhook-secret",
 		AgentSharedSecret: "test-agent-secret",
 	}
+
+	require.NoError(t, authSvc.EnsureUserPassword(context.Background(), auth.BootstrapConfig{
+		Email:    "test@example.com",
+		Password: "testpassword",
+		Name:     "Test",
+	}))
+	sess, err := authSvc.Login(context.Background(), "test@example.com", "testpassword")
+	require.NoError(t, err)
+	sessionToken := sess.Token
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	internalhttp.SetupRoute(engine, services)
 
 	t.Run("HealthCheck", func(t *testing.T) { tests.TestHealthCheck(t, engine) })
-	t.Run("Agents", func(t *testing.T) { tests.TestAgents(t, engine, agentSvc) })
+	t.Run("Agents", func(t *testing.T) { tests.TestAgents(t, engine, agentSvc, sessionToken) })
 	var userID string
-	t.Run("Users", func(t *testing.T) { userID = tests.TestUsers(t, engine) })
-	t.Run("Projects", func(t *testing.T) { tests.TestProjects(t, engine, userID) })
+	t.Run("Users", func(t *testing.T) { userID = tests.TestUsers(t, engine, sessionToken) })
+	t.Run("Projects", func(t *testing.T) { tests.TestProjects(t, engine, userID, sessionToken) })
 	t.Run("Deploy", func(t *testing.T) { tests.TestDeploy(t, engine, intentStore, services.AgentSharedSecret) })
 }
