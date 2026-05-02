@@ -423,7 +423,7 @@ export function ProjectDetail() {
                     className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                   />
                 </Field>
-                <Field label="Branch" className="col-span-4">
+                <Field label="Branch" className="col-span-4 justify-end">
                   <AutoInput
                     placeholder="main"
                     value={r.branch}
@@ -451,7 +451,7 @@ export function ProjectDetail() {
                     className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                   />
                 </Field>
-                <Field label="Tag" className="col-span-4">
+                <Field label="Tag" className="col-span-4 justify-end">
                   <AutoInput
                     placeholder="latest"
                     value={r.tag}
