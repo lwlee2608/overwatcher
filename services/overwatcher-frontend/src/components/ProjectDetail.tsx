@@ -40,6 +40,24 @@ function toRow(s: ComposeServiceResponse): ServiceRow {
   };
 }
 
+function AutoInput({
+  className = "",
+  onKeyDown,
+  ...props
+}: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      rows={1}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.preventDefault();
+        onKeyDown?.(e);
+      }}
+      className={`field-sizing-content resize-none break-all ${className}`}
+      {...props}
+    />
+  );
+}
+
 function Field({
   label,
   className,
@@ -389,8 +407,7 @@ export function ProjectDetail() {
 
               <div className="grid grid-cols-12 gap-3">
                 <Field label="Name" className="col-span-12">
-                  <input
-                    type="text"
+                  <AutoInput
                     placeholder="web"
                     value={r.name}
                     onChange={(e) => updateRow(i, { name: e.target.value })}
@@ -399,8 +416,7 @@ export function ProjectDetail() {
                 </Field>
 
                 <Field label="Repo" className="col-span-8">
-                  <input
-                    type="text"
+                  <AutoInput
                     placeholder="https://github.com/owner/repo"
                     value={r.repo}
                     onChange={(e) => updateRow(i, { repo: e.target.value })}
@@ -408,8 +424,7 @@ export function ProjectDetail() {
                   />
                 </Field>
                 <Field label="Branch" className="col-span-4">
-                  <input
-                    type="text"
+                  <AutoInput
                     placeholder="main"
                     value={r.branch}
                     onChange={(e) => updateRow(i, { branch: e.target.value })}
@@ -418,8 +433,7 @@ export function ProjectDetail() {
                 </Field>
 
                 <Field label="Root dir" className="col-span-12">
-                  <input
-                    type="text"
+                  <AutoInput
                     placeholder="/"
                     value={r.root_directory}
                     onChange={(e) =>
@@ -430,8 +444,7 @@ export function ProjectDetail() {
                 </Field>
 
                 <Field label="Image" className="col-span-8">
-                  <input
-                    type="text"
+                  <AutoInput
                     placeholder="ghcr.io/owner/image"
                     value={r.image}
                     onChange={(e) => updateRow(i, { image: e.target.value })}
@@ -439,8 +452,7 @@ export function ProjectDetail() {
                   />
                 </Field>
                 <Field label="Tag" className="col-span-4">
-                  <input
-                    type="text"
+                  <AutoInput
                     placeholder="latest"
                     value={r.tag}
                     onChange={(e) => updateRow(i, { tag: e.target.value })}
@@ -453,8 +465,7 @@ export function ProjectDetail() {
                   className="col-span-12"
                   hint="Optional. If set, deploys wait for this workflow to succeed."
                 >
-                  <input
-                    type="text"
+                  <AutoInput
                     placeholder="build.yml"
                     value={r.workflow}
                     onChange={(e) =>
