@@ -30,6 +30,7 @@ type Querier interface {
 	DeleteService(ctx context.Context, id pgtype.UUID) (Service, error)
 	DeleteServicesByProject(ctx context.Context, projectID pgtype.UUID) error
 	DeleteSession(ctx context.Context, token string) error
+	DeleteSessionsForUser(ctx context.Context, userID pgtype.UUID) error
 	DeleteUser(ctx context.Context, id pgtype.UUID) (User, error)
 	FailTimedOutIntents(ctx context.Context, arg FailTimedOutIntentsParams) ([]DeployIntent, error)
 	GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error)

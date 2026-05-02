@@ -142,14 +142,20 @@ func (s *Service) ChangePassword(ctx context.Context, userID, oldPassword, newPa
 	if err != nil {
 		return err
 	}
-	return s.q.SetUserPasswordHash(ctx, sqlc.SetUserPasswordHashParams{
+	if err := s.q.SetUserPasswordHash(ctx, sqlc.SetUserPasswordHashParams{
 		ID:           uid,
 		PasswordHash: string(hash),
-	})
+	}); err != nil {
+		return err
+	}
+	// Revoke every session for this user so old cookies stop working.
+	return s.q.DeleteSessionsForUser(ctx, uid)
 }
 
 // EnsureUserPassword upserts a user with the given email and sets the
-// password. Used by the env-var bootstrap on startup. Idempotent.
+// password. Used by the env-var bootstrap on startup. Idempotent. Existing
+// sessions for the user are revoked when the hash changes so a rotated
+// bootstrap password kicks attackers (and the operator) out cleanly.
 func (s *Service) EnsureUserPassword(ctx context.Context, email, password, name string) error {
 	if len(password) < minPasswordLen {
 		return ErrPasswordTooShort
@@ -167,11 +173,17 @@ func (s *Service) EnsureUserPassword(ctx context.Context, email, password, name 
 		if err != nil {
 			return err
 		}
+	} else if bcrypt.CompareHashAndPassword([]byte(row.PasswordHash), []byte(password)) == nil {
+		// Hash already matches the desired password; nothing to do.
+		return nil
 	}
-	return s.q.SetUserPasswordHash(ctx, sqlc.SetUserPasswordHashParams{
+	if err := s.q.SetUserPasswordHash(ctx, sqlc.SetUserPasswordHashParams{
 		ID:           row.ID,
 		PasswordHash: string(hash),
-	})
+	}); err != nil {
+		return err
+	}
+	return s.q.DeleteSessionsForUser(ctx, row.ID)
 }
 
 func (s *Service) createSession(ctx context.Context, userID pgtype.UUID) (*Session, error) {
