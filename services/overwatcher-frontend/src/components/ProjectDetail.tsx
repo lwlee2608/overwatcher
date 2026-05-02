@@ -40,6 +40,30 @@ function toRow(s: ComposeServiceResponse): ServiceRow {
   };
 }
 
+function Field({
+  label,
+  className,
+  hint,
+  children,
+}: {
+  label: string;
+  className?: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className={`flex flex-col gap-1 ${className ?? ""}`}>
+      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+        {label}
+      </span>
+      {children}
+      {hint && (
+        <span className="text-xs text-gray-400 dark:text-gray-500">{hint}</span>
+      )}
+    </label>
+  );
+}
+
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<ProjectResponse | null>(null);
@@ -318,128 +342,130 @@ export function ProjectDetail() {
           No services. Add one to start receiving deploys.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800">
-              <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                <th className="px-3 py-2 w-8"></th>
-                <th className="px-3 py-2">Name</th>
-                <th className="px-3 py-2">Repo</th>
-                <th className="px-3 py-2">Root dir</th>
-                <th className="px-3 py-2">Branch</th>
-                <th className="px-3 py-2">Image</th>
-                <th className="px-3 py-2">Tag</th>
-                <th className="px-3 py-2">Workflow</th>
-                <th className="px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-              {rows.map((r, i) => (
-                <tr key={i}>
-                  <td className="px-2 py-2 align-middle">
-                    <div className="flex flex-col">
-                      <button
-                        type="button"
-                        onClick={() => moveRow(i, -1)}
-                        disabled={i === 0}
-                        className="text-xs text-gray-400 hover:text-gray-700 disabled:opacity-30 dark:hover:text-gray-200"
-                        aria-label="Move up"
-                      >
-                        ▲
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveRow(i, 1)}
-                        disabled={i === rows.length - 1}
-                        className="text-xs text-gray-400 hover:text-gray-700 disabled:opacity-30 dark:hover:text-gray-200"
-                        aria-label="Move down"
-                      >
-                        ▼
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="text"
-                      placeholder="web"
-                      value={r.name}
-                      onChange={(e) => updateRow(i, { name: e.target.value })}
-                      className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="text"
-                      placeholder="owner/repo"
-                      value={r.repo}
-                      onChange={(e) => updateRow(i, { repo: e.target.value })}
-                      className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="text"
-                      placeholder="/"
-                      value={r.root_directory}
-                      onChange={(e) =>
-                        updateRow(i, { root_directory: e.target.value })
-                      }
-                      className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="text"
-                      placeholder="main"
-                      value={r.branch}
-                      onChange={(e) => updateRow(i, { branch: e.target.value })}
-                      className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="text"
-                      placeholder="ghcr.io/owner/image"
-                      value={r.image}
-                      onChange={(e) => updateRow(i, { image: e.target.value })}
-                      className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="text"
-                      placeholder="latest"
-                      value={r.tag}
-                      onChange={(e) => updateRow(i, { tag: e.target.value })}
-                      className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                    />
-                  </td>
-                  <td className="px-2 py-2">
-                    <input
-                      type="text"
-                      placeholder="build.yml (optional)"
-                      value={r.workflow}
-                      onChange={(e) =>
-                        updateRow(i, { workflow: e.target.value })
-                      }
-                      title="Workflow filename. If set, deploys wait for this workflow to succeed instead of firing on push."
-                      className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                    />
-                  </td>
-                  <td className="px-2 py-2 text-right">
-                    <button
-                      type="button"
-                      onClick={() => removeRow(i)}
-                      className="rounded-md border border-gray-300 px-2 text-sm text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
-                      aria-label="Remove service"
-                    >
-                      ×
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-3">
+          {rows.map((r, i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  Service {i + 1}
+                  {r.name ? (
+                    <span className="ml-2 normal-case tracking-normal text-gray-700 dark:text-gray-200">
+                      {r.name}
+                    </span>
+                  ) : null}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => moveRow(i, -1)}
+                    disabled={i === 0}
+                    className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-30 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+                    aria-label="Move up"
+                  >
+                    ▲
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveRow(i, 1)}
+                    disabled={i === rows.length - 1}
+                    className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-30 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+                    aria-label="Move down"
+                  >
+                    ▼
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeRow(i)}
+                    className="ml-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-300 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                    aria-label="Remove service"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-12 gap-3">
+                <Field label="Name" className="col-span-12">
+                  <input
+                    type="text"
+                    placeholder="web"
+                    value={r.name}
+                    onChange={(e) => updateRow(i, { name: e.target.value })}
+                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  />
+                </Field>
+
+                <Field label="Repo" className="col-span-8">
+                  <input
+                    type="text"
+                    placeholder="https://github.com/owner/repo"
+                    value={r.repo}
+                    onChange={(e) => updateRow(i, { repo: e.target.value })}
+                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  />
+                </Field>
+                <Field label="Branch" className="col-span-4">
+                  <input
+                    type="text"
+                    placeholder="main"
+                    value={r.branch}
+                    onChange={(e) => updateRow(i, { branch: e.target.value })}
+                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  />
+                </Field>
+
+                <Field label="Root dir" className="col-span-12">
+                  <input
+                    type="text"
+                    placeholder="/"
+                    value={r.root_directory}
+                    onChange={(e) =>
+                      updateRow(i, { root_directory: e.target.value })
+                    }
+                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  />
+                </Field>
+
+                <Field label="Image" className="col-span-8">
+                  <input
+                    type="text"
+                    placeholder="ghcr.io/owner/image"
+                    value={r.image}
+                    onChange={(e) => updateRow(i, { image: e.target.value })}
+                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  />
+                </Field>
+                <Field label="Tag" className="col-span-4">
+                  <input
+                    type="text"
+                    placeholder="latest"
+                    value={r.tag}
+                    onChange={(e) => updateRow(i, { tag: e.target.value })}
+                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  />
+                </Field>
+
+                <Field
+                  label="Workflow"
+                  className="col-span-12"
+                  hint="Optional. If set, deploys wait for this workflow to succeed."
+                >
+                  <input
+                    type="text"
+                    placeholder="build.yml"
+                    value={r.workflow}
+                    onChange={(e) =>
+                      updateRow(i, { workflow: e.target.value })
+                    }
+                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  />
+                </Field>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
