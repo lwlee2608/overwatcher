@@ -1,8 +1,5 @@
 package auth
 
-// BootstrapConfig is the env-var bootstrap input for EnsureUserPassword.
-// When Email and Password are both set the coordinator upserts that user
-// at startup; otherwise bootstrap is skipped.
 type BootstrapConfig struct {
 	Email    string `mapstructure:"email"`
 	Password string `mapstructure:"password" mask:"true"`

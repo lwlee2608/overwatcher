@@ -7,7 +7,7 @@ github:
   webhook_secret: ""
   private_key: ""
 agent:
-  shared_secret: ""  # override with AGENT_SHARED_SECRET; required for /api/v1/deploy/* endpoints
+  shared_secret: ""            # override with AGENT_SHARED_SECRET; required for /api/v1/deploy/* endpoints
 auth:
   session_ttl: 720h            # sliding 30d
   cookie:
@@ -18,8 +18,8 @@ auth:
     password: ""               # AUTH_BOOTSTRAP_PASSWORD; min 8 chars
     name: ""                   # AUTH_BOOTSTRAP_NAME; only applied when the user is created (not on existing rows)
 database:
-  url: ""      # required; override with DATABASE_URL
-  schema: ""   # optional; defaults to "public"
+  url: ""                      # required; override with DATABASE_URL
+  schema: ""                   # optional; defaults to "public"
 dispatch:
   in_flight_timeout: 10m       # reaper timeout threshold
   max_attempts: 3              # max retries before permanent failure

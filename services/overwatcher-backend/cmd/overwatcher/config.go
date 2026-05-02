@@ -32,11 +32,6 @@ type DispatchConfig struct {
 	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
 }
 
-// AuthConfig is the umbrella for everything under the `auth` yaml key.
-// It composes the session-service knobs, the cookie middleware config,
-// and the env-var bootstrap input — keeping HTTP/cookie concerns out of
-// the auth service package while still letting the operator group all
-// auth-related settings under one yaml namespace.
 type AuthConfig struct {
 	SessionTTL time.Duration           `mapstructure:"session_ttl"`
 	Cookie     middleware.CookieConfig `mapstructure:"cookie"`
