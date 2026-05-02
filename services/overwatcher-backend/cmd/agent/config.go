@@ -37,6 +37,13 @@ const (
 
 var config Config
 
+// InitConfig loads application-agent.yml and overlays env vars.
+//
+// Convention: application-agent.yml is the source of truth for defaults.
+// Do NOT add `if config.X == 0 { config.X = ... }` fallbacks here — that
+// duplicates the value across two places and silently drifts. If a field
+// needs a default, set it in application-agent.yml. Only runtime-resolved
+// values (e.g. the hostname fallback for Agent.Name) belong in code.
 func InitConfig() error {
 	_ = godotenv.Load()
 
@@ -52,10 +59,6 @@ func InitConfig() error {
 
 	if err := adder.Unmarshal(&config); err != nil {
 		return fmt.Errorf("unmarshal config: %w", err)
-	}
-
-	if config.Agent.PollTimeout == 0 {
-		config.Agent.PollTimeout = 30 * time.Second
 	}
 
 	if config.Agent.Name == "" {

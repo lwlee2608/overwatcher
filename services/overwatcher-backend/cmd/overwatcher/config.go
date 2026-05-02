@@ -10,7 +10,9 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/lwlee2608/adder"
 	"github.com/lwlee2608/overwatcher/internal/api/http"
+	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/db"
+	"github.com/lwlee2608/overwatcher/internal/service/auth"
 )
 
 type GitHubConfig struct {
@@ -30,17 +32,31 @@ type DispatchConfig struct {
 	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
 }
 
+type AuthConfig struct {
+	SessionTTL time.Duration           `mapstructure:"session_ttl"`
+	Cookie     middleware.CookieConfig `mapstructure:"cookie"`
+	Bootstrap  auth.BootstrapConfig    `mapstructure:"bootstrap"`
+}
+
 type Config struct {
 	Log      LogConfig
 	Http     http.Config
 	GitHub   GitHubConfig   `mapstructure:"github"`
 	Agent    AgentConfig    `mapstructure:"agent"`
 	Dispatch DispatchConfig `mapstructure:"dispatch"`
+	Auth     AuthConfig     `mapstructure:"auth"`
 	Database db.Config      `mapstructure:"database"`
 }
 
 var config Config
 
+// InitConfig loads application.yml and overlays env vars.
+//
+// Convention: application.yml is the source of truth for defaults. Do NOT
+// add `if config.X == 0 { config.X = ... }` fallbacks here — that
+// duplicates the value across two places and silently drifts. If a field
+// needs a default, set it in application.yml. Only runtime-resolved values
+// (e.g. hostname lookups) belong in code.
 func InitConfig() error {
 	_ = godotenv.Load()
 
@@ -56,19 +72,6 @@ func InitConfig() error {
 
 	if err := adder.Unmarshal(&config); err != nil {
 		return fmt.Errorf("unmarshal config: %w", err)
-	}
-
-	if config.Dispatch.InFlightTimeout == 0 {
-		config.Dispatch.InFlightTimeout = 10 * time.Minute
-	}
-	if config.Dispatch.MaxAttempts == 0 {
-		config.Dispatch.MaxAttempts = 3
-	}
-	if config.Dispatch.SweepInterval == 0 {
-		config.Dispatch.SweepInterval = time.Minute
-	}
-	if config.Dispatch.ShutdownTimeout == 0 {
-		config.Dispatch.ShutdownTimeout = 30 * time.Second
 	}
 
 	if err := validate(); err != nil {

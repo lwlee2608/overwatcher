@@ -14,10 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
+func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agent.Service, sessionToken string) {
 	t.Run("ListEmpty", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/api/v1/agents", nil)
+		setSession(req, sessionToken)
 		router.ServeHTTP(rr, req)
 
 		require.Equal(t, http.StatusOK, rr.Code)
@@ -35,6 +36,7 @@ func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 	t.Run("ListAfterRecord", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/api/v1/agents", nil)
+		setSession(req, sessionToken)
 		router.ServeHTTP(rr, req)
 
 		require.Equal(t, http.StatusOK, rr.Code)
@@ -57,6 +59,7 @@ func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/api/v1/agents/"+agentID, nil)
+		setSession(req, sessionToken)
 		router.ServeHTTP(rr, req)
 
 		require.Equal(t, http.StatusOK, rr.Code)
@@ -71,6 +74,7 @@ func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agent.Service) {
 	t.Run("GetNotFound", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/api/v1/agents/00000000-0000-0000-0000-000000000000", nil)
+		setSession(req, sessionToken)
 		router.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusNotFound, rr.Code)

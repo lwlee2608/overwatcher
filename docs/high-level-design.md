@@ -20,7 +20,7 @@ Developer ──git push main──> GitHub repo ──triggers workflow──> 
                       ┌───────────────────────────┐                  │
                       │ Target VM (compose stack) │                  │
                       │                           │                  │
-                      │  overwatcher-agent ◀──────┼─── ─ ─ -- ─ ─ ─ ─┘
+                      │  overwatcher-agent ◀──────┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘
                       │  (mounts docker.sock)     │
                       │       │                   │
                       │       │ pull + restart    │

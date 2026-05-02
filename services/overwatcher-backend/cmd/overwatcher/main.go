@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
 	"github.com/lwlee2608/overwatcher/internal/service/agent"
+	"github.com/lwlee2608/overwatcher/internal/service/auth"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
@@ -55,8 +57,20 @@ func main() {
 	eventLogSvc := eventlog.NewService(queries)
 	userSvc := user.NewService(pool)
 	projectSvc := project.NewService(pool)
+	authSvc := auth.NewService(pool, config.Auth.SessionTTL)
 	webhookSvc := webhook.New(ghClient, projectSvc, intentStore, eventLogSvc)
 	dispatchSvc := dispatch.New(ghClient, intentStore)
+
+	if config.Auth.Bootstrap.Enabled() {
+		bootstrapCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		if err := authSvc.EnsureUserPassword(bootstrapCtx, config.Auth.Bootstrap); err != nil {
+			cancel()
+			slog.Error("auth bootstrap failed", "error", err)
+			os.Exit(1)
+		}
+		cancel()
+		slog.Info("auth bootstrap user ensured", "email", config.Auth.Bootstrap.Email)
+	}
 
 	services := &internalhttp.Services{
 		WebhookService:    webhookSvc,
@@ -65,8 +79,10 @@ func main() {
 		EventLogService:   eventLogSvc,
 		UserService:       userSvc,
 		ProjectService:    projectSvc,
+		AuthService:       authSvc,
 		WebhookSecret:     config.GitHub.WebhookSecret,
 		AgentSharedSecret: config.Agent.SharedSecret,
+		CookieConfig:      config.Auth.Cookie,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -78,6 +94,7 @@ func main() {
 		config.Dispatch.SweepInterval,
 	)
 	go reaper.Run(ctx)
+	go runSessionReaper(ctx, authSvc, time.Hour)
 
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
@@ -116,4 +133,19 @@ func main() {
 		slog.Error("HTTP server shutdown error", "error", err)
 	}
 	slog.Info("Shutdown complete")
+}
+
+func runSessionReaper(ctx context.Context, svc *auth.Service, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := svc.ReapExpiredSessions(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				slog.Warn("session reaper failed", "error", err)
+			}
+		}
+	}
 }
