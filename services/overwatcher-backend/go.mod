@@ -4,7 +4,6 @@ go 1.25.0
 
 require (
 	github.com/bradleyfalzon/ghinstallation/v2 v2.18.0
-	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/go-github/v84 v84.0.0
 	github.com/google/uuid v1.6.0
