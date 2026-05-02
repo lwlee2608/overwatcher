@@ -22,11 +22,14 @@ type Querier interface {
 	CreateEventLog(ctx context.Context, arg CreateEventLogParams) (EventLog, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateService(ctx context.Context, arg CreateServiceParams) (Service, error)
+	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteExpiredSessions(ctx context.Context) error
 	DeleteOldEventLogs(ctx context.Context, offset int32) (int64, error)
 	DeleteProject(ctx context.Context, id pgtype.UUID) (Project, error)
 	DeleteService(ctx context.Context, id pgtype.UUID) (Service, error)
 	DeleteServicesByProject(ctx context.Context, projectID pgtype.UUID) error
+	DeleteSession(ctx context.Context, token string) error
 	DeleteUser(ctx context.Context, id pgtype.UUID) (User, error)
 	FailTimedOutIntents(ctx context.Context, arg FailTimedOutIntentsParams) ([]DeployIntent, error)
 	GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error)
@@ -35,6 +38,7 @@ type Querier interface {
 	GetProject(ctx context.Context, id pgtype.UUID) (Project, error)
 	GetProjectByUserAndName(ctx context.Context, arg GetProjectByUserAndNameParams) (Project, error)
 	GetService(ctx context.Context, id pgtype.UUID) (Service, error)
+	GetSession(ctx context.Context, token string) (Session, error)
 	GetUser(ctx context.Context, id pgtype.UUID) (User, error)
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
 	GetUserPasswordHashByEmail(ctx context.Context, lower string) (GetUserPasswordHashByEmailRow, error)
@@ -54,6 +58,7 @@ type Querier interface {
 	ListRecentDeployIntents(ctx context.Context, limit int32) ([]DeployIntent, error)
 	ListServicesByProject(ctx context.Context, projectID pgtype.UUID) ([]Service, error)
 	ListUsers(ctx context.Context) ([]User, error)
+	RefreshSession(ctx context.Context, arg RefreshSessionParams) error
 	RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOutIntentsParams) ([]DeployIntent, error)
 	SetUserPasswordHash(ctx context.Context, arg SetUserPasswordHashParams) error

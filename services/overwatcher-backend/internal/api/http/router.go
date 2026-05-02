@@ -5,6 +5,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/api/http/handler"
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/service/agent"
+	"github.com/lwlee2608/overwatcher/internal/service/auth"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/project"
@@ -23,8 +24,10 @@ type Services struct {
 	EventLogService   *eventlog.Service
 	UserService       *user.Service
 	ProjectService    *project.Service
+	AuthService       *auth.Service
 	WebhookSecret     string
 	AgentSharedSecret string
+	CookieConfig      middleware.CookieConfig
 }
 
 func SetupRoute(engine *gin.Engine, srvs *Services) {
@@ -38,6 +41,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	eventLogHandler := handler.NewEventLogHandler(srvs.EventLogService)
 	userHandler := handler.NewUserHandler(srvs.UserService)
 	projectHandler := handler.NewProjectHandler(srvs.ProjectService)
+	authHandler := handler.NewAuthHandler(srvs.AuthService, srvs.CookieConfig)
 
 	engine.GET("/health", healthHandler.Check)
 
@@ -57,28 +61,40 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 			deployGroup.POST("/:id/result", deployHandler.Result)
 		}
 
-		apis.GET("/agents", agentHandler.List)
-		apis.GET("/agents/:id", agentHandler.Get)
-		apis.PUT("/agents/:id/project", agentHandler.BindProject)
+		// /auth/login and /auth/logout are public (no session required).
+		// Other /auth/* routes are session-protected via the group below.
+		apis.POST("/auth/login", authHandler.Login)
+		apis.POST("/auth/logout", authHandler.Logout)
 
-		apis.GET("/users", userHandler.List)
-		apis.POST("/users", userHandler.Create)
-		apis.GET("/users/:id", userHandler.Get)
-		apis.PUT("/users/:id", userHandler.Update)
-		apis.DELETE("/users/:id", userHandler.Delete)
+		ui := apis.Group("")
+		ui.Use(middleware.SessionAuth(srvs.AuthService, srvs.CookieConfig))
+		{
+			ui.GET("/auth/me", authHandler.Me)
+			ui.PUT("/auth/password", authHandler.ChangePassword)
 
-		apis.GET("/projects", projectHandler.List)
-		apis.POST("/projects", projectHandler.Create)
-		apis.GET("/projects/:id", projectHandler.Get)
-		apis.PUT("/projects/:id", projectHandler.Update)
-		apis.DELETE("/projects/:id", projectHandler.Delete)
-		apis.GET("/projects/:id/services", projectHandler.ListServices)
-		apis.POST("/projects/:id/services", projectHandler.CreateService)
-		apis.PUT("/projects/:id/services", projectHandler.ReplaceServices)
-		apis.DELETE("/projects/:id/services/:serviceID", projectHandler.DeleteService)
+			ui.GET("/agents", agentHandler.List)
+			ui.GET("/agents/:id", agentHandler.Get)
+			ui.PUT("/agents/:id/project", agentHandler.BindProject)
 
-		apis.GET("/events", eventLogHandler.List)
-		apis.GET("/deployments", deployHandler.ListDeployments)
-		apis.POST("/deployments/:id/redeploy", deployHandler.Redeploy)
+			ui.GET("/users", userHandler.List)
+			ui.POST("/users", userHandler.Create)
+			ui.GET("/users/:id", userHandler.Get)
+			ui.PUT("/users/:id", userHandler.Update)
+			ui.DELETE("/users/:id", userHandler.Delete)
+
+			ui.GET("/projects", projectHandler.List)
+			ui.POST("/projects", projectHandler.Create)
+			ui.GET("/projects/:id", projectHandler.Get)
+			ui.PUT("/projects/:id", projectHandler.Update)
+			ui.DELETE("/projects/:id", projectHandler.Delete)
+			ui.GET("/projects/:id/services", projectHandler.ListServices)
+			ui.POST("/projects/:id/services", projectHandler.CreateService)
+			ui.PUT("/projects/:id/services", projectHandler.ReplaceServices)
+			ui.DELETE("/projects/:id/services/:serviceID", projectHandler.DeleteService)
+
+			ui.GET("/events", eventLogHandler.List)
+			ui.GET("/deployments", deployHandler.ListDeployments)
+			ui.POST("/deployments/:id/redeploy", deployHandler.Redeploy)
+		}
 	}
 }

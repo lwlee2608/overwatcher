@@ -30,12 +30,22 @@ type DispatchConfig struct {
 	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
 }
 
+type AuthConfig struct {
+	SessionTTL        time.Duration `mapstructure:"session_ttl"`
+	CookieSecure      bool          `mapstructure:"cookie_secure"`
+	CookieDomain      string        `mapstructure:"cookie_domain"`
+	BootstrapEmail    string        `mapstructure:"bootstrap_email"`
+	BootstrapPassword string        `mapstructure:"bootstrap_password" mask:"true"`
+	BootstrapName     string        `mapstructure:"bootstrap_name"`
+}
+
 type Config struct {
 	Log      LogConfig
 	Http     http.Config
 	GitHub   GitHubConfig   `mapstructure:"github"`
 	Agent    AgentConfig    `mapstructure:"agent"`
 	Dispatch DispatchConfig `mapstructure:"dispatch"`
+	Auth     AuthConfig     `mapstructure:"auth"`
 	Database db.Config      `mapstructure:"database"`
 }
 
@@ -69,6 +79,9 @@ func InitConfig() error {
 	}
 	if config.Dispatch.ShutdownTimeout == 0 {
 		config.Dispatch.ShutdownTimeout = 30 * time.Second
+	}
+	if config.Auth.SessionTTL == 0 {
+		config.Auth.SessionTTL = 30 * 24 * time.Hour
 	}
 
 	if err := validate(); err != nil {
