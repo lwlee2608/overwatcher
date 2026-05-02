@@ -46,6 +46,7 @@ type ComposeServiceResponse struct {
 	Branch        string    `json:"branch"`
 	Image         string    `json:"image"`
 	Tag           string    `json:"tag"`
+	Workflow      string    `json:"workflow"`
 	Position      int       `json:"position"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -62,6 +63,7 @@ type CreateComposeServiceRequest struct {
 	Branch        string `json:"branch"`
 	Image         string `json:"image" binding:"required"`
 	Tag           string `json:"tag"`
+	Workflow      string `json:"workflow"`
 	Position      int    `json:"position"`
 }
 

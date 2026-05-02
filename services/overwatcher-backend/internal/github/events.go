@@ -1,5 +1,6 @@
 package github
 
 const (
-	EventPush = "push"
+	EventPush        = "push"
+	EventWorkflowRun = "workflow_run"
 )

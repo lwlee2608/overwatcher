@@ -12,9 +12,9 @@ import (
 )
 
 const createService = `-- name: CreateService :one
-INSERT INTO services (project_id, name, repo, root_directory, branch, image, tag, position)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, project_id, name, repo, root_directory, branch, image, tag, position, created_at, updated_at
+INSERT INTO services (project_id, name, repo, root_directory, branch, image, tag, workflow, position)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, project_id, name, repo, root_directory, branch, image, tag, position, created_at, updated_at, workflow
 `
 
 type CreateServiceParams struct {
@@ -25,6 +25,7 @@ type CreateServiceParams struct {
 	Branch        string      `json:"branch"`
 	Image         string      `json:"image"`
 	Tag           string      `json:"tag"`
+	Workflow      string      `json:"workflow"`
 	Position      int32       `json:"position"`
 }
 
@@ -37,6 +38,7 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 		arg.Branch,
 		arg.Image,
 		arg.Tag,
+		arg.Workflow,
 		arg.Position,
 	)
 	var i Service
@@ -52,12 +54,13 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Workflow,
 	)
 	return i, err
 }
 
 const deleteService = `-- name: DeleteService :one
-DELETE FROM services WHERE id = $1 RETURNING id, project_id, name, repo, root_directory, branch, image, tag, position, created_at, updated_at
+DELETE FROM services WHERE id = $1 RETURNING id, project_id, name, repo, root_directory, branch, image, tag, position, created_at, updated_at, workflow
 `
 
 func (q *Queries) DeleteService(ctx context.Context, id pgtype.UUID) (Service, error) {
@@ -75,6 +78,7 @@ func (q *Queries) DeleteService(ctx context.Context, id pgtype.UUID) (Service, e
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Workflow,
 	)
 	return i, err
 }
@@ -89,7 +93,7 @@ func (q *Queries) DeleteServicesByProject(ctx context.Context, projectID pgtype.
 }
 
 const getService = `-- name: GetService :one
-SELECT id, project_id, name, repo, root_directory, branch, image, tag, position, created_at, updated_at FROM services WHERE id = $1
+SELECT id, project_id, name, repo, root_directory, branch, image, tag, position, created_at, updated_at, workflow FROM services WHERE id = $1
 `
 
 func (q *Queries) GetService(ctx context.Context, id pgtype.UUID) (Service, error) {
@@ -107,12 +111,13 @@ func (q *Queries) GetService(ctx context.Context, id pgtype.UUID) (Service, erro
 		&i.Position,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Workflow,
 	)
 	return i, err
 }
 
 const listEnabledServicesByRepoAndBranch = `-- name: ListEnabledServicesByRepoAndBranch :many
-SELECT s.id, s.project_id, s.name, s.repo, s.root_directory, s.branch, s.image, s.tag, s.position, s.created_at, s.updated_at,
+SELECT s.id, s.project_id, s.name, s.repo, s.root_directory, s.branch, s.image, s.tag, s.position, s.created_at, s.updated_at, s.workflow,
        p.name         AS project_name,
        p.user_id      AS project_user_id,
        p.compose_file AS project_compose_file,
@@ -142,6 +147,7 @@ type ListEnabledServicesByRepoAndBranchRow struct {
 	Position           int32              `json:"position"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	Workflow           string             `json:"workflow"`
 	ProjectName        string             `json:"project_name"`
 	ProjectUserID      pgtype.UUID        `json:"project_user_id"`
 	ProjectComposeFile string             `json:"project_compose_file"`
@@ -172,6 +178,87 @@ func (q *Queries) ListEnabledServicesByRepoAndBranch(ctx context.Context, arg Li
 			&i.Position,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Workflow,
+			&i.ProjectName,
+			&i.ProjectUserID,
+			&i.ProjectComposeFile,
+			&i.ProjectEnvironment,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEnabledServicesByRepoAndWorkflow = `-- name: ListEnabledServicesByRepoAndWorkflow :many
+SELECT s.id, s.project_id, s.name, s.repo, s.root_directory, s.branch, s.image, s.tag, s.position, s.created_at, s.updated_at, s.workflow,
+       p.name         AS project_name,
+       p.user_id      AS project_user_id,
+       p.compose_file AS project_compose_file,
+       p.environment  AS project_environment
+FROM services s
+JOIN projects p ON p.id = s.project_id
+WHERE LOWER(s.repo) = LOWER($1)
+  AND s.branch = $2
+  AND s.workflow = $3
+  AND p.enabled = true
+ORDER BY p.id, s.position
+`
+
+type ListEnabledServicesByRepoAndWorkflowParams struct {
+	Lower    string `json:"lower"`
+	Branch   string `json:"branch"`
+	Workflow string `json:"workflow"`
+}
+
+type ListEnabledServicesByRepoAndWorkflowRow struct {
+	ID                 pgtype.UUID        `json:"id"`
+	ProjectID          pgtype.UUID        `json:"project_id"`
+	Name               string             `json:"name"`
+	Repo               string             `json:"repo"`
+	RootDirectory      string             `json:"root_directory"`
+	Branch             string             `json:"branch"`
+	Image              string             `json:"image"`
+	Tag                string             `json:"tag"`
+	Position           int32              `json:"position"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	Workflow           string             `json:"workflow"`
+	ProjectName        string             `json:"project_name"`
+	ProjectUserID      pgtype.UUID        `json:"project_user_id"`
+	ProjectComposeFile string             `json:"project_compose_file"`
+	ProjectEnvironment string             `json:"project_environment"`
+}
+
+// workflow_run matching: like ListEnabledServicesByRepoAndBranch but keyed on
+// the workflow filename (e.g. "build-and-publish.yml"). Used when a CI run
+// finishes successfully and we want to deploy the matching services.
+func (q *Queries) ListEnabledServicesByRepoAndWorkflow(ctx context.Context, arg ListEnabledServicesByRepoAndWorkflowParams) ([]ListEnabledServicesByRepoAndWorkflowRow, error) {
+	rows, err := q.db.Query(ctx, listEnabledServicesByRepoAndWorkflow, arg.Lower, arg.Branch, arg.Workflow)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListEnabledServicesByRepoAndWorkflowRow{}
+	for rows.Next() {
+		var i ListEnabledServicesByRepoAndWorkflowRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProjectID,
+			&i.Name,
+			&i.Repo,
+			&i.RootDirectory,
+			&i.Branch,
+			&i.Image,
+			&i.Tag,
+			&i.Position,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Workflow,
 			&i.ProjectName,
 			&i.ProjectUserID,
 			&i.ProjectComposeFile,
@@ -188,7 +275,7 @@ func (q *Queries) ListEnabledServicesByRepoAndBranch(ctx context.Context, arg Li
 }
 
 const listServicesByProject = `-- name: ListServicesByProject :many
-SELECT id, project_id, name, repo, root_directory, branch, image, tag, position, created_at, updated_at FROM services
+SELECT id, project_id, name, repo, root_directory, branch, image, tag, position, created_at, updated_at, workflow FROM services
 WHERE project_id = $1
 ORDER BY position ASC, name ASC
 `
@@ -214,6 +301,7 @@ func (q *Queries) ListServicesByProject(ctx context.Context, projectID pgtype.UU
 			&i.Position,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Workflow,
 		); err != nil {
 			return nil, err
 		}

@@ -157,6 +157,7 @@ func (h *ProjectHandler) CreateService(c *gin.Context) {
 		Branch:        req.Branch,
 		Image:         req.Image,
 		Tag:           req.Tag,
+		Workflow:      req.Workflow,
 		Position:      req.Position,
 	})
 	if err != nil {
@@ -189,6 +190,7 @@ func (h *ProjectHandler) ReplaceServices(c *gin.Context) {
 			Branch:        s.Branch,
 			Image:         s.Image,
 			Tag:           s.Tag,
+			Workflow:      s.Workflow,
 			Position:      i,
 		}
 	}
@@ -249,6 +251,7 @@ func composeServiceToDTO(s project.ComposeService) dto.ComposeServiceResponse {
 		Branch:        s.Branch,
 		Image:         s.Image,
 		Tag:           s.Tag,
+		Workflow:      s.Workflow,
 		Position:      s.Position,
 		CreatedAt:     s.CreatedAt,
 		UpdatedAt:     s.UpdatedAt,

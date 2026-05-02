@@ -15,6 +15,7 @@ interface ServiceRow {
   branch: string;
   image: string;
   tag: string;
+  workflow: string;
 }
 
 const emptyRow = (): ServiceRow => ({
@@ -24,6 +25,7 @@ const emptyRow = (): ServiceRow => ({
   branch: "",
   image: "",
   tag: "latest",
+  workflow: "",
 });
 
 function toRow(s: ComposeServiceResponse): ServiceRow {
@@ -34,6 +36,7 @@ function toRow(s: ComposeServiceResponse): ServiceRow {
     branch: s.branch,
     image: s.image,
     tag: s.tag,
+    workflow: s.workflow ?? "",
   };
 }
 
@@ -131,6 +134,7 @@ export function ProjectDetail() {
         branch: r.branch.trim(),
         image: r.image.trim(),
         tag: r.tag.trim() || "latest",
+        workflow: r.workflow.trim(),
         position: i,
       }));
       await replaceProjectServices(id, { services });
@@ -325,6 +329,7 @@ export function ProjectDetail() {
                 <th className="px-3 py-2">Branch</th>
                 <th className="px-3 py-2">Image</th>
                 <th className="px-3 py-2">Tag</th>
+                <th className="px-3 py-2">Workflow</th>
                 <th className="px-3 py-2"></th>
               </tr>
             </thead>
@@ -406,6 +411,18 @@ export function ProjectDetail() {
                       placeholder="latest"
                       value={r.tag}
                       onChange={(e) => updateRow(i, { tag: e.target.value })}
+                      className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                    />
+                  </td>
+                  <td className="px-2 py-2">
+                    <input
+                      type="text"
+                      placeholder="build.yml (optional)"
+                      value={r.workflow}
+                      onChange={(e) =>
+                        updateRow(i, { workflow: e.target.value })
+                      }
+                      title="Workflow filename. If set, deploys wait for this workflow to succeed instead of firing on push."
                       className="w-full rounded-md border border-gray-300 bg-white px-2 py-1 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                     />
                   </td>

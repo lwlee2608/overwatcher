@@ -53,6 +53,8 @@ func (s *Service) HandleEvent(ctx context.Context, eventType string, deliveryID 
 	switch eventType {
 	case internalgithub.EventPush:
 		s.handlePush(ctx, event.(*gh.PushEvent), deliveryID)
+	case internalgithub.EventWorkflowRun:
+		s.handleWorkflowRun(ctx, event.(*gh.WorkflowRunEvent), deliveryID)
 	default:
 		slog.Info("Unhandled webhook event", "event", eventType, "delivery_id", deliveryID)
 	}
@@ -69,9 +71,17 @@ func extractEventInfo(eventType string, payload []byte) (repo, sender, summary s
 		Sender struct {
 			Login string `json:"login"`
 		} `json:"sender"`
-		Ref     string `json:"ref"`
-		Commits []any  `json:"commits"`
-		Action  string `json:"action"`
+		Ref      string `json:"ref"`
+		Commits  []any  `json:"commits"`
+		Action   string `json:"action"`
+		Workflow struct {
+			Name string `json:"name"`
+			Path string `json:"path"`
+		} `json:"workflow"`
+		WorkflowRun struct {
+			HeadBranch string `json:"head_branch"`
+			Conclusion string `json:"conclusion"`
+		} `json:"workflow_run"`
 	}
 	if err := json.Unmarshal(payload, &raw); err != nil {
 		slog.Warn("Failed to extract event info from payload", "event_type", eventType, "error", err)
@@ -90,6 +100,13 @@ func extractEventInfo(eventType string, payload []byte) (repo, sender, summary s
 		summary = fmt.Sprintf("pushed %d commit(s) to %s", n, branch)
 	case "ping":
 		summary = "webhook ping"
+	case "workflow_run":
+		wf := raw.Workflow.Name
+		if wf == "" {
+			wf = path.Base(raw.Workflow.Path)
+		}
+		summary = fmt.Sprintf("workflow_run %s (%s) on %s: %s",
+			raw.Action, wf, raw.WorkflowRun.HeadBranch, raw.WorkflowRun.Conclusion)
 	default:
 		if raw.Action != "" {
 			summary = raw.Action
@@ -168,6 +185,10 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 	var order []string
 
 	for _, m := range matches {
+		// Services with a workflow filter deploy via workflow_run, not push.
+		if m.Workflow != "" {
+			continue
+		}
 		if !pathMatchesRoot(m.RootDirectory, changedPaths) {
 			continue
 		}
@@ -243,6 +264,172 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 			"environment", g.environment,
 		)
 	}
+}
+
+// handleWorkflowRun deploys when a successful CI workflow finishes, ensuring
+// the image we pull was actually built by that run. Services without a
+// configured workflow are unaffected — they continue to deploy via push.
+func (s *Service) handleWorkflowRun(ctx context.Context, event *gh.WorkflowRunEvent, deliveryID string) {
+	repo := event.GetRepo().GetFullName()
+	action := event.GetAction()
+	run := event.GetWorkflowRun()
+	wf := event.GetWorkflow()
+
+	slog.Info("workflow_run event received",
+		"delivery_id", deliveryID,
+		"repo", repo,
+		"action", action,
+		"conclusion", run.GetConclusion(),
+		"workflow", wf.GetPath(),
+		"head_branch", run.GetHeadBranch(),
+		"head_sha", run.GetHeadSHA(),
+	)
+
+	if action != "completed" {
+		return
+	}
+	if run.GetConclusion() != "success" {
+		slog.Info("workflow_run not successful, skipping",
+			"delivery_id", deliveryID, "repo", repo, "conclusion", run.GetConclusion())
+		return
+	}
+
+	branch := run.GetHeadBranch()
+	sha := run.GetHeadSHA()
+	if branch == "" || sha == "" {
+		slog.Info("workflow_run missing branch or SHA, skipping", "delivery_id", deliveryID, "repo", repo)
+		return
+	}
+
+	workflowFile := workflowFilename(wf.GetPath())
+	if workflowFile == "" {
+		slog.Info("workflow_run missing workflow path, skipping", "delivery_id", deliveryID, "repo", repo)
+		return
+	}
+
+	matches, err := s.projects.ListEnabledServicesByRepoAndWorkflow(ctx, repo, branch, workflowFile)
+	if err != nil {
+		slog.Error("Failed to list services for workflow_run",
+			"delivery_id", deliveryID, "repo", repo, "branch", branch, "workflow", workflowFile, "error", err)
+		return
+	}
+	if len(matches) == 0 {
+		slog.Info("No enabled service for repo/branch/workflow, skipping",
+			"delivery_id", deliveryID, "repo", repo, "branch", branch, "workflow", workflowFile)
+		return
+	}
+
+	installationID := event.GetInstallation().GetID()
+	if installationID == 0 {
+		slog.Warn("No installation ID in workflow_run event, skipping",
+			"delivery_id", deliveryID, "repo", repo)
+		return
+	}
+
+	client, err := s.ghClient.GetInstallationClient(ctx, installationID)
+	if err != nil {
+		slog.Error("Failed to get installation client", "delivery_id", deliveryID, "error", err)
+		return
+	}
+
+	owner := event.GetRepo().GetOwner().GetLogin()
+	repoName := event.GetRepo().GetName()
+
+	// Group matching services by project, preserving order — same shape as
+	// handlePush, but no path filter (the workflow itself decides what to build).
+	type group struct {
+		projectID   string
+		projectName string
+		composeFile string
+		environment string
+		services    []intent.ServiceSpec
+	}
+	groups := make(map[string]*group)
+	var order []string
+
+	for _, m := range matches {
+		g, ok := groups[m.ProjectID]
+		if !ok {
+			g = &group{
+				projectID:   m.ProjectID,
+				projectName: m.ProjectName,
+				composeFile: m.ProjectComposeFile,
+				environment: m.ProjectEnvironment,
+			}
+			groups[m.ProjectID] = g
+			order = append(order, m.ProjectID)
+		}
+		g.services = append(g.services, intent.ServiceSpec{
+			Name:  m.ServiceName,
+			Image: m.Image,
+			Tag:   m.Tag,
+		})
+	}
+
+	commitMsg := ""
+	if hc := run.GetHeadCommit(); hc != nil {
+		commitMsg = hc.GetMessage()
+		if idx := strings.IndexByte(commitMsg, '\n'); idx != -1 {
+			commitMsg = commitMsg[:idx]
+		}
+	}
+
+	ref := "refs/heads/" + branch
+	for _, pid := range order {
+		g := groups[pid]
+		description := fmt.Sprintf("Deployment queued for project %s", g.projectName)
+		if commitMsg != "" {
+			description = fmt.Sprintf("%s: %s", description, commitMsg)
+		}
+
+		deploymentID, err := s.createGitHubDeployment(ctx, client, owner, repoName, sha, g.environment, description)
+		if err != nil {
+			slog.Error("Failed to create deployment",
+				"delivery_id", deliveryID, "repo", repo, "project", g.projectName, "sha", sha, "error", err)
+			continue
+		}
+
+		slog.Info("Deployment created from workflow_run",
+			"delivery_id", deliveryID, "repo", repo, "project", g.projectName,
+			"deployment_id", deploymentID, "sha", sha, "workflow", workflowFile)
+
+		di := &intent.DeployIntent{
+			CreatedAt:      time.Now(),
+			DeliveryID:     deliveryID,
+			ProjectID:      g.projectID,
+			ProjectName:    g.projectName,
+			ComposeFile:    g.composeFile,
+			Repo:           repo,
+			Ref:            ref,
+			SHA:            sha,
+			Stack:          g.projectName,
+			Services:       g.services,
+			Environment:    g.environment,
+			DeploymentID:   deploymentID,
+			InstallationID: installationID,
+			Status:         intent.StatusCreated,
+		}
+		s.store.Enqueue(di)
+
+		slog.Info("Deploy intent enqueued",
+			"delivery_id", deliveryID,
+			"project", g.projectName,
+			"repo", repo,
+			"services", len(g.services),
+			"environment", g.environment,
+			"trigger", "workflow_run",
+		)
+	}
+}
+
+// workflowFilename returns the basename of a workflow path (e.g.
+// ".github/workflows/build.yml" -> "build.yml"). Users configure services
+// with the filename, which is more stable than the workflow's display name.
+func workflowFilename(p string) string {
+	if p == "" {
+		return ""
+	}
+	return path.Base(p)
 }
 
 // changedPathsFromPush returns the union of modified/added/removed paths across

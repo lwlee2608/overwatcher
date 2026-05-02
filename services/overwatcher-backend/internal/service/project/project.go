@@ -3,6 +3,8 @@ package project
 import (
 	"context"
 	"errors"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -12,6 +14,18 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 	"github.com/lwlee2608/overwatcher/internal/util"
 )
+
+// normalizeWorkflow stores workflows by filename only. Users sometimes paste
+// the full path (".github/workflows/build.yml") because that's how GitHub
+// displays it; the workflow_run handler matches on path.Base(), so without
+// this normalization those services would silently never deploy.
+func normalizeWorkflow(w string) string {
+	w = strings.TrimSpace(w)
+	if w == "" {
+		return ""
+	}
+	return path.Base(w)
+}
 
 var (
 	ErrNotFound        = errors.New("project not found")
@@ -36,6 +50,10 @@ type Project struct {
 
 // ComposeService is a row in the services table — one compose-file service
 // inside a project, linked to a GitHub repo + root directory.
+//
+// Workflow, if non-empty, names the GitHub Actions workflow file (e.g.
+// "build-and-publish.yml") whose successful completion triggers a deploy.
+// Empty means deploy on push (legacy behavior).
 type ComposeService struct {
 	ID            string
 	ProjectID     string
@@ -45,6 +63,7 @@ type ComposeService struct {
 	Branch        string
 	Image         string
 	Tag           string
+	Workflow      string
 	Position      int
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
@@ -211,6 +230,7 @@ type CreateComposeServiceParams struct {
 	Branch        string
 	Image         string
 	Tag           string
+	Workflow      string
 	Position      int
 }
 
@@ -239,6 +259,7 @@ func (s *Service) CreateComposeService(ctx context.Context, p CreateComposeServi
 		Branch:        branch,
 		Image:         p.Image,
 		Tag:           tag,
+		Workflow:      normalizeWorkflow(p.Workflow),
 		Position:      int32(p.Position),
 	})
 	if err != nil {
@@ -308,6 +329,7 @@ type RepoMatch struct {
 	Branch             string
 	Image              string
 	Tag                string
+	Workflow           string
 	Position           int
 }
 
@@ -337,6 +359,40 @@ func (s *Service) ListEnabledServicesByRepoAndBranch(ctx context.Context, repo, 
 			Branch:             r.Branch,
 			Image:              r.Image,
 			Tag:                r.Tag,
+			Workflow:           r.Workflow,
+			Position:           int(r.Position),
+		}
+	}
+	return out, nil
+}
+
+// ListEnabledServicesByRepoAndWorkflow returns every enabled service whose
+// repo+branch+workflow matches. Used by the workflow_run webhook handler.
+func (s *Service) ListEnabledServicesByRepoAndWorkflow(ctx context.Context, repo, branch, workflow string) ([]RepoMatch, error) {
+	rows, err := s.q.ListEnabledServicesByRepoAndWorkflow(ctx, sqlc.ListEnabledServicesByRepoAndWorkflowParams{
+		Lower:    repo,
+		Branch:   branch,
+		Workflow: workflow,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RepoMatch, len(rows))
+	for i, r := range rows {
+		out[i] = RepoMatch{
+			ServiceID:          util.UUIDToString(r.ID),
+			ProjectID:          util.UUIDToString(r.ProjectID),
+			ProjectName:        r.ProjectName,
+			ProjectUserID:      util.UUIDToString(r.ProjectUserID),
+			ProjectComposeFile: r.ProjectComposeFile,
+			ProjectEnvironment: r.ProjectEnvironment,
+			ServiceName:        r.Name,
+			Repo:               r.Repo,
+			RootDirectory:      r.RootDirectory,
+			Branch:             r.Branch,
+			Image:              r.Image,
+			Tag:                r.Tag,
+			Workflow:           r.Workflow,
 			Position:           int(r.Position),
 		}
 	}
@@ -381,6 +437,7 @@ func (s *Service) ReplaceComposeServices(ctx context.Context, projectID string, 
 			Branch:        branch,
 			Image:         p.Image,
 			Tag:           tag,
+			Workflow:      normalizeWorkflow(p.Workflow),
 			Position:      int32(i),
 		})
 		if err != nil {
@@ -419,6 +476,7 @@ func composeRowToDomain(r sqlc.Service) *ComposeService {
 		Branch:        r.Branch,
 		Image:         r.Image,
 		Tag:           r.Tag,
+		Workflow:      r.Workflow,
 		Position:      int(r.Position),
 		CreatedAt:     r.CreatedAt.Time,
 		UpdatedAt:     r.UpdatedAt.Time,
