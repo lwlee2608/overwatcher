@@ -57,8 +57,21 @@ Everything that only matters once there's more than one target.
 - ❌ Multi-VM, multi-stack-per-VM, multi-repo routing — mapping supports one repo → multiple stacks, but no multi-VM dispatch strategy.
 - ❌ Agent self-update strategy — the agent can't `pull + restart` its own container, so this likely needs a tiny host-level systemd unit or a watchdog sidecar.
 - ✅ Agent heartbeats and health view — `Tracker` records implicit heartbeats from agent poll requests via middleware; `GET /api/v1/agents` exposes connection status; frontend dashboard shows agent status with real-time polling.
-- ❌ A CLI or small web view to inspect queued / running / past deploys — only agent status view exists, no deploy history.
+- ✅ Web view for deploy history — `DeploymentDashboard` shows queued / dispatched / completed intents; `EventLogDashboard` shows raw webhook events.
+
+## Phase 6 — Multi-tenant control plane *(done)*
+
+Originally out of scope for the single-VM MVP, but added once the project shifted toward hosting deploys for multiple users/projects.
+
+- ✅ DB-backed mappings — moved deploy mappings from `application.yml` into PostgreSQL with REST CRUD; live edits no longer require restart.
+- ✅ Users + Projects + Services schema — Railway-style hierarchy replacing flat repo→stack mappings; 1:1 project↔agent binding enforced.
+- ✅ Login auth — password hashes, sessions, cookies, bootstrap-password flow, change-password modal, hourly session reaper, session revocation on password change.
+- ✅ Frontend dashboards — Users, Projects (list + detail), Agents, Deployments, Event Log, plus per-service edit/view modes.
+- ✅ Per-service image and tag — each service in a project carries its own image + tag strategy.
+- ✅ Manual redeploy — button on Deployments dashboard to re-enqueue an intent.
+- ✅ `workflow_run` trigger — deploys fire after GitHub Actions completes (proper CI gating) instead of on raw push.
+- ✅ System tests — postgres testcontainer covering health, agents, mappings, and the deploy/intent flow against `DBStore`.
 
 ---
 
-**Framing:** treat Phase 3 as the MVP goal. Everything after it is "earn the right to run this unattended." Phases 4 and 5 can reorder based on which pain hits first — solo use on one VM means Phase 5 can wait; running it for other people means Phase 4 becomes urgent.
+**Framing:** treat Phase 3 as the MVP goal. Everything after it is "earn the right to run this unattended." Phase 6 was a scope expansion (multi-tenant control plane) rather than hardening. Remaining work concentrates in Phase 4c (per-agent auth, log streaming, metrics) and the unfinished Phase 5 fleet items (multi-VM dispatch, agent self-update).
