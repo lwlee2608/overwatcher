@@ -99,10 +99,74 @@ function Field({
   );
 }
 
+function ViewRow({
+  label,
+  value,
+  muted = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  muted?: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-[80px_1fr] items-baseline gap-3 py-1">
+      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+        {label}
+      </span>
+      <span
+        className={`text-sm font-mono break-all ${
+          muted
+            ? "text-gray-400 dark:text-gray-500"
+            : "text-gray-800 dark:text-gray-200"
+        }`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function ServiceView({ row }: { row: ServiceRow }) {
+  const repoLine = row.repo ? (
+    <>
+      {row.repo}
+      {row.branch && (
+        <>
+          <span className="mx-1.5 text-gray-400 dark:text-gray-500">·</span>
+          {row.branch}
+        </>
+      )}
+    </>
+  ) : (
+    <span className="italic text-gray-400 dark:text-gray-500">not set</span>
+  );
+  const imageLine = row.image ? (
+    <>
+      {row.image}
+      <span className="text-gray-400 dark:text-gray-500">:{row.tag || "latest"}</span>
+    </>
+  ) : (
+    <span className="italic text-gray-400 dark:text-gray-500">not set</span>
+  );
+  return (
+    <div className="px-4 py-3">
+      <ViewRow label="Repo" value={repoLine} />
+      <ViewRow label="Root dir" value={row.root_directory || "/"} />
+      <ViewRow label="Image" value={imageLine} />
+      <ViewRow
+        label="Workflow"
+        value={row.workflow || "—"}
+        muted={!row.workflow}
+      />
+    </div>
+  );
+}
+
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [rows, setRows] = useState<ServiceRow[]>([]);
+  const [editing, setEditing] = useState<boolean[]>([]);
   const [agents, setAgents] = useState<AgentStatus[]>([]);
   const [agentSelection, setAgentSelection] = useState<string>("");
   const [bindingAgent, setBindingAgent] = useState(false);
@@ -116,7 +180,9 @@ export function ProjectDetail() {
     try {
       const [p, a] = await Promise.all([fetchProject(id), fetchAgents()]);
       setProject(p);
-      setRows((p.services ?? []).map(toRow));
+      const loadedRows = (p.services ?? []).map(toRow);
+      setRows(loadedRows);
+      setEditing(loadedRows.map(() => false));
       const agentList = a.agents ?? [];
       setAgents(agentList);
       const bound = agentList.find((ag) => ag.project_id === p.id);
@@ -141,11 +207,13 @@ export function ProjectDetail() {
 
   function addRow() {
     setRows((rs) => [...rs, emptyRow()]);
+    setEditing((es) => [...es, true]);
     setDirty(true);
   }
 
   function removeRow(i: number) {
     setRows((rs) => rs.filter((_, idx) => idx !== i));
+    setEditing((es) => es.filter((_, idx) => idx !== i));
     setDirty(true);
   }
 
@@ -157,7 +225,16 @@ export function ProjectDetail() {
       [copy[i], copy[j]] = [copy[j], copy[i]];
       return copy;
     });
+    setEditing((es) => {
+      const copy = es.slice();
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+      return copy;
+    });
     setDirty(true);
+  }
+
+  function toggleEdit(i: number) {
+    setEditing((es) => es.map((v, idx) => (idx === i ? !v : v)));
   }
 
   async function handleBindAgent() {
@@ -378,128 +455,150 @@ export function ProjectDetail() {
         </div>
       ) : (
         <div className="space-y-3">
-          {rows.map((r, i) => (
-            <div
-              key={i}
-              className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                  Service {i + 1}
-                  {r.name ? (
-                    <span className="ml-2 normal-case tracking-normal text-gray-700 dark:text-gray-200">
-                      {r.name}
+          {rows.map((r, i) => {
+            const isEditing = editing[i];
+            return (
+              <div
+                key={i}
+                className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
+              >
+                <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-2.5 dark:border-gray-700/60">
+                  <div className="flex items-baseline gap-2 min-w-0">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                      #{i + 1}
                     </span>
-                  ) : null}
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => moveRow(i, -1)}
-                    disabled={i === 0}
-                    className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-30 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
-                    aria-label="Move up"
-                  >
-                    ▲
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveRow(i, 1)}
-                    disabled={i === rows.length - 1}
-                    className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-30 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
-                    aria-label="Move down"
-                  >
-                    ▼
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removeRow(i)}
-                    className="ml-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-300 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-                    aria-label="Remove service"
-                  >
-                    Remove
-                  </button>
+                    <span className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {r.name || (
+                        <span className="italic text-gray-400 dark:text-gray-500">
+                          unnamed
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => moveRow(i, -1)}
+                      disabled={i === 0}
+                      className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-30 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+                      aria-label="Move up"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveRow(i, 1)}
+                      disabled={i === rows.length - 1}
+                      className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-30 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+                      aria-label="Move down"
+                    >
+                      ▼
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleEdit(i)}
+                      className="ml-1 rounded-md border border-gray-300 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
+                      {isEditing ? "Done" : "Edit"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeRow(i)}
+                      className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                      aria-label="Remove service"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
+
+                {isEditing ? (
+                  <div className="grid grid-cols-12 gap-3 p-4">
+                    <Field label="Name" className="col-span-12">
+                      <AutoInput
+                        placeholder="web"
+                        value={r.name}
+                        onChange={(e) => updateRow(i, { name: e.target.value })}
+                        className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                      />
+                    </Field>
+
+                    <Field label="Repo" className="col-span-12">
+                      <AutoInput
+                        placeholder="owner/repo"
+                        value={r.repo}
+                        onChange={(e) => updateRow(i, { repo: e.target.value })}
+                        onBlur={(e) => {
+                          const normalized = normalizeRepo(e.target.value);
+                          if (normalized !== e.target.value) {
+                            updateRow(i, { repo: normalized });
+                          }
+                        }}
+                        className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                      />
+                    </Field>
+                    <Field label="Branch" className="col-span-12">
+                      <AutoInput
+                        placeholder="main"
+                        value={r.branch}
+                        onChange={(e) =>
+                          updateRow(i, { branch: e.target.value })
+                        }
+                        className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                      />
+                    </Field>
+
+                    <Field label="Root dir" className="col-span-12">
+                      <AutoInput
+                        placeholder="/"
+                        value={r.root_directory}
+                        onChange={(e) =>
+                          updateRow(i, { root_directory: e.target.value })
+                        }
+                        className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                      />
+                    </Field>
+
+                    <Field label="Image" className="col-span-12">
+                      <AutoInput
+                        placeholder="ghcr.io/owner/image"
+                        value={r.image}
+                        onChange={(e) =>
+                          updateRow(i, { image: e.target.value })
+                        }
+                        className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                      />
+                    </Field>
+                    <Field label="Tag" className="col-span-12">
+                      <AutoInput
+                        placeholder="latest"
+                        value={r.tag}
+                        onChange={(e) => updateRow(i, { tag: e.target.value })}
+                        className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                      />
+                    </Field>
+
+                    <Field
+                      label="Workflow"
+                      className="col-span-12"
+                      hint="Optional. If set, deploys wait for this workflow to succeed."
+                    >
+                      <AutoInput
+                        placeholder="build.yml"
+                        value={r.workflow}
+                        onChange={(e) =>
+                          updateRow(i, { workflow: e.target.value })
+                        }
+                        className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                      />
+                    </Field>
+                  </div>
+                ) : (
+                  <ServiceView row={r} />
+                )}
               </div>
-
-              <div className="grid grid-cols-12 gap-3">
-                <Field label="Name" className="col-span-12">
-                  <AutoInput
-                    placeholder="web"
-                    value={r.name}
-                    onChange={(e) => updateRow(i, { name: e.target.value })}
-                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                  />
-                </Field>
-
-                <Field label="Repo" className="col-span-12">
-                  <AutoInput
-                    placeholder="owner/repo"
-                    value={r.repo}
-                    onChange={(e) => updateRow(i, { repo: e.target.value })}
-                    onBlur={(e) => {
-                      const normalized = normalizeRepo(e.target.value);
-                      if (normalized !== e.target.value) {
-                        updateRow(i, { repo: normalized });
-                      }
-                    }}
-                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                  />
-                </Field>
-                <Field label="Branch" className="col-span-12">
-                  <AutoInput
-                    placeholder="main"
-                    value={r.branch}
-                    onChange={(e) => updateRow(i, { branch: e.target.value })}
-                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                  />
-                </Field>
-
-                <Field label="Root dir" className="col-span-12">
-                  <AutoInput
-                    placeholder="/"
-                    value={r.root_directory}
-                    onChange={(e) =>
-                      updateRow(i, { root_directory: e.target.value })
-                    }
-                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                  />
-                </Field>
-
-                <Field label="Image" className="col-span-12">
-                  <AutoInput
-                    placeholder="ghcr.io/owner/image"
-                    value={r.image}
-                    onChange={(e) => updateRow(i, { image: e.target.value })}
-                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                  />
-                </Field>
-                <Field label="Tag" className="col-span-12">
-                  <AutoInput
-                    placeholder="latest"
-                    value={r.tag}
-                    onChange={(e) => updateRow(i, { tag: e.target.value })}
-                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                  />
-                </Field>
-
-                <Field
-                  label="Workflow"
-                  className="col-span-12"
-                  hint="Optional. If set, deploys wait for this workflow to succeed."
-                >
-                  <AutoInput
-                    placeholder="build.yml"
-                    value={r.workflow}
-                    onChange={(e) =>
-                      updateRow(i, { workflow: e.target.value })
-                    }
-                    className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                  />
-                </Field>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
