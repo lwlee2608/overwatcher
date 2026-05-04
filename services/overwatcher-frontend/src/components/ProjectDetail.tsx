@@ -432,11 +432,7 @@ export function ProjectDetail() {
                   />
                 </Field>
 
-                <Field
-                  label="Repo"
-                  className="col-span-12"
-                  hint="owner/repo. URLs and .git suffixes are normalized on blur."
-                >
+                <Field label="Repo" className="col-span-12">
                   <AutoInput
                     placeholder="owner/repo"
                     value={r.repo}
