@@ -28,6 +28,23 @@ const emptyRow = (): ServiceRow => ({
   workflow: "",
 });
 
+function normalizeRepo(input: string): string {
+  let r = input.trim();
+  for (const prefix of [
+    "https://github.com/",
+    "http://github.com/",
+    "git@github.com:",
+  ]) {
+    if (r.startsWith(prefix)) {
+      r = r.slice(prefix.length);
+      break;
+    }
+  }
+  if (r.endsWith("/")) r = r.slice(0, -1);
+  if (r.endsWith(".git")) r = r.slice(0, -4);
+  return r;
+}
+
 function toRow(s: ComposeServiceResponse): ServiceRow {
   return {
     name: s.name,
@@ -415,11 +432,21 @@ export function ProjectDetail() {
                   />
                 </Field>
 
-                <Field label="Repo" className="col-span-12">
+                <Field
+                  label="Repo"
+                  className="col-span-12"
+                  hint="owner/repo. URLs and .git suffixes are normalized on blur."
+                >
                   <AutoInput
-                    placeholder="https://github.com/owner/repo"
+                    placeholder="owner/repo"
                     value={r.repo}
                     onChange={(e) => updateRow(i, { repo: e.target.value })}
+                    onBlur={(e) => {
+                      const normalized = normalizeRepo(e.target.value);
+                      if (normalized !== e.target.value) {
+                        updateRow(i, { repo: normalized });
+                      }
+                    }}
                     className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                   />
                 </Field>

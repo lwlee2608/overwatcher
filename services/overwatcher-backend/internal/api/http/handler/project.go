@@ -161,6 +161,10 @@ func (h *ProjectHandler) CreateService(c *gin.Context) {
 		Position:      req.Position,
 	})
 	if err != nil {
+		if errors.Is(err, project.ErrInvalidRepo) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		if isUniqueViolation(err) {
 			c.JSON(http.StatusConflict, gin.H{"error": "service name already exists in this project"})
 			return
@@ -196,6 +200,10 @@ func (h *ProjectHandler) ReplaceServices(c *gin.Context) {
 	}
 	out, err := h.svc.ReplaceComposeServices(c.Request.Context(), c.Param("id"), params)
 	if err != nil {
+		if errors.Is(err, project.ErrInvalidRepo) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		if isForeignKeyViolation(err) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "project not found"})
 			return
