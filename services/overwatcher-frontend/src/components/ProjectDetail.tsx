@@ -102,12 +102,10 @@ function Field({
 function ViewRow({
   label,
   value,
-  mono = true,
   muted = false,
 }: {
   label: string;
   value: React.ReactNode;
-  mono?: boolean;
   muted?: boolean;
 }) {
   return (
@@ -116,7 +114,7 @@ function ViewRow({
         {label}
       </span>
       <span
-        className={`text-sm break-all ${mono ? "font-mono" : ""} ${
+        className={`text-sm font-mono break-all ${
           muted
             ? "text-gray-400 dark:text-gray-500"
             : "text-gray-800 dark:text-gray-200"
@@ -153,7 +151,7 @@ function ServiceView({ row }: { row: ServiceRow }) {
   return (
     <div className="px-4 py-3">
       <ViewRow label="Repo" value={repoLine} />
-      <ViewRow label="Path" value={row.root_directory || "/"} />
+      <ViewRow label="Root dir" value={row.root_directory || "/"} />
       <ViewRow label="Image" value={imageLine} />
       <ViewRow
         label="Workflow"
