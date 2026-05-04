@@ -4,38 +4,46 @@ Overwatcher automates the **CD** half of the pipeline for projects deployed as D
 
 ## Architecture
 
-Overwatcher is a central coordinator that integrates with GitHub. The actual `docker pull` + restart is executed by a small **agent** that lives inside each target VM's compose stack. The agent mounts `/var/run/docker.sock` so it can manage its sibling containers, and opens an **outbound** connection to Overwatcher (long-poll, SSE, or gRPC stream) to receive deploy commands.
+Overwatcher is a central coordinator that integrates with GitHub. The actual `docker pull` + restart is executed by a small **agent** that lives inside each target VM's compose stack. The agent mounts `/var/run/docker.sock` so it can manage its sibling containers, and opens an **outbound** HTTP long-poll connection to Overwatcher to receive deploy commands.
+
+The coordinator is backed by PostgreSQL — it persists users, projects, services (the repo→stack mapping), deploy intents, agent registrations, and the webhook event log. A React frontend provides dashboards for users, projects, agents, deployments, and event logs. Login auth (sessions + cookies) gates the UI and management APIs; the agent transport uses a separate shared-secret bearer token.
 
 ```
-Developer ──git push main──> GitHub repo ──triggers workflow──> GitHub Actions (CI: build image)
-                                │                                    │ push image
-                                │ webhook event                      ▼
-                                ▼                        Container registry
-                          Overwatcher                                │
-                          (central coordinator)                      │
-                                │                       image pulled │
-                                │ outbound long-poll/                │
-                                │ stream                             │
-                                ▼                                    │
-                      ┌───────────────────────────┐                  │
-                      │ Target VM (compose stack) │                  │
-                      │                           │                  │
-                      │  overwatcher-agent ◀──────┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘
-                      │  (mounts docker.sock)     │
-                      │       │                   │
-                      │       │ pull + restart    │
-                      │       ▼                   │
-                      │  neighbour containers     │
-                      │  (app, db, etc.)          │
-                      └───────────────────────────┘
+Developer ──git push main──> GitHub repo ──> GitHub Actions (CI: build image)
+                                                    │ push image
+                                                    ▼
+                                          Container registry
+                                                    │
+            workflow_run webhook                    │
+                  │                                 │
+                  ▼                                 │
+           ┌─────────────────────┐                  │
+           │ Overwatcher         │                  │
+           │ (coordinator)       │                  │
+           │   HTTP API + UI     │                  │
+           │   PostgreSQL        │                  │
+           └─────────┬───────────┘                  │
+                     │ outbound long-poll           │
+                     ▼                              │
+           ┌───────────────────────────┐            │
+           │ Target VM (compose stack) │            │
+           │                           │            │
+           │  overwatcher-agent ◀──────┼╌╌╌╌╌╌╌╌╌╌╌╌┘
+           │  (mounts docker.sock)     │
+           │       │                   │
+           │       │ pull + restart    │
+           │       ▼                   │
+           │  neighbour containers     │
+           │  (app, db, etc.)          │
+           └───────────────────────────┘
 ```
 
 ## Flow
 
 1. Developer pushes to `main`.
 2. GitHub Actions runs CI, builds the Docker image, and pushes it to the container registry.
-3. GitHub delivers a webhook event to Overwatcher. Overwatcher verifies the signature and decides a deploy is needed.
-4. Overwatcher hands the deploy command to the agent over the agent's outbound connection.
+3. On workflow success GitHub fires a `workflow_run` webhook to Overwatcher. Overwatcher verifies the signature, looks up the matching project/service, and persists a deploy intent.
+4. The agent's outbound long-poll picks up the intent.
 5. The agent uses `docker.sock` to pull the new image and restart its neighbour containers.
 6. The agent reports status back to Overwatcher, which updates the GitHub Deployments API so the result is visible on the commit/PR.
 
