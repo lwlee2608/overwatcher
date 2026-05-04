@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 
@@ -27,10 +28,26 @@ func normalizeWorkflow(w string) string {
 	return path.Base(w)
 }
 
+var repoSlugRe = regexp.MustCompile(`^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$`)
+
+func normalizeRepo(r string) (string, error) {
+	r = strings.TrimSpace(r)
+	r = strings.TrimPrefix(r, "https://github.com/")
+	r = strings.TrimPrefix(r, "http://github.com/")
+	r = strings.TrimPrefix(r, "git@github.com:")
+	r = strings.TrimSuffix(r, "/")
+	r = strings.TrimSuffix(r, ".git")
+	if !repoSlugRe.MatchString(r) {
+		return "", ErrInvalidRepo
+	}
+	return r, nil
+}
+
 var (
 	ErrNotFound        = errors.New("project not found")
 	ErrServiceNotFound = errors.New("service not found")
 	ErrUserNotFound    = errors.New("user not found")
+	ErrInvalidRepo     = errors.New("repo must be in 'owner/repo' format")
 )
 
 // Project is a deployable unit owned by a user. It owns a single compose
@@ -239,6 +256,10 @@ func (s *Service) CreateComposeService(ctx context.Context, p CreateComposeServi
 	if err := projUID.Scan(p.ProjectID); err != nil {
 		return nil, err
 	}
+	repo, err := normalizeRepo(p.Repo)
+	if err != nil {
+		return nil, err
+	}
 	root := p.RootDirectory
 	if root == "" {
 		root = "/"
@@ -254,7 +275,7 @@ func (s *Service) CreateComposeService(ctx context.Context, p CreateComposeServi
 	row, err := s.q.CreateService(ctx, sqlc.CreateServiceParams{
 		ProjectID:     projUID,
 		Name:          p.Name,
-		Repo:          p.Repo,
+		Repo:          repo,
 		RootDirectory: root,
 		Branch:        branch,
 		Image:         p.Image,
@@ -411,6 +432,16 @@ func (s *Service) ReplaceComposeServices(ctx context.Context, projectID string, 
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	// Validate all rows before DeleteServicesByProject so a typo can't leave
+	// the project with zero services.
+	repos := make([]string, len(services))
+	for i, p := range services {
+		repo, err := normalizeRepo(p.Repo)
+		if err != nil {
+			return nil, err
+		}
+		repos[i] = repo
+	}
 	q := s.q.WithTx(tx)
 	if err := q.DeleteServicesByProject(ctx, uid); err != nil {
 		return nil, err
@@ -432,7 +463,7 @@ func (s *Service) ReplaceComposeServices(ctx context.Context, projectID string, 
 		row, err := q.CreateService(ctx, sqlc.CreateServiceParams{
 			ProjectID:     uid,
 			Name:          p.Name,
-			Repo:          p.Repo,
+			Repo:          repos[i],
 			RootDirectory: root,
 			Branch:        branch,
 			Image:         p.Image,
