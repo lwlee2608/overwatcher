@@ -1,153 +1,138 @@
 # Database Schema
 
-## Current State
+PostgreSQL backs the entire control plane. Migrations live under `services/overwatcher-backend/internal/db/migrations/` and are applied with [goose](https://github.com/pressly/goose) on coordinator startup. SQLC generates the Go query layer from `internal/db/queries/*.sql`.
 
-Only the `deploy_intents` table exists. Agent registration is in-memory (heartbeat tracker), and all routing config lives in YAML files:
+## Shape
 
-- **Coordinator** `application.yml` — repo-to-stack mappings
-- **Agent** `application-agent.yml` — stack-to-compose-file mappings
+The schema is split along two axes:
 
-## New Design
+- **Auth & tenancy** — `users`, `sessions`. The UI logs in with email + password (cookie-based sessions); a "bootstrap admin" is seeded with a one-time password on first start.
+- **Deploy model** — `projects`, `services`, `agents`, `deploy_intents`. A user owns N projects. A project has exactly one compose file, exactly one agent (1:1, partial unique), and N services. A service is a `(repo, root_directory, branch, image, tag, workflow)` row that triggers a deploy when its `workflow_run` arrives.
+- **Observability** — `event_logs`. Every received GitHub webhook delivery is recorded so the UI can show what was seen, even when it didn't produce a deploy.
 
-Move routing config to PostgreSQL so it can be managed via UI. Agents auto-register with the coordinator on startup.
-
-### Key simplification: 1 agent = 1 compose file
-
-The previous design had a separate `stacks` table allowing a single agent to manage multiple compose files. This added unnecessary complexity — the agent already lives inside the compose stack it manages. Enforcing a 1:1 relationship means the agent *is* the stack, eliminating the `stacks` table entirely and reducing the schema to two new tables: `agents` and `deploy_mappings`.
-
-### Per-service image/tag
-
-Each service in a mapping carries its own image and tag, stored in a `deploy_mapping_services` child table. A single mapping can deploy N services atomically (e.g. frontend + backend + worker in one repo). Intents denormalize the services list as a `services_spec` JSONB snapshot so historical deployments remain readable even after the mapping changes.
+`deploy_intents` is the deploy event log. It denormalizes everything it needs from the project/services rows at enqueue time (`compose_file`, `services_spec` JSONB, `repo`, `sha`) so deletions in the config tables don't erase deploy history.
 
 ## ER Diagram
 
 ```
+ ┌──────────────────────────────────┐         ┌──────────────────────────────────┐
+ │             users                │         │           sessions               │
+ ├──────────────────────────────────┤  1:N    ├──────────────────────────────────┤
+ │ id                    UUID PK    │────────▶│ token       VARCHAR(64) PK       │
+ │ email                 VARCHAR UQ │         │ user_id     UUID FK → users      │
+ │ name                  VARCHAR    │         │ expires_at  TIMESTAMPTZ          │
+ │ password_hash         VARCHAR    │         │ created_at  TIMESTAMPTZ          │
+ │ password_is_bootstrap BOOLEAN    │         └──────────────────────────────────┘
+ │ created_at            TIMESTAMPTZ│
+ │ updated_at            TIMESTAMPTZ│
+ └────────────────┬─────────────────┘
+                  │ 1:N
+                  ▼
+ ┌──────────────────────────────────┐         ┌──────────────────────────────────┐
+ │           projects               │  1:1    │            agents                │
+ ├──────────────────────────────────┤◀────────├──────────────────────────────────┤
+ │ id           UUID PK             │         │ id            UUID PK            │
+ │ user_id      UUID FK → users     │         │ name          VARCHAR UQ         │
+ │ name         VARCHAR             │         │ project_id    UUID FK → projects │
+ │ description  TEXT                │         │ remote_ip     VARCHAR(45)        │
+ │ compose_file VARCHAR(512)        │         │ last_seen_at  TIMESTAMPTZ        │
+ │ environment  VARCHAR(64)         │         │ created_at    TIMESTAMPTZ        │
+ │ enabled      BOOLEAN             │         │ updated_at    TIMESTAMPTZ        │
+ │ created_at   TIMESTAMPTZ         │         │                                  │
+ │ updated_at   TIMESTAMPTZ         │         │ partial UQ(project_id)           │
+ │                                  │         │   WHERE project_id IS NOT NULL   │
+ │ UQ(user_id, name)                │         └──────────────────────────────────┘
+ └────────────────┬─────────────────┘
+                  │ 1:N
+                  ▼
  ┌──────────────────────────────────┐
- │            agents                │
+ │           services               │
  ├──────────────────────────────────┤
- │ id            UUID PK            │
- │ name          VARCHAR(255) UQ    │
- │ compose_file  VARCHAR(512)       │
- │ remote_ip     VARCHAR(45)        │
- │ last_seen_at  TIMESTAMPTZ        │
- │ created_at    TIMESTAMPTZ        │
- │ updated_at    TIMESTAMPTZ        │
- └──────────────┬───────────────────┘
-                │
-                │ 1:N
-                │
- ┌──────────────┴───────────────────┐
- │        deploy_mappings           │
- ├──────────────────────────────────┤
- │ id            UUID PK            │
- │ repo          VARCHAR(512)       │
- │ agent_id      UUID FK → agents   │
- │ environment   VARCHAR(255)       │
- │ enabled       BOOLEAN            │
- │ created_at    TIMESTAMPTZ        │
- │ updated_at    TIMESTAMPTZ        │
+ │ id              UUID PK          │
+ │ project_id      UUID FK→projects │
+ │ name            VARCHAR          │
+ │ repo            VARCHAR(512)     │
+ │ root_directory  VARCHAR(512)     │
+ │ branch          VARCHAR(255)     │
+ │ image           VARCHAR(512)     │
+ │ tag             VARCHAR(255)     │
+ │ workflow        VARCHAR(255)     │
+ │ position        INTEGER          │
+ │ created_at      TIMESTAMPTZ      │
+ │ updated_at      TIMESTAMPTZ      │
  │                                  │
- │ UQ(repo, agent_id)               │
- └──────────────┬───────────────────┘
-                │
-                │ 1:N
-                │
- ┌──────────────┴───────────────────┐
- │   deploy_mapping_services        │
- ├──────────────────────────────────┤
- │ id            UUID PK            │
- │ mapping_id    UUID FK → mappings │
- │ name          VARCHAR(255)       │
- │ image         VARCHAR(512)       │
- │ tag           VARCHAR(255)       │
- │ position      INTEGER            │
- │                                  │
- │ UQ(mapping_id, name)             │
+ │ UQ(project_id, name)             │
  └──────────────────────────────────┘
 
 
- ┌──────────────────────────────────┐
- │     deploy_intents (existing)    │
- ├──────────────────────────────────┤
- │ id              UUID PK          │
- │ delivery_id     VARCHAR(255)     │
- │ stack_index     INTEGER          │
- │ repo            VARCHAR(512)     │
- │ git_ref         VARCHAR(255)     │
- │ sha             VARCHAR(64)      │
- │ stack           VARCHAR(255)     │
- │ services_spec   JSONB            │
- │ environment     VARCHAR(255)     │
- │ deployment_id   BIGINT           │
- │ installation_id BIGINT           │
- │ status          VARCHAR(32)      │
- │ attempts        INTEGER          │
- │ created_at      TIMESTAMPTZ      │
- │ updated_at      TIMESTAMPTZ      │
- │ dispatched_at   TIMESTAMPTZ      │
+ ┌──────────────────────────────────┐         ┌──────────────────────────────────┐
+ │         deploy_intents           │         │          event_logs              │
+ ├──────────────────────────────────┤         ├──────────────────────────────────┤
+ │ id               UUID PK         │         │ id          UUID PK              │
+ │ delivery_id      VARCHAR(255)    │         │ delivery_id VARCHAR(255)         │
+ │ project_id       UUID            │         │ event_type  VARCHAR(100)         │
+ │ repo             VARCHAR(512)    │         │ repo        VARCHAR(512)         │
+ │ git_ref          VARCHAR(255)    │         │ sender      VARCHAR(255)         │
+ │ sha              VARCHAR(64)     │         │ summary     TEXT                 │
+ │ stack            VARCHAR(255)    │         │ created_at  TIMESTAMPTZ          │
+ │ services_spec    JSONB           │         └──────────────────────────────────┘
+ │ compose_file     VARCHAR(512)    │
+ │ environment      VARCHAR(255)    │
+ │ deployment_id    BIGINT          │
+ │ installation_id  BIGINT          │
+ │ status           VARCHAR(32)     │
+ │ attempts         INTEGER         │
+ │ created_at       TIMESTAMP       │
+ │ updated_at       TIMESTAMP       │
+ │ dispatched_at    TIMESTAMP       │
  │                                  │
- │ UQ(delivery_id, stack_index)     │
+ │ partial UQ(delivery_id,          │
+ │           project_id)            │
  └──────────────────────────────────┘
 ```
 
-`deploy_intents` is an event log. It stores denormalized copies of stack/services/repo at the time of the event, so it does not FK into the config tables. Deleting a mapping does not erase deployment history. `services_spec` is a JSONB array of `{name, image, tag}` objects captured when the intent is enqueued.
+`deploy_intents.project_id` is intentionally **not** a FK — deleting a project keeps its history rows readable. The partial unique on `(delivery_id, project_id) WHERE project_id IS NOT NULL` provides webhook-redelivery dedup.
 
 ## Table Details
 
+### users
+
+UI auth. `password_hash` uses bcrypt; `password_is_bootstrap = true` marks accounts still on their seeded password and forces a change on first login. Cleared on the user's first `ChangePassword`.
+
+### sessions
+
+Server-side session store. Cookies carry only the opaque `token`. An hourly reaper deletes rows where `expires_at < NOW()`. Password changes revoke all sessions for that user.
+
+### projects
+
+The deployable unit (Railway-style). Each project owns exactly one `compose_file` and binds to exactly one agent. `UNIQUE(user_id, name)` lets two users both have a project called `staging`. Deleting a user cascades to their projects, and through them to services.
+
+### services
+
+A compose service definition. The webhook handler looks up services by `(LOWER(repo), workflow)` (partial index) — a `workflow_run` for `owner/repo` from workflow `deploy.yml` matches any service with `repo='owner/repo'` and `workflow='deploy.yml'`. `root_directory` filters by changed paths within the repo. `image`/`tag` drive what the agent passes to `docker compose pull` + `up -d`. `position` orders services within a project.
+
 ### agents
 
-Persists agent registration. Replaces both the in-memory `Tracker` and the `application-agent.yml` config file. Each agent manages exactly one compose file — the one it lives in. The agent auto-discovers its compose file from a conventional mount path and upserts its row on first poll. `last_seen_at` is updated on every subsequent poll.
+Persistent agent registration. The agent upserts its row on first poll, binds itself to a project (1:1, enforced by partial unique `idx_agents_project_id WHERE project_id IS NOT NULL`), and `last_seen_at` updates on every poll. `compose_file` is **not** stored here — it lives on the project, since an agent serves exactly one project.
 
-| Column       | Type         | Notes                              |
-|--------------|--------------|------------------------------------|
-| id           | UUID PK      | gen_random_uuid()                  |
-| name         | VARCHAR(255) | unique, set by agent or hostname   |
-| compose_file | VARCHAR(512) | e.g. "/opt/stacks/medtutor/docker-compose.prod.yml" |
-| remote_ip    | VARCHAR(45)  | updated on each heartbeat          |
-| last_seen_at | TIMESTAMPTZ  | updated on each heartbeat          |
-| created_at   | TIMESTAMPTZ  | default NOW()                      |
-| updated_at   | TIMESTAMPTZ  | default NOW()                      |
+### deploy_intents
 
-### deploy_mappings
+Append-only deploy event log. A webhook produces one intent per affected project, with `services_spec` as a JSONB array of `{name, image, tag}` objects captured at enqueue time. The dispatcher transitions `status` through `created → dispatched → succeeded|failed`; `attempts` and `dispatched_at` drive retry/reaper logic. `compose_file` is denormalized so the agent can run the right compose file even after the project is renamed or deleted.
 
-Routing rules configured via UI. Replaces the `deployments.mappings` list in `application.yml`. When a webhook arrives for `repo`, the coordinator queries this table to find which agent(s) and service(s) to deploy.
+### event_logs
 
-| Column      | Type         | Notes                                  |
-|-------------|--------------|----------------------------------------|
-| id          | UUID PK      | gen_random_uuid()                      |
-| repo        | VARCHAR(512) | "owner/repo-name"                      |
-| agent_id    | UUID FK      | references agents(id)                  |
-| environment | VARCHAR(255) | default "production"                   |
-| enabled     | BOOLEAN      | default true; allows disabling without deleting |
-| created_at  | TIMESTAMPTZ  | default NOW()                          |
-| updated_at  | TIMESTAMPTZ  | default NOW()                          |
+Every received GitHub webhook delivery, including ones that didn't match any service. The frontend's Event Log dashboard reads from this table.
 
-Unique constraint on `(repo, agent_id)` — one mapping per repo per agent.
+## Migration History
 
-### deploy_mapping_services
+Migrations are numbered 0001–0016 and applied in order. Notable points:
 
-Per-service image/tag attached to a mapping. The runner iterates this list and runs `docker compose pull <name>` / `up -d <name>` once per row with `IMAGE` and `IMAGE_TAG` env set from the row. An empty `name` means "apply to the whole compose stack" (preserved from the legacy empty-services semantics).
-
-| Column     | Type         | Notes                                          |
-|------------|--------------|------------------------------------------------|
-| id         | UUID PK      | gen_random_uuid()                              |
-| mapping_id | UUID FK      | references deploy_mappings(id) ON DELETE CASCADE |
-| name       | VARCHAR(255) | compose service name; "" = whole stack         |
-| image      | VARCHAR(512) | e.g. "ghcr.io/owner/web"                       |
-| tag        | VARCHAR(255) | default "latest"                               |
-| position   | INTEGER      | ordering within the mapping                    |
-
-Unique constraint on `(mapping_id, name)`.
-
-## Setup Flow (Before vs After)
-
-**Before (YAML):**
-1. Edit coordinator `application.yml` with repo-to-stack mappings, redeploy coordinator
-2. Write `application-agent.yml` with stack-to-compose mappings
-3. Mount the config file into the agent container
-4. Keep "stack" names in sync across both files
-
-**After (DB + UI):**
-1. Add the agent to your docker-compose file with just env vars (secret + coordinator URL)
-2. Agent auto-registers itself and its compose file with the coordinator
-3. Open UI, see registered agents, create mappings (repo → agent + services)
+- `0001` — `deploy_intents` (the original MVP table).
+- `0003` — original `agents` + `deploy_mappings` schema.
+- `0006` — `event_logs`.
+- `0009` — replaces `deploy_intents.image/tag/services` with `services_spec JSONB`.
+- `0010` — adds `users`, `projects`, `services`; `agents.project_id` and `deploy_intents.project_id` added additively (coexist with legacy `deploy_mappings`).
+- `0011` — adds `deploy_intents.compose_file` and partial unique on `(delivery_id, project_id)`; backfills legacy mappings into a bootstrap user/project/services.
+- `0012` — drops `deploy_mappings`, `deploy_mapping_services`, `deploy_intents.stack_index`, and `agents.compose_file` after cutover.
+- `0013` — `services.workflow` for the `workflow_run` trigger.
+- `0014`–`0016` — login auth: `users.password_hash`, `sessions`, `users.password_is_bootstrap`.
