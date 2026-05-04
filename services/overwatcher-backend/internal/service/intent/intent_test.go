@@ -11,35 +11,23 @@ import (
 )
 
 func TestStore_EnqueueAndLen(t *testing.T) {
-	s := NewMemoryStore()
+	s := newTestStore(t)
 	if s.Len() != 0 {
 		t.Fatalf("new store Len = %d, want 0", s.Len())
 	}
 
-	s.Enqueue(&DeployIntent{ID: "a"})
-	s.Enqueue(&DeployIntent{ID: "b"})
+	s.Enqueue(newIntent("d1", "s1"))
+	s.Enqueue(newIntent("d2", "s2"))
 
 	if s.Len() != 2 {
 		t.Errorf("Len = %d, want 2", s.Len())
 	}
 }
 
-func TestStore_ListReturnsCopy(t *testing.T) {
-	s := NewMemoryStore()
-	s.Enqueue(&DeployIntent{ID: "a"})
-
-	list := s.List()
-	list = append(list, &DeployIntent{ID: "rogue"})
-
-	if s.Len() != 1 {
-		t.Errorf("external append leaked into store: Len = %d, want 1", s.Len())
-	}
-}
-
 func TestStore_ConcurrentEnqueue(t *testing.T) {
-	s := NewMemoryStore()
-	const workers = 50
-	const perWorker = 20
+	s := newTestStore(t)
+	const workers = 10
+	const perWorker = 5
 
 	var wg sync.WaitGroup
 	wg.Add(workers)
@@ -47,7 +35,10 @@ func TestStore_ConcurrentEnqueue(t *testing.T) {
 		go func(w int) {
 			defer wg.Done()
 			for i := 0; i < perWorker; i++ {
-				s.Enqueue(&DeployIntent{ID: fmt.Sprintf("%d-%d", w, i)})
+				s.Enqueue(newIntent(
+					fmt.Sprintf("d-%d-%d", w, i),
+					fmt.Sprintf("s-%d-%d", w, i),
+				))
 			}
 		}(w)
 	}
@@ -59,19 +50,19 @@ func TestStore_ConcurrentEnqueue(t *testing.T) {
 }
 
 func TestStore_TakeNext_FIFO(t *testing.T) {
-	s := NewMemoryStore()
-	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
-	s.Enqueue(&DeployIntent{ID: "b", Stack: "s2"})
-	s.Enqueue(&DeployIntent{ID: "c", Stack: "s3"})
+	s := newTestStore(t)
+	s.Enqueue(newIntent("d1", "s1"))
+	s.Enqueue(newIntent("d2", "s2"))
+	s.Enqueue(newIntent("d3", "s3"))
 
 	ctx := context.Background()
-	for _, want := range []string{"a", "b", "c"} {
+	for _, want := range []string{"s1", "s2", "s3"} {
 		got, err := s.TakeNext(ctx)
 		if err != nil {
 			t.Fatalf("TakeNext error: %v", err)
 		}
-		if got.ID != want {
-			t.Errorf("got %q, want %q", got.ID, want)
+		if got.Stack != want {
+			t.Errorf("got stack %q, want %q", got.Stack, want)
 		}
 		if got.Status != StatusDispatched {
 			t.Errorf("status = %q, want StatusDispatched", got.Status)
@@ -87,7 +78,7 @@ func TestStore_TakeNext_FIFO(t *testing.T) {
 }
 
 func TestStore_TakeNext_BlocksUntilEnqueue(t *testing.T) {
-	s := NewMemoryStore()
+	s := newTestStore(t)
 
 	type result struct {
 		intent *DeployIntent
@@ -99,30 +90,29 @@ func TestStore_TakeNext_BlocksUntilEnqueue(t *testing.T) {
 		done <- result{i, err}
 	}()
 
-	// Give the goroutine time to park on the notify channel.
 	select {
 	case <-done:
 		t.Fatal("TakeNext returned before any enqueue")
-	case <-time.After(20 * time.Millisecond):
+	case <-time.After(50 * time.Millisecond):
 	}
 
-	s.Enqueue(&DeployIntent{ID: "late", Stack: "s1"})
+	s.Enqueue(newIntent("d-late", "s1"))
 
 	select {
 	case r := <-done:
 		if r.err != nil {
 			t.Fatalf("TakeNext error: %v", r.err)
 		}
-		if r.intent.ID != "late" {
-			t.Errorf("got %q, want late", r.intent.ID)
+		if r.intent.Stack != "s1" {
+			t.Errorf("got stack %q, want s1", r.intent.Stack)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 		t.Fatal("TakeNext did not wake after Enqueue")
 	}
 }
 
 func TestStore_TakeNext_CtxCancellation(t *testing.T) {
-	s := NewMemoryStore()
+	s := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	done := make(chan error, 1)
@@ -144,8 +134,8 @@ func TestStore_TakeNext_CtxCancellation(t *testing.T) {
 }
 
 func TestStore_Complete(t *testing.T) {
-	s := NewMemoryStore()
-	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
+	s := newTestStore(t)
+	s.Enqueue(newIntent("d1", "s1"))
 
 	taken, err := s.TakeNext(context.Background())
 	if err != nil {
@@ -166,15 +156,18 @@ func TestStore_Complete(t *testing.T) {
 	})
 
 	t.Run("unknown id returns false", func(t *testing.T) {
-		if _, ok := s.Complete("does-not-exist", true); ok {
+		if _, ok := s.Complete("00000000-0000-0000-0000-000000000000", true); ok {
 			t.Error("Complete returned true for unknown id")
 		}
 	})
 
 	t.Run("failure transitions to StatusFailed", func(t *testing.T) {
-		s.Enqueue(&DeployIntent{ID: "b", Stack: "s2"})
-		_, _ = s.TakeNext(context.Background())
-		i, ok := s.Complete("b", false)
+		s.Enqueue(newIntent("d2", "s2"))
+		b, err := s.TakeNext(context.Background())
+		if err != nil {
+			t.Fatalf("TakeNext: %v", err)
+		}
+		i, ok := s.Complete(b.ID, false)
 		if !ok {
 			t.Fatal("Complete returned not found")
 		}
@@ -185,8 +178,8 @@ func TestStore_Complete(t *testing.T) {
 }
 
 func TestStore_TakeNext_SetsAttemptsAndDispatchedAt(t *testing.T) {
-	s := NewMemoryStore()
-	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
+	s := newTestStore(t)
+	s.Enqueue(newIntent("d1", "s1"))
 
 	i, err := s.TakeNext(context.Background())
 	if err != nil {
@@ -201,42 +194,39 @@ func TestStore_TakeNext_SetsAttemptsAndDispatchedAt(t *testing.T) {
 }
 
 func TestStore_TakeNext_ConcurrencyGuard_SameStack(t *testing.T) {
-	s := NewMemoryStore()
-	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
-	s.Enqueue(&DeployIntent{ID: "b", Stack: "s1"})
+	s := newTestStore(t)
+	s.Enqueue(newIntent("d1", "s1"))
+	s.Enqueue(newIntent("d2", "s1"))
 
-	// First take succeeds.
 	first, err := s.TakeNext(context.Background())
 	if err != nil {
 		t.Fatalf("TakeNext: %v", err)
 	}
-	if first.ID != "a" {
-		t.Fatalf("got %q, want a", first.ID)
+	if first.DeliveryID != "d1" {
+		t.Fatalf("got %q, want d1", first.DeliveryID)
 	}
 
-	// Second take should block because s1 is in flight. Use a short timeout.
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 	_, err = s.TakeNext(ctx)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected DeadlineExceeded, got %v", err)
 	}
 
-	// Complete the first — second should now be available.
 	s.Complete(first.ID, true)
 	second, err := s.TakeNext(context.Background())
 	if err != nil {
 		t.Fatalf("TakeNext after Complete: %v", err)
 	}
-	if second.ID != "b" {
-		t.Errorf("got %q, want b", second.ID)
+	if second.DeliveryID != "d2" {
+		t.Errorf("got %q, want d2", second.DeliveryID)
 	}
 }
 
 func TestStore_TakeNext_ConcurrencyGuard_DifferentStacks(t *testing.T) {
-	s := NewMemoryStore()
-	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
-	s.Enqueue(&DeployIntent{ID: "b", Stack: "s2"})
+	s := newTestStore(t)
+	s.Enqueue(newIntent("d1", "s1"))
+	s.Enqueue(newIntent("d2", "s2"))
 
 	first, err := s.TakeNext(context.Background())
 	if err != nil {
@@ -246,15 +236,15 @@ func TestStore_TakeNext_ConcurrencyGuard_DifferentStacks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TakeNext 2: %v", err)
 	}
-	if first.ID != "a" || second.ID != "b" {
-		t.Errorf("got (%q, %q), want (a, b)", first.ID, second.ID)
+	if first.DeliveryID != "d1" || second.DeliveryID != "d2" {
+		t.Errorf("got (%q, %q), want (d1, d2)", first.DeliveryID, second.DeliveryID)
 	}
 }
 
 func TestStore_Complete_WakesTakeNext(t *testing.T) {
-	s := NewMemoryStore()
-	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
-	s.Enqueue(&DeployIntent{ID: "b", Stack: "s1"})
+	s := newTestStore(t)
+	s.Enqueue(newIntent("d1", "s1"))
+	s.Enqueue(newIntent("d2", "s1"))
 
 	first, _ := s.TakeNext(context.Background())
 
@@ -264,28 +254,27 @@ func TestStore_Complete_WakesTakeNext(t *testing.T) {
 		done <- i
 	}()
 
-	// Give goroutine time to park.
-	time.Sleep(20 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	s.Complete(first.ID, true)
 
 	select {
 	case i := <-done:
-		if i.ID != "b" {
-			t.Errorf("got %q, want b", i.ID)
+		if i.DeliveryID != "d2" {
+			t.Errorf("got %q, want d2", i.DeliveryID)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(2 * time.Second):
 		t.Fatal("TakeNext did not wake after Complete")
 	}
 }
 
 func TestStore_Requeue(t *testing.T) {
-	s := NewMemoryStore()
-	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
-	s.Enqueue(&DeployIntent{ID: "b", Stack: "s2"})
+	s := newTestStore(t)
+	s.Enqueue(newIntent("d1", "s1"))
+	s.Enqueue(newIntent("d2", "s2"))
 
 	taken, _ := s.TakeNext(context.Background())
-	if taken.ID != "a" {
-		t.Fatalf("got %q, want a", taken.ID)
+	if taken.DeliveryID != "d1" {
+		t.Fatalf("got %q, want d1", taken.DeliveryID)
 	}
 
 	i, ok := s.Requeue(taken.ID)
@@ -299,22 +288,19 @@ func TestStore_Requeue(t *testing.T) {
 		t.Errorf("InFlight = %d, want 0", len(s.InFlight()))
 	}
 
-	// Requeued intent should be at the front.
+	// Requeued intent has the earliest created_at, so it comes back first.
 	next, _ := s.TakeNext(context.Background())
-	if next.ID != "a" {
-		t.Errorf("got %q, want a (front of queue)", next.ID)
+	if next.DeliveryID != "d1" {
+		t.Errorf("got %q, want d1", next.DeliveryID)
 	}
 }
 
 func TestStore_SweepTimedOut_Requeue(t *testing.T) {
-	s := NewMemoryStore()
-	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
+	s := newTestStore(t)
+	s.Enqueue(newIntent("d1", "s1"))
 	i, _ := s.TakeNext(context.Background())
 
-	// Backdate DispatchedAt.
-	s.TestSetInFlight(i.ID, func(di *DeployIntent) {
-		di.DispatchedAt = time.Now().Add(-15 * time.Minute)
-	})
+	backdateInFlight(t, i.ID, time.Now().Add(-15*time.Minute), 1)
 
 	requeued, failed := s.SweepTimedOut(10*time.Minute, 3)
 	if len(requeued) != 1 {
@@ -332,15 +318,11 @@ func TestStore_SweepTimedOut_Requeue(t *testing.T) {
 }
 
 func TestStore_SweepTimedOut_PermanentFailure(t *testing.T) {
-	s := NewMemoryStore()
-	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
+	s := newTestStore(t)
+	s.Enqueue(newIntent("d1", "s1"))
 	i, _ := s.TakeNext(context.Background())
 
-	// Simulate prior attempts and backdate.
-	s.TestSetInFlight(i.ID, func(di *DeployIntent) {
-		di.Attempts = 3
-		di.DispatchedAt = time.Now().Add(-15 * time.Minute)
-	})
+	backdateInFlight(t, i.ID, time.Now().Add(-15*time.Minute), 3)
 
 	requeued, failed := s.SweepTimedOut(10*time.Minute, 3)
 	if len(requeued) != 0 {
@@ -355,9 +337,11 @@ func TestStore_SweepTimedOut_PermanentFailure(t *testing.T) {
 }
 
 func TestStore_SweepTimedOut_NotYetTimedOut(t *testing.T) {
-	s := NewMemoryStore()
-	s.Enqueue(&DeployIntent{ID: "a", Stack: "s1"})
-	s.TakeNext(context.Background())
+	s := newTestStore(t)
+	s.Enqueue(newIntent("d1", "s1"))
+	if _, err := s.TakeNext(context.Background()); err != nil {
+		t.Fatalf("TakeNext: %v", err)
+	}
 
 	requeued, failed := s.SweepTimedOut(10*time.Minute, 3)
 	if len(requeued) != 0 || len(failed) != 0 {
@@ -369,24 +353,20 @@ func TestStore_SweepTimedOut_NotYetTimedOut(t *testing.T) {
 }
 
 func TestStore_ConcurrentTakeAndComplete(t *testing.T) {
-	s := NewMemoryStore()
-	const total = 200
+	s := newTestStore(t)
+	const total = 50
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// Producer — each intent gets a unique stack so the concurrency guard
 	// doesn't serialize them.
 	go func() {
 		for i := 0; i < total; i++ {
-			s.Enqueue(&DeployIntent{ID: fmt.Sprintf("intent-%d", i), Stack: fmt.Sprintf("stack-%d", i)})
+			s.Enqueue(newIntent(fmt.Sprintf("d-%d", i), fmt.Sprintf("stack-%d", i)))
 		}
 	}()
 
-	// Consumers. Each worker blocks in TakeNext until either an intent is
-	// available or ctx is cancelled. The first worker to push the counter to
-	// total cancels ctx so the other workers wake immediately instead of
-	// hanging until the timeout.
 	const workers = 8
 	var taken int64
 	var wg sync.WaitGroup

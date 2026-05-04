@@ -149,7 +149,10 @@ func (s *DBStore) SweepTimedOut(timeout time.Duration, maxAttempts int) (requeue
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cutoff := pgtype.Timestamp{Time: time.Now().Add(-timeout), Valid: true}
+	// .UTC() is load-bearing: pgtype.Timestamp's discardTimeZone keeps the
+	// wall-clock digits and relabels them as UTC, which shifts the value by
+	// the local offset on non-UTC hosts.
+	cutoff := pgtype.Timestamp{Time: time.Now().Add(-timeout).UTC(), Valid: true}
 
 	requeuedRows, err := s.q.RequeueTimedOutIntents(ctx, sqlc.RequeueTimedOutIntentsParams{
 		Cutoff:      cutoff,
