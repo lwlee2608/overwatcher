@@ -90,4 +90,5 @@ func TestSystemIntegration(t *testing.T) {
 	t.Run("Users", func(t *testing.T) { userID = tests.TestUsers(t, engine, sessionToken) })
 	t.Run("Projects", func(t *testing.T) { tests.TestProjects(t, engine, userID, sessionToken) })
 	t.Run("Deploy", func(t *testing.T) { tests.TestDeploy(t, engine, intentStore, services.AgentSharedSecret) })
+	t.Run("Intent", func(t *testing.T) { tests.TestIntent(t, pool) })
 }
