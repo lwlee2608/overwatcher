@@ -11,15 +11,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
+	"github.com/lwlee2608/overwatcher/internal/service/auth"
 	"github.com/lwlee2608/overwatcher/internal/util"
 )
 
-const MinPasswordLen = 8
-
 var (
-	ErrNotFound         = errors.New("user not found")
-	ErrEmailConflict    = errors.New("email already in use")
-	ErrPasswordTooShort = errors.New("password must be at least 8 characters")
+	ErrNotFound      = errors.New("user not found")
+	ErrEmailConflict = errors.New("email already in use")
 )
 
 type Entry struct {
@@ -45,8 +43,8 @@ type CreateParams struct {
 }
 
 func (s *Service) Create(ctx context.Context, p CreateParams) (*Entry, error) {
-	if len(p.Password) < MinPasswordLen {
-		return nil, ErrPasswordTooShort
+	if len(p.Password) < auth.MinPasswordLen {
+		return nil, auth.ErrPasswordTooShort
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(p.Password), bcrypt.DefaultCost)
 	if err != nil {

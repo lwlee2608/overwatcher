@@ -24,7 +24,9 @@ var (
 	ErrPasswordTooShort   = errors.New("password must be at least 8 characters")
 )
 
-const minPasswordLen = 8
+// MinPasswordLen is the password policy enforced everywhere a password is
+// set (login bootstrap, admin-create user, change password).
+const MinPasswordLen = 8
 
 type Session struct {
 	Token     string
@@ -130,7 +132,7 @@ func (s *Service) GetUser(ctx context.Context, userID string) (*User, error) {
 
 // ChangePassword verifies the current password and sets a new one.
 func (s *Service) ChangePassword(ctx context.Context, userID, oldPassword, newPassword string) error {
-	if len(newPassword) < minPasswordLen {
+	if len(newPassword) < MinPasswordLen {
 		return ErrPasswordTooShort
 	}
 	uid := pgtype.UUID{}
@@ -167,7 +169,7 @@ func (s *Service) ChangePassword(ctx context.Context, userID, oldPassword, newPa
 // sessions for the user are revoked when the hash changes so a rotated
 // bootstrap password kicks attackers (and the operator) out cleanly.
 func (s *Service) EnsureUserPassword(ctx context.Context, cfg BootstrapConfig) error {
-	if len(cfg.Password) < minPasswordLen {
+	if len(cfg.Password) < MinPasswordLen {
 		return ErrPasswordTooShort
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(cfg.Password), bcrypt.DefaultCost)

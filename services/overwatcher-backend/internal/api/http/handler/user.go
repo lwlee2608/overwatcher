@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
+	"github.com/lwlee2608/overwatcher/internal/service/auth"
 	"github.com/lwlee2608/overwatcher/internal/service/user"
 )
 
@@ -57,7 +58,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 		Password: req.Password,
 	})
 	if err != nil {
-		if errors.Is(err, user.ErrPasswordTooShort) {
+		if errors.Is(err, auth.ErrPasswordTooShort) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
