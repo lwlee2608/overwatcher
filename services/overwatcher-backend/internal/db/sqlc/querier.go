@@ -28,7 +28,7 @@ type Querier interface {
 	DeleteExpiredSessions(ctx context.Context) error
 	DeleteOldEventLogs(ctx context.Context, offset int32) (int64, error)
 	DeleteProject(ctx context.Context, id pgtype.UUID) (Project, error)
-	DeleteService(ctx context.Context, id pgtype.UUID) (Service, error)
+	DeleteServiceInProject(ctx context.Context, arg DeleteServiceInProjectParams) (Service, error)
 	DeleteServicesByProject(ctx context.Context, projectID pgtype.UUID) error
 	DeleteSession(ctx context.Context, token string) error
 	DeleteSessionsForUser(ctx context.Context, userID pgtype.UUID) error

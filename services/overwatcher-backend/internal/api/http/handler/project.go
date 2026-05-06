@@ -275,7 +275,7 @@ func (h *ProjectHandler) DeleteService(c *gin.Context) {
 	if _, ok := h.requireAccess(c, c.Param("id")); !ok {
 		return
 	}
-	if err := h.svc.DeleteComposeService(c.Request.Context(), c.Param("serviceID")); err != nil {
+	if err := h.svc.DeleteComposeService(c.Request.Context(), c.Param("id"), c.Param("serviceID")); err != nil {
 		if errors.Is(err, project.ErrServiceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "service not found"})
 			return

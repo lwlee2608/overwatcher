@@ -307,12 +307,20 @@ func (s *Service) ListComposeServicesByProject(ctx context.Context, projectID st
 	return out, nil
 }
 
-func (s *Service) DeleteComposeService(ctx context.Context, id string) error {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(id); err != nil {
+// DeleteComposeService removes a service only if it belongs to the given
+// project. The project_id check defends against cross-project IDOR — without
+// it, a member of project A could delete services from project B by guessing
+// service UUIDs.
+func (s *Service) DeleteComposeService(ctx context.Context, projectID, serviceID string) error {
+	pUID := pgtype.UUID{}
+	if err := pUID.Scan(projectID); err != nil {
 		return err
 	}
-	if _, err := s.q.DeleteService(ctx, uid); err != nil {
+	sUID := pgtype.UUID{}
+	if err := sUID.Scan(serviceID); err != nil {
+		return err
+	}
+	if _, err := s.q.DeleteServiceInProject(ctx, sqlc.DeleteServiceInProjectParams{ID: sUID, ProjectID: pUID}); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrServiceNotFound
 		}
