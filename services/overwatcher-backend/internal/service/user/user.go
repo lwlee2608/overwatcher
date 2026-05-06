@@ -8,8 +8,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
+	"github.com/lwlee2608/overwatcher/internal/service/auth"
 	"github.com/lwlee2608/overwatcher/internal/util"
 )
 
@@ -35,14 +37,26 @@ func NewService(pool *pgxpool.Pool) *Service {
 }
 
 type CreateParams struct {
-	Email string
-	Name  string
+	Email    string
+	Name     string
+	Password string
 }
 
 func (s *Service) Create(ctx context.Context, p CreateParams) (*Entry, error) {
+	if len(p.Password) < auth.MinPasswordLen {
+		return nil, auth.ErrPasswordTooShort
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(p.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+	// password_is_bootstrap=true forces the user to change the admin-set
+	// password on first login (MustChangePassword in /auth/me).
 	row, err := s.q.CreateUser(ctx, sqlc.CreateUserParams{
-		Email: p.Email,
-		Name:  p.Name,
+		Email:               p.Email,
+		Name:                p.Name,
+		PasswordHash:        string(hash),
+		PasswordIsBootstrap: true,
 	})
 	if err != nil {
 		return nil, err

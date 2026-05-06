@@ -5,9 +5,10 @@ import { createUser, deleteUser, fetchUsers, updateUser } from "../api/users";
 interface FormState {
   email: string;
   name: string;
+  password: string;
 }
 
-const emptyForm: FormState = { email: "", name: "" };
+const emptyForm: FormState = { email: "", name: "", password: "" };
 
 export function UsersDashboard() {
   const [users, setUsers] = useState<UserResponse[]>([]);
@@ -44,7 +45,7 @@ export function UsersDashboard() {
 
   function openEdit(u: UserResponse) {
     setEditingId(u.id);
-    setForm({ email: u.email, name: u.name });
+    setForm({ email: u.email, name: u.name, password: "" });
     setShowForm(true);
   }
 
@@ -59,16 +60,16 @@ export function UsersDashboard() {
     setSaving(true);
     setError(null);
 
-    const payload = {
+    const base = {
       email: form.email.trim(),
       name: form.name.trim(),
     };
 
     try {
       if (editingId) {
-        await updateUser(editingId, payload);
+        await updateUser(editingId, base);
       } else {
-        await createUser(payload);
+        await createUser({ ...base, password: form.password });
       }
       closeForm();
       await loadData();
@@ -156,6 +157,26 @@ export function UsersDashboard() {
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               />
             </div>
+            {!editingId && (
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  Temporary password
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  placeholder="At least 8 characters"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Share with the user — they'll be required to change it on first login.
+                </p>
+              </div>
+            )}
           </div>
           <div className="mt-4 flex gap-2">
             <button

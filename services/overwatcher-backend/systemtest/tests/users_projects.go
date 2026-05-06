@@ -28,7 +28,7 @@ func TestUsers(t *testing.T, router *gin.Engine, sessionToken string) {
 	})
 
 	t.Run("Create", func(t *testing.T) {
-		body, _ := json.Marshal(dto.CreateUserRequest{Email: "alice@example.com", Name: "Alice"})
+		body, _ := json.Marshal(dto.CreateUserRequest{Email: "alice@example.com", Name: "Alice", Password: "alice-pass-1"})
 		rr := doJSON(t, router, "POST", "/api/v1/users", body, sessionToken)
 		require.Equal(t, http.StatusCreated, rr.Code)
 		var resp dto.UserResponse
@@ -39,7 +39,7 @@ func TestUsers(t *testing.T, router *gin.Engine, sessionToken string) {
 	})
 
 	t.Run("CreateDuplicateEmail", func(t *testing.T) {
-		body, _ := json.Marshal(dto.CreateUserRequest{Email: "alice@example.com", Name: "Alice 2"})
+		body, _ := json.Marshal(dto.CreateUserRequest{Email: "alice@example.com", Name: "Alice 2", Password: "alice-pass-2"})
 		rr := doJSON(t, router, "POST", "/api/v1/users", body, sessionToken)
 		assert.Equal(t, http.StatusConflict, rr.Code)
 	})

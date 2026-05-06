@@ -13,6 +13,7 @@ export interface UserListResponse {
 export interface CreateUserRequest {
   email: string;
   name: string;
+  password: string;
 }
 
 export interface UpdateUserRequest {
