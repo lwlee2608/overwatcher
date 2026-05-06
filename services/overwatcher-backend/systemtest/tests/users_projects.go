@@ -14,7 +14,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 )
 
-func TestUsers(t *testing.T, router *gin.Engine, sessionToken string) string {
+func TestUsers(t *testing.T, router *gin.Engine, sessionToken string) {
 	var createdID string
 
 	t.Run("ListInitial", func(t *testing.T) {
@@ -58,7 +58,7 @@ func TestUsers(t *testing.T, router *gin.Engine, sessionToken string) string {
 		assert.Equal(t, "Alice Updated", resp.Name)
 	})
 
-	return createdID
+	_ = createdID
 }
 
 func TestProjects(t *testing.T, router *gin.Engine, userID string, sessionToken string) {
@@ -109,7 +109,8 @@ func TestProjects(t *testing.T, router *gin.Engine, userID string, sessionToken 
 		var resp dto.ProjectListResponse
 		require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 		require.Len(t, resp.Projects, 1)
-		assert.Equal(t, "alice@example.com", resp.Projects[0].UserEmail)
+		assert.Equal(t, "test@example.com", resp.Projects[0].UserEmail)
+		assert.Equal(t, "owner", resp.Projects[0].Role)
 	})
 
 	t.Run("ListProjectsByUser", func(t *testing.T) {

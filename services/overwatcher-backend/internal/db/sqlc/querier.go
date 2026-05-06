@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) (ProjectMember, error)
 	BindAgentToProject(ctx context.Context, arg BindAgentToProjectParams) (Agent, error)
 	ClearAgentProjectBinding(ctx context.Context, projectID pgtype.UUID) error
 	CompleteDeployIntent(ctx context.Context, arg CompleteDeployIntentParams) (DeployIntent, error)
@@ -38,6 +39,7 @@ type Querier interface {
 	GetDeployIntentByID(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	GetProject(ctx context.Context, id pgtype.UUID) (Project, error)
 	GetProjectByUserAndName(ctx context.Context, arg GetProjectByUserAndNameParams) (Project, error)
+	GetProjectMember(ctx context.Context, arg GetProjectMemberParams) (ProjectMember, error)
 	GetService(ctx context.Context, id pgtype.UUID) (Service, error)
 	GetSession(ctx context.Context, token string) (Session, error)
 	GetUser(ctx context.Context, id pgtype.UUID) (User, error)
@@ -54,12 +56,15 @@ type Querier interface {
 	// finishes successfully and we want to deploy the matching services.
 	ListEnabledServicesByRepoAndWorkflow(ctx context.Context, arg ListEnabledServicesByRepoAndWorkflowParams) ([]ListEnabledServicesByRepoAndWorkflowRow, error)
 	ListEventLogs(ctx context.Context, limit int32) ([]EventLog, error)
+	ListProjectMembers(ctx context.Context, projectID pgtype.UUID) ([]ListProjectMembersRow, error)
 	ListProjects(ctx context.Context) ([]ListProjectsRow, error)
 	ListProjectsByUser(ctx context.Context, userID pgtype.UUID) ([]Project, error)
+	ListProjectsForUser(ctx context.Context, userID pgtype.UUID) ([]ListProjectsForUserRow, error)
 	ListRecentDeployIntents(ctx context.Context, limit int32) ([]DeployIntent, error)
 	ListServicesByProject(ctx context.Context, projectID pgtype.UUID) ([]Service, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	RefreshSession(ctx context.Context, arg RefreshSessionParams) error
+	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) (ProjectMember, error)
 	RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOutIntentsParams) ([]DeployIntent, error)
 	SetUserPasswordHash(ctx context.Context, arg SetUserPasswordHashParams) error

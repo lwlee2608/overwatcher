@@ -91,6 +91,9 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 			ui.POST("/projects/:id/services", projectHandler.CreateService)
 			ui.PUT("/projects/:id/services", projectHandler.ReplaceServices)
 			ui.DELETE("/projects/:id/services/:serviceID", projectHandler.DeleteService)
+			ui.GET("/projects/:id/members", projectHandler.ListMembers)
+			ui.POST("/projects/:id/members", projectHandler.AddMember)
+			ui.DELETE("/projects/:id/members/:userID", projectHandler.RemoveMember)
 
 			ui.GET("/events", eventLogHandler.List)
 			ui.GET("/deployments", deployHandler.ListDeployments)

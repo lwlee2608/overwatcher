@@ -9,6 +9,7 @@ import {
   updateProject,
 } from "../api/projects";
 import { fetchUsers } from "../api/users";
+import { useAuth } from "../auth/context";
 
 interface FormState {
   user_id: string;
@@ -29,6 +30,7 @@ const emptyForm: FormState = {
 };
 
 export function ProjectsDashboard() {
+  const { user } = useAuth();
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [users, setUsers] = useState<UserResponse[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -133,16 +135,7 @@ export function ProjectsDashboard() {
     );
   }
 
-  const grouped = new Map<string, ProjectResponse[]>();
-  for (const p of projects) {
-    const key = p.user_email || p.user_id;
-    const list = grouped.get(key) ?? [];
-    list.push(p);
-    grouped.set(key, list);
-  }
-  const groups = Array.from(grouped.entries()).sort(([a], [b]) =>
-    a.localeCompare(b)
-  );
+  const sorted = [...projects].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -297,76 +290,88 @@ export function ProjectsDashboard() {
         </div>
       )}
 
-      {groups.map(([ownerLabel, owned]) => (
-        <div key={ownerLabel} className="mb-6">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-            {ownerLabel}
-          </h3>
-          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-800">
-                <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Environment</th>
-                  <th className="px-4 py-3">Compose file</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
-                {owned.map((p) => (
-                  <tr key={p.id}>
-                    <td className="px-4 py-3">
+      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 dark:bg-gray-800">
+            <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              <th className="px-4 py-3">Name</th>
+              <th className="px-4 py-3">Owner</th>
+              <th className="px-4 py-3">Environment</th>
+              <th className="px-4 py-3">Compose file</th>
+              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3"></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
+            {sorted.map((p) => {
+              const isOwner =
+                p.role === "owner" || (!p.role && p.user_id === user?.id);
+              return (
+                <tr key={p.id}>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
                       <Link
                         to={`/projects/${p.id}`}
                         className="font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                       >
                         {p.name}
                       </Link>
-                      {p.description && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {p.description}
-                        </div>
+                      {!isOwner && (
+                        <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
+                          shared
+                        </span>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
-                      {p.environment}
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400 truncate max-w-xs">
-                      {p.compose_file}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                          p.enabled
-                            ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                            : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
-                        }`}
-                      >
-                        {p.enabled ? "enabled" : "disabled"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
-                      <button
-                        onClick={() => openEdit(p)}
-                        className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(p)}
-                        className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
+                    </div>
+                    {p.description && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {p.description}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-gray-600 dark:text-gray-400">
+                    {p.user_email || p.user_id}
+                  </td>
+                  <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                    {p.environment}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-gray-600 dark:text-gray-400 truncate max-w-xs">
+                    {p.compose_file}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                        p.enabled
+                          ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                          : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                      }`}
+                    >
+                      {p.enabled ? "enabled" : "disabled"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right whitespace-nowrap">
+                    {isOwner && (
+                      <>
+                        <button
+                          onClick={() => openEdit(p)}
+                          className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDelete(p)}
+                          className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

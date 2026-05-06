@@ -26,9 +26,27 @@ export interface ProjectResponse {
   compose_file: string;
   environment: string;
   enabled: boolean;
+  role?: "owner" | "member";
   services?: ComposeServiceResponse[];
   created_at: string;
   updated_at: string;
+}
+
+export interface ProjectMemberResponse {
+  user_id: string;
+  user_email: string;
+  user_name: string;
+  role: string;
+  added_by?: string;
+  created_at: string;
+}
+
+export interface ProjectMemberListResponse {
+  members: ProjectMemberResponse[];
+}
+
+export interface AddProjectMemberRequest {
+  email: string;
 }
 
 export interface ProjectListResponse {
