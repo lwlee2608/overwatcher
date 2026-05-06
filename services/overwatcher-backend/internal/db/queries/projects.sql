@@ -9,15 +9,6 @@ SELECT * FROM projects WHERE id = $1;
 -- name: GetProjectByUserAndName :one
 SELECT * FROM projects WHERE user_id = $1 AND name = $2;
 
--- name: ListProjectsByUser :many
-SELECT * FROM projects WHERE user_id = $1 ORDER BY name ASC;
-
--- name: ListProjects :many
-SELECT p.*, u.email AS user_email
-FROM projects p
-JOIN users u ON u.id = p.user_id
-ORDER BY u.email ASC, p.name ASC;
-
 -- name: UpdateProject :one
 UPDATE projects
 SET name         = $2,

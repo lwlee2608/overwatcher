@@ -57,8 +57,6 @@ type Querier interface {
 	ListEnabledServicesByRepoAndWorkflow(ctx context.Context, arg ListEnabledServicesByRepoAndWorkflowParams) ([]ListEnabledServicesByRepoAndWorkflowRow, error)
 	ListEventLogs(ctx context.Context, limit int32) ([]EventLog, error)
 	ListProjectMembers(ctx context.Context, projectID pgtype.UUID) ([]ListProjectMembersRow, error)
-	ListProjects(ctx context.Context) ([]ListProjectsRow, error)
-	ListProjectsByUser(ctx context.Context, userID pgtype.UUID) ([]Project, error)
 	ListProjectsForUser(ctx context.Context, userID pgtype.UUID) ([]ListProjectsForUserRow, error)
 	ListRecentDeployIntents(ctx context.Context, limit int32) ([]DeployIntent, error)
 	ListServicesByProject(ctx context.Context, projectID pgtype.UUID) ([]Service, error)

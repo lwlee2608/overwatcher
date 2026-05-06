@@ -176,45 +176,6 @@ func (s *Service) GetProject(ctx context.Context, id string) (*Project, error) {
 	return projectRowToDomain(row, user.Email), nil
 }
 
-func (s *Service) ListProjects(ctx context.Context) ([]Project, error) {
-	rows, err := s.q.ListProjects(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]Project, len(rows))
-	for i, r := range rows {
-		out[i] = Project{
-			ID:          util.UUIDToString(r.ID),
-			UserID:      util.UUIDToString(r.UserID),
-			UserEmail:   r.UserEmail,
-			Name:        r.Name,
-			Description: r.Description,
-			ComposeFile: r.ComposeFile,
-			Environment: r.Environment,
-			Enabled:     r.Enabled,
-			CreatedAt:   r.CreatedAt.Time,
-			UpdatedAt:   r.UpdatedAt.Time,
-		}
-	}
-	return out, nil
-}
-
-func (s *Service) ListProjectsByUser(ctx context.Context, userID string) ([]Project, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return nil, err
-	}
-	rows, err := s.q.ListProjectsByUser(ctx, uid)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]Project, len(rows))
-	for i, r := range rows {
-		out[i] = *projectRowToDomain(r, "")
-	}
-	return out, nil
-}
-
 type UpdateProjectParams struct {
 	Name        string
 	Description string
