@@ -95,6 +95,11 @@ func (h *ProjectHandler) Get(c *gin.Context) {
 }
 
 func (h *ProjectHandler) Create(c *gin.Context) {
+	callerID, ok := middleware.UserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
 	var req dto.CreateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -105,7 +110,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		enabled = *req.Enabled
 	}
 	p, err := h.svc.CreateProject(c.Request.Context(), project.CreateProjectParams{
-		UserID:      req.UserID,
+		UserID:      callerID,
 		Name:        req.Name,
 		Description: req.Description,
 		ComposeFile: req.ComposeFile,

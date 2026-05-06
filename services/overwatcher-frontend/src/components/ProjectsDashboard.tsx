@@ -1,18 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ProjectResponse } from "../types/project";
-import type { UserResponse } from "../types/user";
 import {
   createProject,
   deleteProject,
   fetchProjects,
   updateProject,
 } from "../api/projects";
-import { fetchUsers } from "../api/users";
 import { useAuth } from "../auth/context";
 
 interface FormState {
-  user_id: string;
   name: string;
   description: string;
   compose_file: string;
@@ -21,7 +18,6 @@ interface FormState {
 }
 
 const emptyForm: FormState = {
-  user_id: "",
   name: "",
   description: "",
   compose_file: "",
@@ -32,7 +28,6 @@ const emptyForm: FormState = {
 export function ProjectsDashboard() {
   const { user } = useAuth();
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
-  const [users, setUsers] = useState<UserResponse[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -42,9 +37,8 @@ export function ProjectsDashboard() {
 
   const loadData = useCallback(async () => {
     try {
-      const [p, u] = await Promise.all([fetchProjects(), fetchUsers()]);
+      const p = await fetchProjects();
       setProjects(p.projects ?? []);
-      setUsers(u.users ?? []);
       setError(null);
       setLoading(false);
     } catch (err) {
@@ -61,14 +55,13 @@ export function ProjectsDashboard() {
 
   function openCreate() {
     setEditingId(null);
-    setForm({ ...emptyForm, user_id: users[0]?.id ?? "" });
+    setForm(emptyForm);
     setShowForm(true);
   }
 
   function openEdit(p: ProjectResponse) {
     setEditingId(p.id);
     setForm({
-      user_id: p.user_id,
       name: p.name,
       description: p.description,
       compose_file: p.compose_file,
@@ -100,7 +93,6 @@ export function ProjectsDashboard() {
         });
       } else {
         await createProject({
-          user_id: form.user_id,
           name: form.name.trim(),
           description: form.description.trim(),
           compose_file: form.compose_file.trim(),
@@ -155,9 +147,7 @@ export function ProjectsDashboard() {
         {!showForm && (
           <button
             onClick={openCreate}
-            disabled={users.length === 0}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-            title={users.length === 0 ? "Create a user first" : ""}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
           >
             Add project
           </button>
@@ -173,28 +163,6 @@ export function ProjectsDashboard() {
             {editingId ? "Edit project" : "New project"}
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
-            {!editingId && (
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Owner
-                </label>
-                <select
-                  required
-                  value={form.user_id}
-                  onChange={(e) =>
-                    setForm({ ...form, user_id: e.target.value })
-                  }
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                >
-                  <option value="">Select a user</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.email}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                 Name

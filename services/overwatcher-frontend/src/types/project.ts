@@ -54,7 +54,6 @@ export interface ProjectListResponse {
 }
 
 export interface CreateProjectRequest {
-  user_id: string;
   name: string;
   description: string;
   compose_file: string;

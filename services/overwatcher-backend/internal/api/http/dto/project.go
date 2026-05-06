@@ -39,7 +39,6 @@ type ProjectListResponse struct {
 }
 
 type CreateProjectRequest struct {
-	UserID      string `json:"user_id" binding:"required,uuid"`
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description"`
 	ComposeFile string `json:"compose_file" binding:"required"`

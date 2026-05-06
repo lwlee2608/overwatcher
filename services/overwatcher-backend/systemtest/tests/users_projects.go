@@ -66,7 +66,6 @@ func TestProjects(t *testing.T, router *gin.Engine, userID string, sessionToken 
 
 	t.Run("CreateProject", func(t *testing.T) {
 		body, _ := json.Marshal(dto.CreateProjectRequest{
-			UserID:      userID,
 			Name:        "staging",
 			Description: "Alice's staging env",
 			ComposeFile: "/srv/compose.yml",
@@ -85,22 +84,11 @@ func TestProjects(t *testing.T, router *gin.Engine, userID string, sessionToken 
 
 	t.Run("CreateProjectDuplicate", func(t *testing.T) {
 		body, _ := json.Marshal(dto.CreateProjectRequest{
-			UserID:      userID,
 			Name:        "staging",
 			ComposeFile: "/srv/compose.yml",
 		})
 		rr := doJSON(t, router, "POST", "/api/v1/projects", body, sessionToken)
 		assert.Equal(t, http.StatusConflict, rr.Code)
-	})
-
-	t.Run("CreateProjectBadUser", func(t *testing.T) {
-		body, _ := json.Marshal(dto.CreateProjectRequest{
-			UserID:      "00000000-0000-0000-0000-000000000000",
-			Name:        "orphan",
-			ComposeFile: "/srv/compose.yml",
-		})
-		rr := doJSON(t, router, "POST", "/api/v1/projects", body, sessionToken)
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	})
 
 	t.Run("ListProjects", func(t *testing.T) {
