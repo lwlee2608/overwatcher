@@ -9,6 +9,13 @@ interface FormState {
 }
 
 const emptyForm: FormState = { email: "", name: "", password: "" };
+const passwordChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+function generatePassword() {
+  const values = new Uint32Array(20);
+  crypto.getRandomValues(values);
+  return Array.from(values, (value) => passwordChars[value % passwordChars.length]).join("");
+}
 
 export function UsersDashboard() {
   const [users, setUsers] = useState<UserResponse[]>([]);
@@ -18,6 +25,7 @@ export function UsersDashboard() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [passwordCopied, setPasswordCopied] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -40,12 +48,14 @@ export function UsersDashboard() {
   function openCreate() {
     setEditingId(null);
     setForm(emptyForm);
+    setPasswordCopied(false);
     setShowForm(true);
   }
 
   function openEdit(u: UserResponse) {
     setEditingId(u.id);
     setForm({ email: u.email, name: u.name, password: "" });
+    setPasswordCopied(false);
     setShowForm(true);
   }
 
@@ -53,6 +63,20 @@ export function UsersDashboard() {
     setShowForm(false);
     setEditingId(null);
     setForm(emptyForm);
+    setPasswordCopied(false);
+  }
+
+  function handleGeneratePassword() {
+    setForm({ ...form, password: generatePassword() });
+    setPasswordCopied(false);
+  }
+
+  async function handleCopyPassword() {
+    if (!form.password) return;
+
+    await navigator.clipboard.writeText(form.password);
+    setPasswordCopied(true);
+    window.setTimeout(() => setPasswordCopied(false), 1500);
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -162,16 +186,61 @@ export function UsersDashboard() {
                 <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                   Temporary password
                 </label>
-                <input
-                  type="password"
-                  required
-                  minLength={8}
-                  autoComplete="new-password"
-                  placeholder="At least 8 characters"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    placeholder="At least 8 characters"
+                    value={form.password}
+                    onChange={(e) => {
+                      setForm({ ...form, password: e.target.value });
+                      setPasswordCopied(false);
+                    }}
+                    className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGeneratePassword}
+                    className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    Generate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyPassword}
+                    disabled={!form.password}
+                    aria-label="Copy temporary password"
+                    title="Copy temporary password"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    {passwordCopied ? (
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="h-4 w-4 text-green-600 dark:text-green-400"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.313a1 1 0 0 1-1.42.002L3.29 9.23a1 1 0 1 1 1.42-1.408l4.04 4.072 6.54-6.598a1 1 0 0 1 1.414-.006Z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    ) : (
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        className="h-4 w-4"
+                      >
+                        <path d="M7 3.5A1.5 1.5 0 0 1 8.5 2h6A1.5 1.5 0 0 1 16 3.5v8a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 7 11.5v-8Z" />
+                        <path d="M4 6.5A1.5 1.5 0 0 1 5.5 5H6v6.5A2.5 2.5 0 0 0 8.5 14H13v.5a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 4 14.5v-8Z" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   Share with the user — they'll be required to change it on first login.
                 </p>
