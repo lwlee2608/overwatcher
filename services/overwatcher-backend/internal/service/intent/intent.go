@@ -260,6 +260,12 @@ func (s *MemoryStore) ListRecent(_ context.Context, limit int32) ([]*DeployInten
 	return all, nil
 }
 
+// ListRecentForUser is unused by MemoryStore (tests don't exercise project
+// scoping); delegate to ListRecent so the interface stays satisfied.
+func (s *MemoryStore) ListRecentForUser(ctx context.Context, _ string, limit int32) ([]*DeployIntent, error) {
+	return s.ListRecent(ctx, limit)
+}
+
 func (s *MemoryStore) Len() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()

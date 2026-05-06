@@ -10,8 +10,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
+	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
+	"github.com/lwlee2608/overwatcher/internal/service/project"
 	"github.com/lwlee2608/overwatcher/internal/service/webhook"
 )
 
@@ -24,10 +26,11 @@ var longPollTimeout = 25 * time.Second
 type DeployHandler struct {
 	dispatchService *dispatch.Service
 	webhookService  *webhook.Service
+	projectService  *project.Service
 }
 
-func NewDeployHandler(dispatchService *dispatch.Service, webhookService *webhook.Service) *DeployHandler {
-	return &DeployHandler{dispatchService: dispatchService, webhookService: webhookService}
+func NewDeployHandler(dispatchService *dispatch.Service, webhookService *webhook.Service, projectService *project.Service) *DeployHandler {
+	return &DeployHandler{dispatchService: dispatchService, webhookService: webhookService, projectService: projectService}
 }
 
 // Next is a long-poll. It blocks inside DispatchService.Next for up to
@@ -66,6 +69,11 @@ func (h *DeployHandler) Next(c *gin.Context) {
 }
 
 func (h *DeployHandler) ListDeployments(c *gin.Context) {
+	callerID, ok := middleware.UserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
 	limit := int32(50)
 	if v := c.Query("limit"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
@@ -73,7 +81,7 @@ func (h *DeployHandler) ListDeployments(c *gin.Context) {
 		}
 	}
 
-	intents, err := h.dispatchService.ListRecent(c.Request.Context(), limit)
+	intents, err := h.dispatchService.ListRecentForUser(c.Request.Context(), callerID, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -103,10 +111,43 @@ func (h *DeployHandler) ListDeployments(c *gin.Context) {
 
 // Redeploy clones an existing deploy intent into a new one so the agent
 // re-runs the same stack/SHA/services without requiring a fresh git push.
+//
+// Authorization: the caller must own the source intent's project or be a
+// member. Without this check any logged-in user could redeploy any project's
+// stack just by guessing intent IDs.
 func (h *DeployHandler) Redeploy(c *gin.Context) {
 	id := c.Param("id")
 	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing id"})
+		return
+	}
+	callerID, ok := middleware.UserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	source, err := h.dispatchService.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, intent.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "deployment not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	if source.ProjectID == "" {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "source deployment is not redeployable"})
+		return
+	}
+	if _, err := h.projectService.Access(c.Request.Context(), callerID, source.ProjectID); err != nil {
+		switch {
+		case errors.Is(err, project.ErrNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "deployment not found"})
+		case errors.Is(err, project.ErrForbidden):
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
 		return
 	}
 

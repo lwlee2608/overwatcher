@@ -59,6 +59,9 @@ type Querier interface {
 	ListProjectMembers(ctx context.Context, projectID pgtype.UUID) ([]ListProjectMembersRow, error)
 	ListProjectsForUser(ctx context.Context, userID pgtype.UUID) ([]ListProjectsForUserRow, error)
 	ListRecentDeployIntents(ctx context.Context, limit int32) ([]DeployIntent, error)
+	// Same as ListRecentDeployIntents but scoped to projects the user can access:
+	// either owns (projects.user_id) or is a member of (project_members).
+	ListRecentDeployIntentsForUser(ctx context.Context, arg ListRecentDeployIntentsForUserParams) ([]DeployIntent, error)
 	ListServicesByProject(ctx context.Context, projectID pgtype.UUID) ([]Service, error)
 	ListUsers(ctx context.Context) ([]User, error)
 	RefreshSession(ctx context.Context, arg RefreshSessionParams) error

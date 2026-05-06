@@ -18,7 +18,7 @@ func newDeployTestRouter(t *testing.T) (*gin.Engine, *intent.MemoryStore) {
 	store := intent.NewMemoryStore()
 	svc := dispatch.NewForTest(store)
 	webhookSvc := webhook.New(nil, nil, store, nil)
-	h := NewDeployHandler(svc, webhookSvc)
+	h := NewDeployHandler(svc, webhookSvc, nil)
 
 	r := gin.New()
 	r.GET("/api/v1/deploy/next", h.Next)

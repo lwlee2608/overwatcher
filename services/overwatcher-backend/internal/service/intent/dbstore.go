@@ -237,6 +237,25 @@ func (s *DBStore) ListRecent(ctx context.Context, limit int32) ([]*DeployIntent,
 	return out, nil
 }
 
+func (s *DBStore) ListRecentForUser(ctx context.Context, userID string, limit int32) ([]*DeployIntent, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, err
+	}
+	rows, err := s.q.ListRecentDeployIntentsForUser(ctx, sqlc.ListRecentDeployIntentsForUserParams{
+		UserID: uid,
+		Limit:  limit,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*DeployIntent, len(rows))
+	for i, row := range rows {
+		out[i] = fromRow(row)
+	}
+	return out, nil
+}
+
 func (s *DBStore) Len() int {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
