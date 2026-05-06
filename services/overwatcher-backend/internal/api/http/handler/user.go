@@ -52,10 +52,15 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 	e, err := h.svc.Create(c.Request.Context(), user.CreateParams{
-		Email: req.Email,
-		Name:  req.Name,
+		Email:    req.Email,
+		Name:     req.Name,
+		Password: req.Password,
 	})
 	if err != nil {
+		if errors.Is(err, user.ErrPasswordTooShort) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		if isUniqueViolation(err) {
 			c.JSON(http.StatusConflict, gin.H{"error": "email already in use"})
 			return
