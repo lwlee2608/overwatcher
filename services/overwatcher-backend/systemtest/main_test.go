@@ -79,6 +79,7 @@ func TestSystemIntegration(t *testing.T) {
 	sess, err := authSvc.Login(context.Background(), "test@example.com", "testpassword")
 	require.NoError(t, err)
 	sessionToken := sess.Token
+	sessionUserID := sess.UserID
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
@@ -86,8 +87,7 @@ func TestSystemIntegration(t *testing.T) {
 
 	t.Run("HealthCheck", func(t *testing.T) { tests.TestHealthCheck(t, engine) })
 	t.Run("Agents", func(t *testing.T) { tests.TestAgents(t, engine, agentSvc, sessionToken) })
-	var userID string
-	t.Run("Users", func(t *testing.T) { userID = tests.TestUsers(t, engine, sessionToken) })
-	t.Run("Projects", func(t *testing.T) { tests.TestProjects(t, engine, userID, sessionToken) })
+	t.Run("Users", func(t *testing.T) { tests.TestUsers(t, engine, sessionToken) })
+	t.Run("Projects", func(t *testing.T) { tests.TestProjects(t, engine, sessionUserID, sessionToken) })
 	t.Run("Deploy", func(t *testing.T) { tests.TestDeploy(t, engine, intentStore, services.AgentSharedSecret) })
 }

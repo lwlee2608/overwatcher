@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
+	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/service/project"
 )
 
@@ -19,16 +20,12 @@ func NewProjectHandler(svc *project.Service) *ProjectHandler {
 }
 
 func (h *ProjectHandler) List(c *gin.Context) {
-	if userID := c.Query("user_id"); userID != "" {
-		entries, err := h.svc.ListProjectsByUser(c.Request.Context(), userID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, listResp(entries))
+	callerID, ok := middleware.UserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	entries, err := h.svc.ListProjects(c.Request.Context())
+	entries, err := h.svc.ListProjectsForUser(c.Request.Context(), callerID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -36,8 +33,47 @@ func (h *ProjectHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, listResp(entries))
 }
 
+// requireAccess resolves the caller's role on a project. Returns role + ok;
+// when not ok, the handler has already written an error response.
+func (h *ProjectHandler) requireAccess(c *gin.Context, projectID string) (string, bool) {
+	callerID, ok := middleware.UserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return "", false
+	}
+	role, err := h.svc.Access(c.Request.Context(), callerID, projectID)
+	if err != nil {
+		switch {
+		case errors.Is(err, project.ErrNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "project not found"})
+		case errors.Is(err, project.ErrForbidden):
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return "", false
+	}
+	return role, true
+}
+
+func (h *ProjectHandler) requireOwner(c *gin.Context, projectID string) bool {
+	role, ok := h.requireAccess(c, projectID)
+	if !ok {
+		return false
+	}
+	if role != project.RoleOwner {
+		c.JSON(http.StatusForbidden, gin.H{"error": "owner only"})
+		return false
+	}
+	return true
+}
+
 func (h *ProjectHandler) Get(c *gin.Context) {
 	id := c.Param("id")
+	role, ok := h.requireAccess(c, id)
+	if !ok {
+		return
+	}
 	p, err := h.svc.GetProject(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, project.ErrNotFound) {
@@ -53,11 +89,17 @@ func (h *ProjectHandler) Get(c *gin.Context) {
 		return
 	}
 	resp := projectToDTO(*p)
+	resp.Role = role
 	resp.Services = composeServicesToDTO(services)
 	c.JSON(http.StatusOK, resp)
 }
 
 func (h *ProjectHandler) Create(c *gin.Context) {
+	callerID, ok := middleware.UserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
 	var req dto.CreateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -68,7 +110,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		enabled = *req.Enabled
 	}
 	p, err := h.svc.CreateProject(c.Request.Context(), project.CreateProjectParams{
-		UserID:      req.UserID,
+		UserID:      callerID,
 		Name:        req.Name,
 		Description: req.Description,
 		ComposeFile: req.ComposeFile,
@@ -91,6 +133,9 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 }
 
 func (h *ProjectHandler) Update(c *gin.Context) {
+	if !h.requireOwner(c, c.Param("id")) {
+		return
+	}
 	var req dto.UpdateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -123,6 +168,9 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 }
 
 func (h *ProjectHandler) Delete(c *gin.Context) {
+	if !h.requireOwner(c, c.Param("id")) {
+		return
+	}
 	if err := h.svc.DeleteProject(c.Request.Context(), c.Param("id")); err != nil {
 		if errors.Is(err, project.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "project not found"})
@@ -135,6 +183,9 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 }
 
 func (h *ProjectHandler) ListServices(c *gin.Context) {
+	if _, ok := h.requireAccess(c, c.Param("id")); !ok {
+		return
+	}
 	services, err := h.svc.ListComposeServicesByProject(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -144,6 +195,9 @@ func (h *ProjectHandler) ListServices(c *gin.Context) {
 }
 
 func (h *ProjectHandler) CreateService(c *gin.Context) {
+	if _, ok := h.requireAccess(c, c.Param("id")); !ok {
+		return
+	}
 	var req dto.CreateComposeServiceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -180,6 +234,9 @@ func (h *ProjectHandler) CreateService(c *gin.Context) {
 }
 
 func (h *ProjectHandler) ReplaceServices(c *gin.Context) {
+	if _, ok := h.requireAccess(c, c.Param("id")); !ok {
+		return
+	}
 	var req dto.ReplaceComposeServicesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -215,7 +272,10 @@ func (h *ProjectHandler) ReplaceServices(c *gin.Context) {
 }
 
 func (h *ProjectHandler) DeleteService(c *gin.Context) {
-	if err := h.svc.DeleteComposeService(c.Request.Context(), c.Param("serviceID")); err != nil {
+	if _, ok := h.requireAccess(c, c.Param("id")); !ok {
+		return
+	}
+	if err := h.svc.DeleteComposeService(c.Request.Context(), c.Param("id"), c.Param("serviceID")); err != nil {
 		if errors.Is(err, project.ErrServiceNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "service not found"})
 			return
@@ -224,6 +284,98 @@ func (h *ProjectHandler) DeleteService(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func (h *ProjectHandler) ListMembers(c *gin.Context) {
+	if _, ok := h.requireAccess(c, c.Param("id")); !ok {
+		return
+	}
+	members, err := h.svc.ListMembers(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	resp := dto.ProjectMemberListResponse{Members: make([]dto.ProjectMemberResponse, len(members))}
+	for i, m := range members {
+		resp.Members[i] = memberToDTO(m)
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func (h *ProjectHandler) AddMember(c *gin.Context) {
+	if !h.requireOwner(c, c.Param("id")) {
+		return
+	}
+	var req dto.AddProjectMemberRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	callerID, _ := middleware.UserID(c)
+	m, err := h.svc.AddMemberByEmail(c.Request.Context(), c.Param("id"), req.Email, callerID)
+	if err != nil {
+		switch {
+		case errors.Is(err, project.ErrUserNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "no user with that email"})
+		case errors.Is(err, project.ErrAlreadyMember):
+			c.JSON(http.StatusConflict, gin.H{"error": "user is already a member"})
+		case errors.Is(err, project.ErrCannotAddOwner):
+			c.JSON(http.StatusConflict, gin.H{"error": "user is the project owner"})
+		case errors.Is(err, project.ErrNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "project not found"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+	c.JSON(http.StatusCreated, memberToDTO(*m))
+}
+
+func (h *ProjectHandler) RemoveMember(c *gin.Context) {
+	projectID := c.Param("id")
+	targetUserID := c.Param("userID")
+	callerID, ok := middleware.UserID(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	role, err := h.svc.Access(c.Request.Context(), callerID, projectID)
+	if err != nil {
+		switch {
+		case errors.Is(err, project.ErrNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "project not found"})
+		case errors.Is(err, project.ErrForbidden):
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+	// Owner can remove anyone; member can only remove themselves.
+	if role != project.RoleOwner && callerID != targetUserID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "owner only"})
+		return
+	}
+	if err := h.svc.RemoveMember(c.Request.Context(), projectID, targetUserID); err != nil {
+		if errors.Is(err, project.ErrMemberNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "member not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func memberToDTO(m project.Member) dto.ProjectMemberResponse {
+	return dto.ProjectMemberResponse{
+		UserID:    m.UserID,
+		UserEmail: m.UserEmail,
+		UserName:  m.UserName,
+		Role:      m.Role,
+		AddedBy:   m.AddedBy,
+		CreatedAt: m.CreatedAt,
+	}
 }
 
 func listResp(entries []project.Project) dto.ProjectListResponse {
@@ -244,6 +396,7 @@ func projectToDTO(p project.Project) dto.ProjectResponse {
 		ComposeFile: p.ComposeFile,
 		Environment: p.Environment,
 		Enabled:     p.Enabled,
+		Role:        p.Role,
 		CreatedAt:   p.CreatedAt,
 		UpdatedAt:   p.UpdatedAt,
 	}

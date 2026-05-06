@@ -14,7 +14,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 )
 
-func TestUsers(t *testing.T, router *gin.Engine, sessionToken string) string {
+func TestUsers(t *testing.T, router *gin.Engine, sessionToken string) {
 	var createdID string
 
 	t.Run("ListInitial", func(t *testing.T) {
@@ -58,7 +58,7 @@ func TestUsers(t *testing.T, router *gin.Engine, sessionToken string) string {
 		assert.Equal(t, "Alice Updated", resp.Name)
 	})
 
-	return createdID
+	_ = createdID
 }
 
 func TestProjects(t *testing.T, router *gin.Engine, userID string, sessionToken string) {
@@ -66,7 +66,6 @@ func TestProjects(t *testing.T, router *gin.Engine, userID string, sessionToken 
 
 	t.Run("CreateProject", func(t *testing.T) {
 		body, _ := json.Marshal(dto.CreateProjectRequest{
-			UserID:      userID,
 			Name:        "staging",
 			Description: "Alice's staging env",
 			ComposeFile: "/srv/compose.yml",
@@ -85,22 +84,11 @@ func TestProjects(t *testing.T, router *gin.Engine, userID string, sessionToken 
 
 	t.Run("CreateProjectDuplicate", func(t *testing.T) {
 		body, _ := json.Marshal(dto.CreateProjectRequest{
-			UserID:      userID,
 			Name:        "staging",
 			ComposeFile: "/srv/compose.yml",
 		})
 		rr := doJSON(t, router, "POST", "/api/v1/projects", body, sessionToken)
 		assert.Equal(t, http.StatusConflict, rr.Code)
-	})
-
-	t.Run("CreateProjectBadUser", func(t *testing.T) {
-		body, _ := json.Marshal(dto.CreateProjectRequest{
-			UserID:      "00000000-0000-0000-0000-000000000000",
-			Name:        "orphan",
-			ComposeFile: "/srv/compose.yml",
-		})
-		rr := doJSON(t, router, "POST", "/api/v1/projects", body, sessionToken)
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	})
 
 	t.Run("ListProjects", func(t *testing.T) {
@@ -109,15 +97,8 @@ func TestProjects(t *testing.T, router *gin.Engine, userID string, sessionToken 
 		var resp dto.ProjectListResponse
 		require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 		require.Len(t, resp.Projects, 1)
-		assert.Equal(t, "alice@example.com", resp.Projects[0].UserEmail)
-	})
-
-	t.Run("ListProjectsByUser", func(t *testing.T) {
-		rr := doJSON(t, router, "GET", "/api/v1/projects?user_id="+userID, nil, sessionToken)
-		require.Equal(t, http.StatusOK, rr.Code)
-		var resp dto.ProjectListResponse
-		require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
-		require.Len(t, resp.Projects, 1)
+		assert.Equal(t, "test@example.com", resp.Projects[0].UserEmail)
+		assert.Equal(t, "owner", resp.Projects[0].Role)
 	})
 
 	t.Run("CreateServices", func(t *testing.T) {

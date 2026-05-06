@@ -5,6 +5,9 @@ import type {
   UpdateProjectRequest,
   ComposeServiceListResponse,
   ReplaceComposeServicesRequest,
+  ProjectMemberListResponse,
+  ProjectMemberResponse,
+  AddProjectMemberRequest,
 } from "../types/project";
 import { apiFetch, apiJSON } from "./client";
 
@@ -39,6 +42,36 @@ export async function updateProject(
 
 export async function deleteProject(id: string): Promise<void> {
   const res = await apiFetch(`/api/v1/projects/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+}
+
+export async function fetchProjectMembers(
+  id: string
+): Promise<ProjectMemberListResponse> {
+  return apiJSON<ProjectMemberListResponse>(`/api/v1/projects/${id}/members`);
+}
+
+export async function addProjectMember(
+  id: string,
+  req: AddProjectMemberRequest
+): Promise<ProjectMemberResponse> {
+  return apiJSON<ProjectMemberResponse>(`/api/v1/projects/${id}/members`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+}
+
+export async function removeProjectMember(
+  id: string,
+  userId: string
+): Promise<void> {
+  const res = await apiFetch(`/api/v1/projects/${id}/members/${userId}`, {
+    method: "DELETE",
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `HTTP ${res.status}`);

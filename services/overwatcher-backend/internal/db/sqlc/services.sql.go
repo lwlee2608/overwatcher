@@ -59,12 +59,17 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 	return i, err
 }
 
-const deleteService = `-- name: DeleteService :one
-DELETE FROM services WHERE id = $1 RETURNING id, project_id, name, repo, root_directory, branch, image, tag, position, created_at, updated_at, workflow
+const deleteServiceInProject = `-- name: DeleteServiceInProject :one
+DELETE FROM services WHERE id = $1 AND project_id = $2 RETURNING id, project_id, name, repo, root_directory, branch, image, tag, position, created_at, updated_at, workflow
 `
 
-func (q *Queries) DeleteService(ctx context.Context, id pgtype.UUID) (Service, error) {
-	row := q.db.QueryRow(ctx, deleteService, id)
+type DeleteServiceInProjectParams struct {
+	ID        pgtype.UUID `json:"id"`
+	ProjectID pgtype.UUID `json:"project_id"`
+}
+
+func (q *Queries) DeleteServiceInProject(ctx context.Context, arg DeleteServiceInProjectParams) (Service, error) {
+	row := q.db.QueryRow(ctx, deleteServiceInProject, arg.ID, arg.ProjectID)
 	var i Service
 	err := row.Scan(
 		&i.ID,

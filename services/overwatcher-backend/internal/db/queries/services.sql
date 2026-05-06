@@ -14,8 +14,8 @@ ORDER BY position ASC, name ASC;
 -- name: DeleteServicesByProject :exec
 DELETE FROM services WHERE project_id = $1;
 
--- name: DeleteService :one
-DELETE FROM services WHERE id = $1 RETURNING *;
+-- name: DeleteServiceInProject :one
+DELETE FROM services WHERE id = $1 AND project_id = $2 RETURNING *;
 
 -- name: ListEnabledServicesByRepoAndBranch :many
 -- Webhook matching: returns every service in an enabled project whose repo

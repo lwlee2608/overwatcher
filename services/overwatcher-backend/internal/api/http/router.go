@@ -36,8 +36,8 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 
 	healthHandler := handler.NewHealthHandler()
 	webhookHandler := handler.NewWebhookHandler(srvs.WebhookService)
-	deployHandler := handler.NewDeployHandler(srvs.DispatchService, srvs.WebhookService)
-	agentHandler := handler.NewAgentHandler(srvs.AgentService)
+	deployHandler := handler.NewDeployHandler(srvs.DispatchService, srvs.WebhookService, srvs.ProjectService)
+	agentHandler := handler.NewAgentHandler(srvs.AgentService, srvs.ProjectService)
 	eventLogHandler := handler.NewEventLogHandler(srvs.EventLogService)
 	userHandler := handler.NewUserHandler(srvs.UserService)
 	projectHandler := handler.NewProjectHandler(srvs.ProjectService)
@@ -91,6 +91,9 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 			ui.POST("/projects/:id/services", projectHandler.CreateService)
 			ui.PUT("/projects/:id/services", projectHandler.ReplaceServices)
 			ui.DELETE("/projects/:id/services/:serviceID", projectHandler.DeleteService)
+			ui.GET("/projects/:id/members", projectHandler.ListMembers)
+			ui.POST("/projects/:id/members", projectHandler.AddMember)
+			ui.DELETE("/projects/:id/members/:userID", projectHandler.RemoveMember)
 
 			ui.GET("/events", eventLogHandler.List)
 			ui.GET("/deployments", deployHandler.ListDeployments)

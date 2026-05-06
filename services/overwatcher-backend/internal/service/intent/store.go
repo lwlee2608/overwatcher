@@ -20,6 +20,7 @@ type Store interface {
 	SweepTimedOut(timeout time.Duration, maxAttempts int) (requeued, failed []*DeployIntent)
 	List() []*DeployIntent
 	ListRecent(ctx context.Context, limit int32) ([]*DeployIntent, error)
+	ListRecentForUser(ctx context.Context, userID string, limit int32) ([]*DeployIntent, error)
 	GetByID(ctx context.Context, id string) (*DeployIntent, error)
 	InFlight() []*DeployIntent
 	Len() int
