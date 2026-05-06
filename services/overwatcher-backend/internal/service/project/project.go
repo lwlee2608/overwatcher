@@ -598,34 +598,35 @@ func (s *Service) AddMember(ctx context.Context, projectID, userID, addedBy stri
 	if util.UUIDToString(proj.UserID) == userID {
 		return nil, ErrCannotAddOwner
 	}
-	if _, err := s.q.GetUser(ctx, uUID); err != nil {
+	user, err := s.q.GetUser(ctx, uUID)
+	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrUserNotFound
 		}
 		return nil, err
 	}
-	if _, err := s.q.AddProjectMember(ctx, sqlc.AddProjectMemberParams{
+	row, err := s.q.AddProjectMember(ctx, sqlc.AddProjectMemberParams{
 		ProjectID: pUID,
 		UserID:    uUID,
 		Role:      RoleMember,
 		AddedBy:   addedByUID,
-	}); err != nil {
+	})
+	if err != nil {
 		var pgErr interface{ SQLState() string }
 		if errors.As(err, &pgErr) && pgErr.SQLState() == "23505" {
 			return nil, ErrAlreadyMember
 		}
 		return nil, err
 	}
-	members, err := s.ListMembers(ctx, projectID)
-	if err != nil {
-		return nil, err
-	}
-	for i := range members {
-		if members[i].UserID == userID {
-			return &members[i], nil
-		}
-	}
-	return nil, ErrMemberNotFound
+	return &Member{
+		ProjectID: util.UUIDToString(row.ProjectID),
+		UserID:    util.UUIDToString(row.UserID),
+		UserEmail: user.Email,
+		UserName:  user.Name,
+		Role:      row.Role,
+		AddedBy:   util.UUIDToString(row.AddedBy),
+		CreatedAt: row.CreatedAt.Time,
+	}, nil
 }
 
 // AddMemberByEmail resolves the email to an existing user, then delegates to
