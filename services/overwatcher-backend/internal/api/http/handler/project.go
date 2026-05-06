@@ -20,15 +20,6 @@ func NewProjectHandler(svc *project.Service) *ProjectHandler {
 }
 
 func (h *ProjectHandler) List(c *gin.Context) {
-	if userID := c.Query("user_id"); userID != "" {
-		entries, err := h.svc.ListProjectsByUser(c.Request.Context(), userID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, listResp(entries))
-		return
-	}
 	callerID, ok := middleware.UserID(c)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})

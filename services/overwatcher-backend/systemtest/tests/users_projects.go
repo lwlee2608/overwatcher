@@ -113,14 +113,6 @@ func TestProjects(t *testing.T, router *gin.Engine, userID string, sessionToken 
 		assert.Equal(t, "owner", resp.Projects[0].Role)
 	})
 
-	t.Run("ListProjectsByUser", func(t *testing.T) {
-		rr := doJSON(t, router, "GET", "/api/v1/projects?user_id="+userID, nil, sessionToken)
-		require.Equal(t, http.StatusOK, rr.Code)
-		var resp dto.ProjectListResponse
-		require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
-		require.Len(t, resp.Projects, 1)
-	})
-
 	t.Run("CreateServices", func(t *testing.T) {
 		body, _ := json.Marshal(dto.CreateComposeServiceRequest{
 			Name:          "web",
