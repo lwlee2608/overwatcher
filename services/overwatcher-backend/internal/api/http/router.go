@@ -37,7 +37,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	healthHandler := handler.NewHealthHandler()
 	webhookHandler := handler.NewWebhookHandler(srvs.WebhookService)
 	deployHandler := handler.NewDeployHandler(srvs.DispatchService, srvs.WebhookService)
-	agentHandler := handler.NewAgentHandler(srvs.AgentService)
+	agentHandler := handler.NewAgentHandler(srvs.AgentService, srvs.ProjectService)
 	eventLogHandler := handler.NewEventLogHandler(srvs.EventLogService)
 	userHandler := handler.NewUserHandler(srvs.UserService)
 	projectHandler := handler.NewProjectHandler(srvs.ProjectService)
