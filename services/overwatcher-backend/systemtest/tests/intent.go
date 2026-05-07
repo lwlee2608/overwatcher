@@ -13,9 +13,6 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
 )
 
-// TestIntent exercises intent.DBStore against the systemtest's shared
-// Postgres container. Each sub-test truncates deploy_intents and gets a
-// fresh DBStore so notify channels don't leak between cases.
 func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 	t.Run("EnqueueAndLen", func(t *testing.T) {
 		s := freshIntentStore(t, pool)
@@ -396,8 +393,6 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 	})
 }
 
-// freshIntentStore truncates deploy_intents and returns a new DBStore with
-// a fresh notify channel. Per-subtest isolation.
 func freshIntentStore(t *testing.T, pool *pgxpool.Pool) *intent.DBStore {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -408,8 +403,6 @@ func freshIntentStore(t *testing.T, pool *pgxpool.Pool) *intent.DBStore {
 	return intent.NewDBStore(pool)
 }
 
-// newIntent builds a minimally-valid DeployIntent with all NOT NULL columns
-// filled. deliveryID must be unique within a single sub-test.
 func newIntent(deliveryID, stack string) *intent.DeployIntent {
 	return &intent.DeployIntent{
 		DeliveryID:     deliveryID,
@@ -424,8 +417,6 @@ func newIntent(deliveryID, stack string) *intent.DeployIntent {
 	}
 }
 
-// backdateInFlight overrides dispatched_at and attempts on an in-flight
-// intent via direct SQL — used to simulate stale dispatches for sweep tests.
 // .UTC() is load-bearing: pgtype.Timestamp's discardTimeZone preserves
 // wall-clock digits and relabels them as UTC, which shifts the value by
 // the local offset on non-UTC hosts.

@@ -11,8 +11,6 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
 )
 
-// fakeStatusUpdater records UpdateDeploymentStatus calls and can return a
-// pre-set error to simulate GitHub flakiness.
 type fakeStatusUpdater struct {
 	mu    sync.Mutex
 	calls []statusCall
@@ -43,9 +41,6 @@ func (f *fakeStatusUpdater) snapshot() []statusCall {
 	return out
 }
 
-// TestDispatch exercises dispatch.Service.Next/Report against the systemtest's
-// shared Postgres container, faking only the GitHub StatusUpdater so we can
-// assert deployment-status transitions.
 func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 	newSvc := func(t *testing.T) (*dispatch.Service, *intent.DBStore, *fakeStatusUpdater) {
 		t.Helper()

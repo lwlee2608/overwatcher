@@ -10,9 +10,6 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
 )
 
-// TestReaper exercises dispatch.Reaper against a real DBStore. backdateInFlight
-// (defined in intent.go) writes dispatched_at/attempts directly so we can
-// simulate stale dispatches without sleeping.
 func TestReaper(t *testing.T, pool *pgxpool.Pool) {
 	t.Run("SweepsAndUpdatesGitHub", func(t *testing.T) {
 		store := freshIntentStore(t, pool)
@@ -34,8 +31,6 @@ func TestReaper(t *testing.T, pool *pgxpool.Pool) {
 			t.Fatalf("TakeNext: %v", err)
 		}
 
-		// Backdate to before the timeout cutoff and bump attempts past the
-		// max so the sweep classifies it as permanently failed.
 		backdateInFlight(t, pool, i.ID, time.Now().Add(-15*time.Minute), 3)
 
 		reaper := dispatch.NewReaper(store, updater, 10*time.Minute, 3, 50*time.Millisecond)

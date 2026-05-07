@@ -12,14 +12,11 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/util"
 )
 
-// StatusUpdater is the slice of GitHub API dispatch.Service needs. It is
-// exported so cross-package tests can substitute a fake without spinning up a
-// real installation client.
+// StatusUpdater is the slice of GitHub API dispatch.Service needs.
 type StatusUpdater interface {
 	UpdateDeploymentStatus(ctx context.Context, installationID int64, owner, repo string, deploymentID int64, state, description string) error
 }
 
-// ghStatusUpdater is the production adapter that wraps internalgithub.Client.
 type ghStatusUpdater struct {
 	client *internalgithub.Client
 }
@@ -36,17 +33,12 @@ func (g *ghStatusUpdater) UpdateDeploymentStatus(ctx context.Context, installati
 	return err
 }
 
-// noopStatusUpdater drops every call. Used by NewForTest so handler-level
-// tests don't need to fake the full GitHub API surface.
 type noopStatusUpdater struct{}
 
 func (noopStatusUpdater) UpdateDeploymentStatus(context.Context, int64, string, string, int64, string, string) error {
 	return nil
 }
 
-// Service consumes intents from the intent store and reports their outcome
-// back to GitHub. It is the counterpart to webhook.Service, which produces
-// intents.
 type Service struct {
 	store   *intent.DBStore
 	updater StatusUpdater
@@ -60,8 +52,7 @@ func New(ghClient *internalgithub.Client, store *intent.DBStore) *Service {
 }
 
 // NewForTest constructs a Service for cross-package tests. A nil updater
-// means "no-op" — use it when the test doesn't care about GitHub side
-// effects. Pass a fake to assert on UpdateDeploymentStatus calls.
+// becomes a no-op.
 func NewForTest(store *intent.DBStore, updater StatusUpdater) *Service {
 	if updater == nil {
 		updater = noopStatusUpdater{}
@@ -69,9 +60,8 @@ func NewForTest(store *intent.DBStore, updater StatusUpdater) *Service {
 	return &Service{store: store, updater: updater}
 }
 
-// Next blocks until an intent is available or ctx is cancelled. On success it
-// flips the GitHub Deployment to in_progress (best-effort — failures are logged
-// but the intent is still returned) and returns the intent.
+// Next blocks until an intent is available or ctx is cancelled. The
+// in_progress GitHub status update is best-effort; failures are logged.
 func (d *Service) Next(ctx context.Context) (*intent.DeployIntent, error) {
 	i, err := d.store.TakeNext(ctx)
 	if err != nil {
@@ -96,9 +86,8 @@ func (d *Service) Next(ctx context.Context) (*intent.DeployIntent, error) {
 	return i, nil
 }
 
-// Report records an agent's deploy result, removes the intent from the
-// in-flight map, and updates the GitHub Deployment to success/failure. Returns
-// false if the id is unknown.
+// Report records an agent's deploy result and updates the GitHub Deployment
+// status. Returns false if the id is unknown.
 func (d *Service) Report(ctx context.Context, id string, success bool, errMsg string) bool {
 	i, ok := d.store.Complete(id, success)
 	if !ok {
@@ -133,8 +122,6 @@ func (d *Service) Report(ctx context.Context, id string, success bool, errMsg st
 	return true
 }
 
-// NewReaper creates a Reaper that shares this service's store and status
-// updater. The caller should run it in a goroutine.
 func (d *Service) NewReaper(timeout time.Duration, maxAttempts int, interval time.Duration) *Reaper {
 	return NewReaper(d.store, d.updater, timeout, maxAttempts, interval)
 }
