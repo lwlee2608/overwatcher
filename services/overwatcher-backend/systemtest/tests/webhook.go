@@ -11,9 +11,9 @@ import (
 )
 
 // TestWebhookRedeploy covers webhook.Service.Redeploy precondition checks
-// against a real DBStore. The happy path is exercised end-to-end by the
-// agent/HTTP redeploy flow elsewhere; here we only verify the early-exit
-// branches that don't require a GitHub installation client.
+// against a real DBStore — the early-exit branches that don't require a
+// GitHub installation client. The happy path needs a real GitHub App and
+// isn't covered here.
 func TestWebhookRedeploy(t *testing.T, pool *pgxpool.Pool) {
 	t.Run("SourceNotFound", func(t *testing.T) {
 		store := freshIntentStore(t, pool)

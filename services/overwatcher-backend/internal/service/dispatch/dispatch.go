@@ -59,16 +59,13 @@ func New(ghClient *internalgithub.Client, store *intent.DBStore) *Service {
 	}
 }
 
-// NewForTest constructs a Service with a no-op StatusUpdater. Intended only
-// for tests in other packages that need to exercise the dispatch flow without
-// faking GitHub.
-func NewForTest(store *intent.DBStore) *Service {
-	return &Service{store: store, updater: noopStatusUpdater{}}
-}
-
-// NewForTestWithUpdater constructs a Service with a caller-supplied
-// StatusUpdater. Tests that need to assert on GitHub side effects use this.
-func NewForTestWithUpdater(store *intent.DBStore, updater StatusUpdater) *Service {
+// NewForTest constructs a Service for cross-package tests. A nil updater
+// means "no-op" — use it when the test doesn't care about GitHub side
+// effects. Pass a fake to assert on UpdateDeploymentStatus calls.
+func NewForTest(store *intent.DBStore, updater StatusUpdater) *Service {
+	if updater == nil {
+		updater = noopStatusUpdater{}
+	}
 	return &Service{store: store, updater: updater}
 }
 

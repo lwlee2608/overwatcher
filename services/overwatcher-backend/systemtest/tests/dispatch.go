@@ -51,7 +51,7 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 		t.Helper()
 		store := freshIntentStore(t, pool)
 		upd := &fakeStatusUpdater{}
-		return dispatch.NewForTestWithUpdater(store, upd), store, upd
+		return dispatch.NewForTest(store, upd), store, upd
 	}
 
 	t.Run("Next_HappyPath", func(t *testing.T) {
@@ -189,7 +189,6 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 		if err != nil {
 			t.Fatalf("Next: %v", err)
 		}
-		_ = store
 
 		if !d.Report(context.Background(), taken.ID, false, "compose pull exit 1") {
 			t.Fatal("Report returned false")
