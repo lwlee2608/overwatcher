@@ -29,11 +29,11 @@ var (
 type Service struct {
 	ghClient *internalgithub.Client
 	projects *project.Service
-	store    intent.Store
+	store    *intent.DBStore
 	eventLog *eventlog.Service
 }
 
-func New(ghClient *internalgithub.Client, p *project.Service, store intent.Store, el *eventlog.Service) *Service {
+func New(ghClient *internalgithub.Client, p *project.Service, store *intent.DBStore, el *eventlog.Service) *Service {
 	return &Service{ghClient: ghClient, projects: p, store: store, eventLog: el}
 }
 

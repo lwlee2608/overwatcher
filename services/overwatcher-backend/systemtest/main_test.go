@@ -56,7 +56,7 @@ func TestSystemIntegration(t *testing.T) {
 	projectSvc := project.NewService(pool)
 	authSvc := auth.NewService(pool, time.Hour)
 	intentStore := intent.NewDBStore(pool)
-	dispatchSvc := dispatch.NewForTest(intentStore)
+	dispatchSvc := dispatch.NewForTest(intentStore, nil)
 	webhookSvc := webhook.New(nil, projectSvc, intentStore, eventLogSvc)
 
 	services := &internalhttp.Services{
@@ -90,4 +90,8 @@ func TestSystemIntegration(t *testing.T) {
 	t.Run("Users", func(t *testing.T) { tests.TestUsers(t, engine, sessionToken) })
 	t.Run("Projects", func(t *testing.T) { tests.TestProjects(t, engine, sessionUserID, sessionToken) })
 	t.Run("Deploy", func(t *testing.T) { tests.TestDeploy(t, engine, intentStore, services.AgentSharedSecret) })
+	t.Run("Intent", func(t *testing.T) { tests.TestIntent(t, pool) })
+	t.Run("Dispatch", func(t *testing.T) { tests.TestDispatch(t, pool) })
+	t.Run("Reaper", func(t *testing.T) { tests.TestReaper(t, pool) })
+	t.Run("WebhookRedeploy", func(t *testing.T) { tests.TestWebhookRedeploy(t, pool) })
 }

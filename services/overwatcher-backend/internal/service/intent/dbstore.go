@@ -15,9 +15,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 )
 
-var _ Store = (*DBStore)(nil)
-
-// DBStore is a PostgreSQL-backed implementation of Store. Intents survive
+// DBStore is the PostgreSQL-backed intent queue. Intents survive
 // coordinator restarts and webhook redeliveries are deduped via a partial
 // unique index on (delivery_id, project_id).
 type DBStore struct {
@@ -149,7 +147,10 @@ func (s *DBStore) SweepTimedOut(timeout time.Duration, maxAttempts int) (requeue
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cutoff := pgtype.Timestamp{Time: time.Now().Add(-timeout), Valid: true}
+	// .UTC() is load-bearing: pgtype.Timestamp's discardTimeZone keeps the
+	// wall-clock digits and relabels them as UTC, which shifts the value by
+	// the local offset on non-UTC hosts.
+	cutoff := pgtype.Timestamp{Time: time.Now().Add(-timeout).UTC(), Valid: true}
 
 	requeuedRows, err := s.q.RequeueTimedOutIntents(ctx, sqlc.RequeueTimedOutIntentsParams{
 		Cutoff:      cutoff,

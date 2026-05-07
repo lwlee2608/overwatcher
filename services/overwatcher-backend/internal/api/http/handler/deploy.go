@@ -17,11 +17,11 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/service/webhook"
 )
 
-// longPollTimeout caps how long Next holds an idle request. Sits comfortably
+// LongPollTimeout caps how long Next holds an idle request. Sits comfortably
 // under typical 30s proxy/LB idle timeouts and the agent's 30s client timeout
 // so the 204 always reaches the agent before either fires. var, not const,
 // so tests can shrink it.
-var longPollTimeout = 25 * time.Second
+var LongPollTimeout = 25 * time.Second
 
 type DeployHandler struct {
 	dispatchService *dispatch.Service
@@ -38,7 +38,7 @@ func NewDeployHandler(dispatchService *dispatch.Service, webhookService *webhook
 // disconnect). On either, it returns 204 so the agent can re-poll cleanly
 // without treating it as a transport error.
 func (h *DeployHandler) Next(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(c.Request.Context(), longPollTimeout)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), LongPollTimeout)
 	defer cancel()
 
 	intentRow, err := h.dispatchService.Next(ctx)
