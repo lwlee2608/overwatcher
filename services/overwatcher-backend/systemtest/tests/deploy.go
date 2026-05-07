@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
+	"github.com/lwlee2608/overwatcher/internal/api/http/handler"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +25,26 @@ func webSvc(tag string) []intent.ServiceSpec {
 	return []intent.ServiceSpec{{Name: "web", Image: "ghcr.io/owner/repo", Tag: tag}}
 }
 
-func TestDeploy(t *testing.T, router *gin.Engine, store intent.Store, bearerToken string) {
+func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerToken string) {
+	t.Run("NextLongPollTimeoutReturns204", func(t *testing.T) {
+		// Runs first while the queue is still empty so no drain is needed.
+		prev := handler.LongPollTimeout
+		handler.LongPollTimeout = 50 * time.Millisecond
+		defer func() { handler.LongPollTimeout = prev }()
+
+		rr := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/api/v1/deploy/next", nil)
+		authReq(req, bearerToken)
+
+		start := time.Now()
+		router.ServeHTTP(rr, req)
+		elapsed := time.Since(start)
+
+		assert.Equal(t, http.StatusNoContent, rr.Code)
+		assert.Less(t, elapsed, 500*time.Millisecond,
+			"Next blocked for %v, expected ~50ms timeout", elapsed)
+	})
+
 	t.Run("EnqueueAndNext", func(t *testing.T) {
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-1",

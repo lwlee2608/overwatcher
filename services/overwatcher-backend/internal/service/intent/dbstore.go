@@ -15,9 +15,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 )
 
-var _ Store = (*DBStore)(nil)
-
-// DBStore is a PostgreSQL-backed implementation of Store. Intents survive
+// DBStore is the PostgreSQL-backed intent queue. Intents survive
 // coordinator restarts and webhook redeliveries are deduped via a partial
 // unique index on (delivery_id, project_id).
 type DBStore struct {

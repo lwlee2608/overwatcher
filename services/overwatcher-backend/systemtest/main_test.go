@@ -91,4 +91,7 @@ func TestSystemIntegration(t *testing.T) {
 	t.Run("Projects", func(t *testing.T) { tests.TestProjects(t, engine, sessionUserID, sessionToken) })
 	t.Run("Deploy", func(t *testing.T) { tests.TestDeploy(t, engine, intentStore, services.AgentSharedSecret) })
 	t.Run("Intent", func(t *testing.T) { tests.TestIntent(t, pool) })
+	t.Run("Dispatch", func(t *testing.T) { tests.TestDispatch(t, pool) })
+	t.Run("Reaper", func(t *testing.T) { tests.TestReaper(t, pool) })
+	t.Run("WebhookRedeploy", func(t *testing.T) { tests.TestWebhookRedeploy(t, pool) })
 }
