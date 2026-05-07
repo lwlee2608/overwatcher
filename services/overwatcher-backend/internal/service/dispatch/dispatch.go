@@ -140,3 +140,11 @@ func (d *Service) ListRecent(ctx context.Context, limit int32) ([]*intent.Deploy
 	return d.store.ListRecent(ctx, limit)
 }
 
+func (d *Service) ListRecentForUser(ctx context.Context, userID string, limit int32) ([]*intent.DeployIntent, error) {
+	return d.store.ListRecentForUser(ctx, userID, limit)
+}
+
+func (d *Service) GetByID(ctx context.Context, id string) (*intent.DeployIntent, error) {
+	return d.store.GetByID(ctx, id)
+}
+

@@ -47,8 +47,31 @@ var (
 	ErrNotFound        = errors.New("project not found")
 	ErrServiceNotFound = errors.New("service not found")
 	ErrUserNotFound    = errors.New("user not found")
+	ErrMemberNotFound  = errors.New("member not found")
+	ErrAlreadyMember   = errors.New("user is already a member")
+	ErrCannotAddOwner  = errors.New("project owner cannot be a member")
+	ErrForbidden       = errors.New("forbidden")
 	ErrInvalidRepo     = errors.New("repo must be in 'owner/repo' format")
 )
+
+// Roles returned by Access. Owner = projects.user_id; Member = row in
+// project_members. Members can view and trigger deploys; owner-only actions
+// are gated by the handler layer.
+const (
+	RoleOwner  = "owner"
+	RoleMember = "member"
+)
+
+// Member is a row of project_members joined with the user's identity.
+type Member struct {
+	ProjectID string
+	UserID    string
+	UserEmail string
+	UserName  string
+	Role      string
+	AddedBy   string
+	CreatedAt time.Time
+}
 
 // Project is a deployable unit owned by a user. It owns a single compose
 // file and binds 1:1 to an agent.
@@ -61,6 +84,9 @@ type Project struct {
 	ComposeFile string
 	Environment string
 	Enabled     bool
+	// Role is the caller's role for this project ("owner" or "member"),
+	// populated only by listings that take a viewer userID. Empty otherwise.
+	Role        string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
@@ -148,45 +174,6 @@ func (s *Service) GetProject(ctx context.Context, id string) (*Project, error) {
 		return nil, err
 	}
 	return projectRowToDomain(row, user.Email), nil
-}
-
-func (s *Service) ListProjects(ctx context.Context) ([]Project, error) {
-	rows, err := s.q.ListProjects(ctx)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]Project, len(rows))
-	for i, r := range rows {
-		out[i] = Project{
-			ID:          util.UUIDToString(r.ID),
-			UserID:      util.UUIDToString(r.UserID),
-			UserEmail:   r.UserEmail,
-			Name:        r.Name,
-			Description: r.Description,
-			ComposeFile: r.ComposeFile,
-			Environment: r.Environment,
-			Enabled:     r.Enabled,
-			CreatedAt:   r.CreatedAt.Time,
-			UpdatedAt:   r.UpdatedAt.Time,
-		}
-	}
-	return out, nil
-}
-
-func (s *Service) ListProjectsByUser(ctx context.Context, userID string) ([]Project, error) {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(userID); err != nil {
-		return nil, err
-	}
-	rows, err := s.q.ListProjectsByUser(ctx, uid)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]Project, len(rows))
-	for i, r := range rows {
-		out[i] = *projectRowToDomain(r, "")
-	}
-	return out, nil
 }
 
 type UpdateProjectParams struct {
@@ -320,12 +307,20 @@ func (s *Service) ListComposeServicesByProject(ctx context.Context, projectID st
 	return out, nil
 }
 
-func (s *Service) DeleteComposeService(ctx context.Context, id string) error {
-	uid := pgtype.UUID{}
-	if err := uid.Scan(id); err != nil {
+// DeleteComposeService removes a service only if it belongs to the given
+// project. The project_id check defends against cross-project IDOR — without
+// it, a member of project A could delete services from project B by guessing
+// service UUIDs.
+func (s *Service) DeleteComposeService(ctx context.Context, projectID, serviceID string) error {
+	pUID := pgtype.UUID{}
+	if err := pUID.Scan(projectID); err != nil {
 		return err
 	}
-	if _, err := s.q.DeleteService(ctx, uid); err != nil {
+	sUID := pgtype.UUID{}
+	if err := sUID.Scan(serviceID); err != nil {
+		return err
+	}
+	if _, err := s.q.DeleteServiceInProject(ctx, sqlc.DeleteServiceInProjectParams{ID: sUID, ProjectID: pUID}); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrServiceNotFound
 		}
@@ -478,6 +473,182 @@ func (s *Service) ReplaceComposeServices(ctx context.Context, projectID string, 
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
+	}
+	return out, nil
+}
+
+// Access returns the caller's role on a project. Returns ErrNotFound when the
+// project does not exist; ErrForbidden when the user has neither ownership
+// nor a project_members row.
+func (s *Service) Access(ctx context.Context, userID, projectID string) (string, error) {
+	pUID := pgtype.UUID{}
+	if err := pUID.Scan(projectID); err != nil {
+		return "", err
+	}
+	uUID := pgtype.UUID{}
+	if err := uUID.Scan(userID); err != nil {
+		return "", err
+	}
+	row, err := s.q.GetProject(ctx, pUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
+	if util.UUIDToString(row.UserID) == userID {
+		return RoleOwner, nil
+	}
+	m, err := s.q.GetProjectMember(ctx, sqlc.GetProjectMemberParams{ProjectID: pUID, UserID: uUID})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrForbidden
+		}
+		return "", err
+	}
+	return m.Role, nil
+}
+
+// ListProjectsForUser returns owned + shared projects for a user, with the
+// per-row Role populated.
+func (s *Service) ListProjectsForUser(ctx context.Context, userID string) ([]Project, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, err
+	}
+	rows, err := s.q.ListProjectsForUser(ctx, uid)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Project, len(rows))
+	for i, r := range rows {
+		out[i] = Project{
+			ID:          util.UUIDToString(r.ID),
+			UserID:      util.UUIDToString(r.UserID),
+			UserEmail:   r.UserEmail,
+			Name:        r.Name,
+			Description: r.Description,
+			ComposeFile: r.ComposeFile,
+			Environment: r.Environment,
+			Enabled:     r.Enabled,
+			Role:        r.Role,
+			CreatedAt:   r.CreatedAt.Time,
+			UpdatedAt:   r.UpdatedAt.Time,
+		}
+	}
+	return out, nil
+}
+
+// AddMember inserts a project_members row. Caller must be the owner; the
+// handler enforces that. Returns ErrCannotAddOwner if userID matches the
+// project's owner, ErrAlreadyMember on duplicate.
+func (s *Service) AddMember(ctx context.Context, projectID, userID, addedBy string) (*Member, error) {
+	pUID := pgtype.UUID{}
+	if err := pUID.Scan(projectID); err != nil {
+		return nil, err
+	}
+	uUID := pgtype.UUID{}
+	if err := uUID.Scan(userID); err != nil {
+		return nil, err
+	}
+	addedByUID := pgtype.UUID{}
+	if addedBy != "" {
+		if err := addedByUID.Scan(addedBy); err != nil {
+			return nil, err
+		}
+	}
+	proj, err := s.q.GetProject(ctx, pUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if util.UUIDToString(proj.UserID) == userID {
+		return nil, ErrCannotAddOwner
+	}
+	user, err := s.q.GetUser(ctx, uUID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	row, err := s.q.AddProjectMember(ctx, sqlc.AddProjectMemberParams{
+		ProjectID: pUID,
+		UserID:    uUID,
+		Role:      RoleMember,
+		AddedBy:   addedByUID,
+	})
+	if err != nil {
+		var pgErr interface{ SQLState() string }
+		if errors.As(err, &pgErr) && pgErr.SQLState() == "23505" {
+			return nil, ErrAlreadyMember
+		}
+		return nil, err
+	}
+	return &Member{
+		ProjectID: util.UUIDToString(row.ProjectID),
+		UserID:    util.UUIDToString(row.UserID),
+		UserEmail: user.Email,
+		UserName:  user.Name,
+		Role:      row.Role,
+		AddedBy:   util.UUIDToString(row.AddedBy),
+		CreatedAt: row.CreatedAt.Time,
+	}, nil
+}
+
+// AddMemberByEmail resolves the email to an existing user, then delegates to
+// AddMember. Returns ErrUserNotFound when no user with that email exists.
+func (s *Service) AddMemberByEmail(ctx context.Context, projectID, email, addedBy string) (*Member, error) {
+	row, err := s.q.GetUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, err
+	}
+	return s.AddMember(ctx, projectID, util.UUIDToString(row.ID), addedBy)
+}
+
+func (s *Service) RemoveMember(ctx context.Context, projectID, userID string) error {
+	pUID := pgtype.UUID{}
+	if err := pUID.Scan(projectID); err != nil {
+		return err
+	}
+	uUID := pgtype.UUID{}
+	if err := uUID.Scan(userID); err != nil {
+		return err
+	}
+	if _, err := s.q.RemoveProjectMember(ctx, sqlc.RemoveProjectMemberParams{ProjectID: pUID, UserID: uUID}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrMemberNotFound
+		}
+		return err
+	}
+	return nil
+}
+
+func (s *Service) ListMembers(ctx context.Context, projectID string) ([]Member, error) {
+	pUID := pgtype.UUID{}
+	if err := pUID.Scan(projectID); err != nil {
+		return nil, err
+	}
+	rows, err := s.q.ListProjectMembers(ctx, pUID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Member, len(rows))
+	for i, r := range rows {
+		out[i] = Member{
+			ProjectID: util.UUIDToString(r.ProjectID),
+			UserID:    util.UUIDToString(r.UserID),
+			UserEmail: r.UserEmail,
+			UserName:  r.UserName,
+			Role:      r.Role,
+			AddedBy:   util.UUIDToString(r.AddedBy),
+			CreatedAt: r.CreatedAt.Time,
+		}
 	}
 	return out, nil
 }

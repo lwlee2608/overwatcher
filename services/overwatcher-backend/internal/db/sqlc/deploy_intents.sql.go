@@ -298,6 +298,62 @@ func (q *Queries) ListRecentDeployIntents(ctx context.Context, limit int32) ([]D
 	return items, nil
 }
 
+const listRecentDeployIntentsForUser = `-- name: ListRecentDeployIntentsForUser :many
+SELECT di.id, di.delivery_id, di.repo, di.git_ref, di.sha, di.stack, di.environment, di.deployment_id, di.installation_id, di.status, di.attempts, di.created_at, di.updated_at, di.dispatched_at, di.services_spec, di.project_id, di.compose_file
+FROM deploy_intents di
+JOIN projects p ON p.id = di.project_id
+LEFT JOIN project_members pm
+  ON pm.project_id = p.id AND pm.user_id = $1
+WHERE p.user_id = $1 OR pm.user_id = $1
+ORDER BY di.created_at DESC
+LIMIT $2
+`
+
+type ListRecentDeployIntentsForUserParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Limit  int32       `json:"limit"`
+}
+
+// Same as ListRecentDeployIntents but scoped to projects the user can access:
+// either owns (projects.user_id) or is a member of (project_members).
+func (q *Queries) ListRecentDeployIntentsForUser(ctx context.Context, arg ListRecentDeployIntentsForUserParams) ([]DeployIntent, error) {
+	rows, err := q.db.Query(ctx, listRecentDeployIntentsForUser, arg.UserID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DeployIntent{}
+	for rows.Next() {
+		var i DeployIntent
+		if err := rows.Scan(
+			&i.ID,
+			&i.DeliveryID,
+			&i.Repo,
+			&i.GitRef,
+			&i.Sha,
+			&i.Stack,
+			&i.Environment,
+			&i.DeploymentID,
+			&i.InstallationID,
+			&i.Status,
+			&i.Attempts,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DispatchedAt,
+			&i.ServicesSpec,
+			&i.ProjectID,
+			&i.ComposeFile,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const requeueDeployIntent = `-- name: RequeueDeployIntent :one
 UPDATE deploy_intents
 SET status = 'created',

@@ -11,9 +11,27 @@ type ProjectResponse struct {
 	ComposeFile string                   `json:"compose_file"`
 	Environment string                   `json:"environment"`
 	Enabled     bool                     `json:"enabled"`
+	Role        string                   `json:"role,omitempty"`
 	Services    []ComposeServiceResponse `json:"services,omitempty"`
 	CreatedAt   time.Time                `json:"created_at"`
 	UpdatedAt   time.Time                `json:"updated_at"`
+}
+
+type ProjectMemberResponse struct {
+	UserID    string    `json:"user_id"`
+	UserEmail string    `json:"user_email"`
+	UserName  string    `json:"user_name"`
+	Role      string    `json:"role"`
+	AddedBy   string    `json:"added_by,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ProjectMemberListResponse struct {
+	Members []ProjectMemberResponse `json:"members"`
+}
+
+type AddProjectMemberRequest struct {
+	Email string `json:"email" binding:"required,email"`
 }
 
 type ProjectListResponse struct {
@@ -21,7 +39,6 @@ type ProjectListResponse struct {
 }
 
 type CreateProjectRequest struct {
-	UserID      string `json:"user_id" binding:"required,uuid"`
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description"`
 	ComposeFile string `json:"compose_file" binding:"required"`

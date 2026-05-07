@@ -2,11 +2,19 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type {
   ComposeServiceResponse,
+  ProjectMemberResponse,
   ProjectResponse,
 } from "../types/project";
 import type { AgentStatus } from "../types/agent";
-import { fetchProject, replaceProjectServices } from "../api/projects";
+import {
+  addProjectMember,
+  fetchProject,
+  fetchProjectMembers,
+  removeProjectMember,
+  replaceProjectServices,
+} from "../api/projects";
 import { bindAgentProject, fetchAgents } from "../api/agents";
+import { useAuth } from "../auth/context";
 
 interface ServiceRow {
   name: string;
@@ -164,6 +172,7 @@ function ServiceView({ row }: { row: ServiceRow }) {
 
 export function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const [project, setProject] = useState<ProjectResponse | null>(null);
   const [rows, setRows] = useState<ServiceRow[]>([]);
   const [editing, setEditing] = useState<boolean[]>([]);
@@ -306,6 +315,8 @@ export function ProjectDetail() {
     );
   }
 
+  const isOwner = project.role === "owner";
+
   return (
     <div className="max-w-5xl mx-auto">
       <div className="mb-4">
@@ -417,6 +428,7 @@ export function ProjectDetail() {
             type="button"
             onClick={handleBindAgent}
             disabled={
+              !isOwner ||
               bindingAgent ||
               agentSelection ===
                 (agents.find((a) => a.project_id === project.id)?.id ?? "")
@@ -427,6 +439,12 @@ export function ProjectDetail() {
           </button>
         </div>
       </div>
+
+      <MembersPanel
+        projectId={project.id}
+        currentUserId={user?.id ?? ""}
+        isOwner={isOwner}
+      />
 
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
@@ -606,6 +624,159 @@ export function ProjectDetail() {
         <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
           Unsaved changes
         </p>
+      )}
+    </div>
+  );
+}
+
+function MembersPanel({
+  projectId,
+  currentUserId,
+  isOwner,
+}: {
+  projectId: string;
+  currentUserId: string;
+  isOwner: boolean;
+}) {
+  const [members, setMembers] = useState<ProjectMemberResponse[]>([]);
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetchProjectMembers(projectId);
+      setMembers(r.members ?? []);
+      setError(null);
+      setLoaded(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch members");
+      setLoaded(true);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await addProjectMember(projectId, { email: email.trim() });
+      setEmail("");
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Add failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemove(userId: string) {
+    const isSelf = userId === currentUserId;
+    const confirmMsg = isSelf
+      ? "Leave this project?"
+      : "Remove this member?";
+    if (!window.confirm(confirmMsg)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await removeProjectMember(projectId, userId);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Remove failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          Members
+        </h2>
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          {members.length} member{members.length !== 1 && "s"}
+        </span>
+      </div>
+      <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+        Members can view this project, edit services, and trigger deploys.
+        Project settings and agent binding are owner-only.
+      </p>
+
+      {error && (
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+          {error}
+        </div>
+      )}
+
+      {isOwner && (
+        <form onSubmit={handleAdd} className="mb-3 flex items-center gap-2">
+          <input
+            type="email"
+            placeholder="user@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="flex-1 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+          />
+          <button
+            type="submit"
+            disabled={busy || !email.trim()}
+            className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Add
+          </button>
+        </form>
+      )}
+
+      {loaded && members.length === 0 ? (
+        <div className="text-xs text-gray-400 dark:text-gray-500">
+          No additional members yet.
+        </div>
+      ) : (
+        <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+          {members.map((m) => {
+            const isSelf = m.user_id === currentUserId;
+            const canRemove = isOwner || isSelf;
+            return (
+              <li
+                key={m.user_id}
+                className="flex items-center justify-between py-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <div className="text-gray-900 dark:text-gray-100">
+                    {m.user_email}
+                    {isSelf && (
+                      <span className="ml-1 text-xs text-gray-400 dark:text-gray-500">
+                        (you)
+                      </span>
+                    )}
+                  </div>
+                  {m.user_name && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {m.user_name}
+                    </div>
+                  )}
+                </div>
+                {canRemove && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(m.user_id)}
+                    disabled={busy}
+                    className="text-xs text-red-600 hover:text-red-800 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
+                  >
+                    {isSelf ? "Leave" : "Remove"}
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
       )}
     </div>
   );

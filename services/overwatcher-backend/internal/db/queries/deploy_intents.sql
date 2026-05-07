@@ -87,3 +87,15 @@ SELECT count(*) FROM deploy_intents WHERE status = @status;
 SELECT * FROM deploy_intents
 ORDER BY created_at DESC
 LIMIT $1;
+
+-- name: ListRecentDeployIntentsForUser :many
+-- Same as ListRecentDeployIntents but scoped to projects the user can access:
+-- either owns (projects.user_id) or is a member of (project_members).
+SELECT di.*
+FROM deploy_intents di
+JOIN projects p ON p.id = di.project_id
+LEFT JOIN project_members pm
+  ON pm.project_id = p.id AND pm.user_id = $1
+WHERE p.user_id = $1 OR pm.user_id = $1
+ORDER BY di.created_at DESC
+LIMIT $2;
