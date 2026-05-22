@@ -4,17 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/lwlee2608/adder"
 )
-
-type LogConfig struct {
-	Level string
-}
 
 type AgentConfig struct {
 	Name           string        `mapstructure:"name"`
@@ -27,13 +22,6 @@ type Config struct {
 	Log   LogConfig
 	Agent AgentConfig `mapstructure:"agent"`
 }
-
-const (
-	LOG_LEVEL_ERROR   = "ERROR"
-	LOG_LEVEL_WARNING = "WARNING"
-	LOG_LEVEL_INFO    = "INFO"
-	LOG_LEVEL_DEBUG   = "DEBUG"
-)
 
 var config Config
 
@@ -88,23 +76,4 @@ func validate() error {
 		return errors.New("AGENT_SHARED_SECRET must be set")
 	}
 	return nil
-}
-
-func initLogger(logLevel string) {
-	var level slog.Level
-	switch strings.ToUpper(logLevel) {
-	case LOG_LEVEL_ERROR:
-		level = slog.LevelError
-	case LOG_LEVEL_WARNING:
-		level = slog.LevelWarn
-	case LOG_LEVEL_INFO:
-		level = slog.LevelInfo
-	case LOG_LEVEL_DEBUG:
-		level = slog.LevelDebug
-	default:
-		level = slog.LevelInfo
-	}
-
-	handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
-	slog.SetDefault(slog.New(handler))
 }
