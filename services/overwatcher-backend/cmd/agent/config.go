@@ -42,8 +42,7 @@ var config Config
 // Convention: application-agent.yml is the source of truth for defaults.
 // Do NOT add `if config.X == 0 { config.X = ... }` fallbacks here — that
 // duplicates the value across two places and silently drifts. If a field
-// needs a default, set it in application-agent.yml. Only runtime-resolved
-// values (e.g. the hostname fallback for Agent.Name) belong in code.
+// needs a default, set it in application-agent.yml.
 func InitConfig() error {
 	_ = godotenv.Load()
 
@@ -59,14 +58,6 @@ func InitConfig() error {
 
 	if err := adder.Unmarshal(&config); err != nil {
 		return fmt.Errorf("unmarshal config: %w", err)
-	}
-
-	if config.Agent.Name == "" {
-		if h, err := os.Hostname(); err == nil {
-			config.Agent.Name = h
-		} else {
-			config.Agent.Name = "unknown"
-		}
 	}
 
 	if err := validate(); err != nil {
@@ -87,6 +78,9 @@ func InitConfig() error {
 }
 
 func validate() error {
+	if config.Agent.Name == "" {
+		return errors.New("agent.name must be set")
+	}
 	if config.Agent.CoordinatorURL == "" {
 		return errors.New("agent.coordinator_url must be set")
 	}
