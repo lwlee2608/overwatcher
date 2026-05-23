@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
+	"github.com/lwlee2608/overwatcher/internal/protocol"
 )
 
 // Runner executes a deploy intent by shelling out to `docker compose`. The
@@ -35,7 +35,7 @@ func NewRunner() *Runner { return &Runner{} }
 // the intent. Each service carries its own image and tag, exported as IMAGE
 // and IMAGE_TAG for subprocess interpolation. An empty service name falls
 // back to applying the command to every service in the compose file.
-func (r *Runner) Run(ctx context.Context, intent *dto.DeployIntentResponse) error {
+func (r *Runner) Run(ctx context.Context, intent *protocol.DeployIntentResponse) error {
 	if len(intent.Services) == 0 {
 		return fmt.Errorf("intent has no services")
 	}

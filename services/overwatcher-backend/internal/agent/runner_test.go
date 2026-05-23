@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
+	"github.com/lwlee2608/overwatcher/internal/protocol"
 )
 
 func TestIsTransientPullError(t *testing.T) {
@@ -69,9 +69,9 @@ func TestRunner_Run_SingleService(t *testing.T) {
 	defer restore()
 
 	r := NewRunner()
-	intent := &dto.DeployIntentResponse{
+	intent := &protocol.DeployIntentResponse{
 		ComposeFile: composeFile,
-		Services: []dto.ServiceSpecDTO{
+		Services: []protocol.ServiceSpecDTO{
 			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "abc1234"},
 		},
 	}
@@ -102,9 +102,9 @@ func TestRunner_Run_MultipleServicesUseOwnImageTag(t *testing.T) {
 	defer restore()
 
 	r := NewRunner()
-	intent := &dto.DeployIntentResponse{
+	intent := &protocol.DeployIntentResponse{
 		ComposeFile: composeFile,
-		Services: []dto.ServiceSpecDTO{
+		Services: []protocol.ServiceSpecDTO{
 			{Name: "web", Image: "ghcr.io/owner/web", Tag: "v1"},
 			{Name: "api", Image: "ghcr.io/owner/api", Tag: "v2"},
 		},
@@ -135,9 +135,9 @@ func TestRunner_Run_EmptyNameAppliesToWholeStack(t *testing.T) {
 	defer restore()
 
 	r := NewRunner()
-	intent := &dto.DeployIntentResponse{
+	intent := &protocol.DeployIntentResponse{
 		ComposeFile: composeFile,
-		Services: []dto.ServiceSpecDTO{
+		Services: []protocol.ServiceSpecDTO{
 			{Name: "", Image: "ghcr.io/owner/repo", Tag: "v1"},
 		},
 	}
@@ -160,9 +160,9 @@ func TestRunner_Run_PullFailure(t *testing.T) {
 	defer restore()
 
 	r := NewRunner()
-	intent := &dto.DeployIntentResponse{
+	intent := &protocol.DeployIntentResponse{
 		ComposeFile: composeFile,
-		Services: []dto.ServiceSpecDTO{
+		Services: []protocol.ServiceSpecDTO{
 			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "v1"},
 		},
 	}
@@ -177,7 +177,7 @@ func TestRunner_Run_PullFailure(t *testing.T) {
 
 func TestRunner_Run_NoServicesReturnsError(t *testing.T) {
 	r := NewRunner()
-	err := r.Run(context.Background(), &dto.DeployIntentResponse{ComposeFile: filepath.Join(t.TempDir(), "compose.yml")})
+	err := r.Run(context.Background(), &protocol.DeployIntentResponse{ComposeFile: filepath.Join(t.TempDir(), "compose.yml")})
 	if err == nil {
 		t.Fatal("expected error for empty services")
 	}
@@ -241,9 +241,9 @@ exit 0
 	defer restore()
 
 	r := &Runner{pullAttempts: 5, pullBackoff: 1 * time.Millisecond}
-	intent := &dto.DeployIntentResponse{
+	intent := &protocol.DeployIntentResponse{
 		ComposeFile: composeFile,
-		Services: []dto.ServiceSpecDTO{
+		Services: []protocol.ServiceSpecDTO{
 			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "v1"},
 		},
 	}
@@ -271,9 +271,9 @@ exit 1
 	defer restore()
 
 	r := &Runner{pullAttempts: 3, pullBackoff: 1 * time.Millisecond}
-	intent := &dto.DeployIntentResponse{
+	intent := &protocol.DeployIntentResponse{
 		ComposeFile: composeFile,
-		Services: []dto.ServiceSpecDTO{
+		Services: []protocol.ServiceSpecDTO{
 			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "v1"},
 		},
 	}
@@ -302,9 +302,9 @@ exit 1
 	defer restore()
 
 	r := &Runner{pullAttempts: 5, pullBackoff: 1 * time.Millisecond}
-	intent := &dto.DeployIntentResponse{
+	intent := &protocol.DeployIntentResponse{
 		ComposeFile: composeFile,
-		Services: []dto.ServiceSpecDTO{
+		Services: []protocol.ServiceSpecDTO{
 			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "v1"},
 		},
 	}
@@ -321,8 +321,8 @@ exit 1
 
 func TestRunner_Run_NoComposeFileReturnsError(t *testing.T) {
 	r := NewRunner()
-	err := r.Run(context.Background(), &dto.DeployIntentResponse{
-		Services: []dto.ServiceSpecDTO{{Name: "app", Image: "x", Tag: "v1"}},
+	err := r.Run(context.Background(), &protocol.DeployIntentResponse{
+		Services: []protocol.ServiceSpecDTO{{Name: "app", Image: "x", Tag: "v1"}},
 	})
 	if err == nil {
 		t.Fatal("expected error for missing compose file")

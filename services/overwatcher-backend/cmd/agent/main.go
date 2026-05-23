@@ -6,26 +6,29 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/lwlee2608/overwatcher/internal/agent"
 )
 
 var AppVersion = "dev"
 
 func main() {
-	if err := InitConfig(); err != nil {
+	cfg, err := agent.InitConfig()
+	if err != nil {
 		slog.Error("config load failed", "error", err)
 		os.Exit(1)
 	}
 
 	slog.Info("overwatcher-agent",
 		"version", AppVersion,
-		"coordinator", config.Agent.CoordinatorURL,
+		"coordinator", cfg.Agent.CoordinatorURL,
 	)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	runner := NewRunner()
-	poller, err := NewPoller(config.Agent, runner)
+	runner := agent.NewRunner()
+	poller, err := agent.NewPoller(cfg.Agent, runner)
 	if err != nil {
 		slog.Error("failed to construct poller", "error", err)
 		os.Exit(1)

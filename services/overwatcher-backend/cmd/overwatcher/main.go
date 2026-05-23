@@ -16,7 +16,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/db"
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
-	"github.com/lwlee2608/overwatcher/internal/service/agent"
+	"github.com/lwlee2608/overwatcher/internal/service/agentregistry"
 	"github.com/lwlee2608/overwatcher/internal/service/auth"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
@@ -52,7 +52,7 @@ func main() {
 	queries := sqlc.New(pool)
 	intentStore := intent.NewDBStore(pool)
 
-	agentSvc := agent.NewService(pool, queries, 60*time.Second)
+	agentSvc := agentregistry.NewService(pool, queries, 60*time.Second)
 	eventLogSvc := eventlog.NewService(queries)
 	userSvc := user.NewService(pool)
 	projectSvc := project.NewService(pool)
@@ -81,6 +81,8 @@ func main() {
 		AuthService:       authSvc,
 		WebhookSecret:     config.GitHub.WebhookSecret,
 		AgentSharedSecret: config.Agent.SharedSecret,
+		AgentReleaseTag:   config.Agent.ReleaseTag,
+		AgentPublicURL:    config.Agent.PublicURL,
 		CookieConfig:      config.Auth.Cookie,
 	}
 

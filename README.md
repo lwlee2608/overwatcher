@@ -37,40 +37,45 @@ Set the `workflow` field on a service from the Project detail page in the UI. Th
 
 ## Agent Setup
 
-Run the agent as a Docker container alongside your application stack. See [`example/`](example/) for a complete setup.
+The agent has two deployment modes. Pick one.
 
-1. Create `application-agent.yml` to map stack names to compose file paths:
+### systemd (recommended)
 
-   ```yaml
-   agent:
-     stacks:
-       my-stack: /opt/stacks/my-stack/docker-compose.yml
-   ```
+Run the agent as a native binary under systemd. One copy-paste from the
+agent dashboard sets it up — the UI shows the install command, you paste
+it onto the VM.
 
-2. Add the agent to your `docker-compose.yml`:
+```bash
+AGENT_NAME=my-agent \
+AGENT_SHARED_SECRET=<paste-secret> \
+curl -fsSL https://<coordinator>/install.sh | sudo -E bash
+```
 
-   ```yaml
-   overwatcher-agent:
-     image: lwlee2608/agent:latest
-     environment:
-       - AGENT_SHARED_SECRET=${AGENT_SHARED_SECRET}
-       - AGENT_COORDINATOR_URL=https://your-coordinator.example.com
-       - AGENT_NAME=my-agent
-     volumes:
-       - /var/run/docker.sock:/var/run/docker.sock
-       - /path/to/your/deployment:/opt/stacks/my-stack
-       - ./application-agent.yml:/go/bin/application-agent.yml
-   ```
+The agent runs as a host user in the `docker` group, so there is no
+container/host path translation, no socket mounting, and no
+`~/.docker/config.json` juggling. See [`docs/agent-systemd.md`](docs/agent-systemd.md)
+for install, upgrade, logs, uninstall, and troubleshooting.
 
-3. Start the agent:
+### Docker container
 
-   ```bash
-   AGENT_SHARED_SECRET=<secret> docker compose up -d overwatcher-agent
-   ```
+Still supported for existing deployments. See [`example/`](example/) for a
+working `docker-compose.yml`. The agent talks to the host daemon via a
+mounted socket and reads private-registry credentials from a mounted
+`~/.docker/config.json`. Defaults are embedded in the binary, so no
+`application-agent.yml` needs to be mounted — env vars are enough.
 
-Key points:
-- The coordinator URL **must** include the `https://` scheme.
-- Mount the deployment directory into `/opt/stacks/<stack-name>` so the agent can access the compose file.
-- Mount `application-agent.yml` to `/go/bin/application-agent.yml` to configure stacks.
-- The agent needs the Docker socket to run `docker compose` commands on the host.
-- The agent uses **Docker Compose v2** (`docker compose` plugin). The `docker:27-cli` base image ships with the plugin, so it works regardless of what's installed on the host.
+```yaml
+overwatcher-agent:
+  image: lwlee2608/agent:latest
+  environment:
+    - AGENT_SHARED_SECRET=${AGENT_SHARED_SECRET}
+    - AGENT_COORDINATOR_URL=https://your-coordinator.example.com
+    - AGENT_NAME=my-agent
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - /path/to/your/deployment:/opt/stacks/my-stack
+    - /home/dev/.docker/config.json:/root/.docker/config.json:ro
+```
+
+The agent uses **Docker Compose v2** (`docker compose` plugin); the
+`docker:27-cli` base image ships with it.

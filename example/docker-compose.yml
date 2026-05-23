@@ -1,5 +1,9 @@
 # Example: run the overwatcher agent via Docker.
 #
+# For new deployments, the systemd installer is the recommended path —
+# see docs/agent-systemd.md. This compose file remains supported for
+# existing deployments and for hosts where systemd isn't an option.
+#
 # The agent needs access to the host Docker daemon so it can run
 # `docker compose pull/up` on the stacks it manages.
 #

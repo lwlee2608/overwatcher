@@ -10,7 +10,7 @@ import (
 	internalhttp "github.com/lwlee2608/overwatcher/internal/api/http"
 	"github.com/lwlee2608/overwatcher/internal/db"
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
-	"github.com/lwlee2608/overwatcher/internal/service/agent"
+	"github.com/lwlee2608/overwatcher/internal/service/agentregistry"
 	"github.com/lwlee2608/overwatcher/internal/service/auth"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
@@ -50,7 +50,7 @@ func TestSystemIntegration(t *testing.T) {
 
 	queries := sqlc.New(pool)
 
-	agentSvc := agent.NewService(pool, queries, 60*time.Second)
+	agentSvc := agentregistry.NewService(pool, queries, 60*time.Second)
 	eventLogSvc := eventlog.NewService(queries)
 	userSvc := user.NewService(pool)
 	projectSvc := project.NewService(pool)

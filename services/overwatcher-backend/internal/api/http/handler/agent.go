@@ -8,16 +8,16 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
-	"github.com/lwlee2608/overwatcher/internal/service/agent"
+	"github.com/lwlee2608/overwatcher/internal/service/agentregistry"
 	"github.com/lwlee2608/overwatcher/internal/service/project"
 )
 
 type AgentHandler struct {
-	agentService   *agent.Service
+	agentService   *agentregistry.Service
 	projectService *project.Service
 }
 
-func NewAgentHandler(svc *agent.Service, projectSvc *project.Service) *AgentHandler {
+func NewAgentHandler(svc *agentregistry.Service, projectSvc *project.Service) *AgentHandler {
 	return &AgentHandler{agentService: svc, projectService: projectSvc}
 }
 

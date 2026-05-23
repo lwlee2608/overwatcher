@@ -9,12 +9,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
-	"github.com/lwlee2608/overwatcher/internal/service/agent"
+	"github.com/lwlee2608/overwatcher/internal/service/agentregistry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agent.Service, sessionToken string) {
+func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agentregistry.Service, sessionToken string) {
 	t.Run("ListEmpty", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/api/v1/agents", nil)

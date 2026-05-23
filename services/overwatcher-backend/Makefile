@@ -7,7 +7,7 @@ AGENT           := agent
 VERSION         ?= v0.2.0
 LDFLAGS         := -ldflags "-X main.AppVersion=$(VERSION)"
 
-.PHONY: all build build-agent clean run run-agent test dep generate
+.PHONY: all build build-agent clean run run-agent test dep generate release-agent
 
 all: clean build build-agent
 
@@ -37,3 +37,17 @@ push:
 	$(DOCKER) push $(REGISTRY)$(APP):latest
 push-agent:
 	$(DOCKER) push $(REGISTRY)$(AGENT):latest
+
+# release-agent cross-compiles the systemd agent binary for linux/amd64 and
+# linux/arm64, strips it (`-s -w`), and writes a SHA256SUMS file. Output goes
+# to dist/. The release workflow uploads this dir to a GitHub release.
+release-agent:
+	$(RM) -rf dist
+	mkdir -p dist
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+		$(GO) build -trimpath -ldflags "-s -w -X main.AppVersion=$(VERSION)" \
+		-o dist/overwatcher-agent_linux_amd64 cmd/$(AGENT)/*.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+		$(GO) build -trimpath -ldflags "-s -w -X main.AppVersion=$(VERSION)" \
+		-o dist/overwatcher-agent_linux_arm64 cmd/$(AGENT)/*.go
+	cd dist && shasum -a 256 overwatcher-agent_linux_amd64 overwatcher-agent_linux_arm64 > SHA256SUMS
