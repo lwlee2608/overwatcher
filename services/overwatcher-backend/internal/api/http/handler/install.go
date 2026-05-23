@@ -8,10 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// installScript is the systemd-agent installer served at GET /install.sh.
-// The {{COORDINATOR_URL}} and {{RELEASE_TAG}} markers are substituted at
-// request time from the coordinator's config.
-//
 //go:embed install-agent.sh
 var installScript string
 
@@ -20,10 +16,6 @@ type InstallHandler struct {
 	publicURL  string
 }
 
-// NewInstallHandler builds the handler. releaseTag is the GitHub release the
-// installer downloads from ("latest" or a pinned tag). publicURL is the URL
-// agents should poll back to; an empty value falls back to the request's
-// own Host header at serve time.
 func NewInstallHandler(releaseTag, publicURL string) *InstallHandler {
 	if releaseTag == "" {
 		releaseTag = "latest"
@@ -31,15 +23,11 @@ func NewInstallHandler(releaseTag, publicURL string) *InstallHandler {
 	return &InstallHandler{releaseTag: releaseTag, publicURL: publicURL}
 }
 
-// Serve renders the installer with coordinator URL and release tag baked in.
-// Public endpoint — no auth — because the user pipes it into bash before any
-// credentials exist on the VM.
 func (h *InstallHandler) Serve(c *gin.Context) {
 	coordinator := h.publicURL
 	if coordinator == "" {
 		scheme := "https"
-		// gin sets c.Request.TLS for direct TLS termination; behind a proxy
-		// we trust X-Forwarded-Proto when set.
+		// Trust X-Forwarded-Proto when behind a proxy; otherwise gin's TLS field.
 		if c.Request.TLS == nil && c.GetHeader("X-Forwarded-Proto") == "" {
 			scheme = "http"
 		} else if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {

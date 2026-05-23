@@ -1,11 +1,6 @@
 import { useMemo, useState } from "react";
 
-// InstallAgentCard renders the curl|sudo one-liner for the systemd agent.
-//
-// The shared secret is a global coordinator env var today — the UI doesn't
-// know it and won't display it. We show a literal placeholder the user
-// pastes their secret into. See docs/plans/systemd-agent/agent-systemd.md
-// for the "where does the secret come from" open question.
+// Global secret today — the UI doesn't know it; user pastes their own.
 const SECRET_PLACEHOLDER = "<your-AGENT_SHARED_SECRET>";
 
 export function InstallAgentCard() {
@@ -29,8 +24,7 @@ curl -fsSL ${installURL} | sudo -E bash`,
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      // Clipboard write can fail in non-secure contexts; fall back silently —
-      // the command is visible on-screen for manual selection.
+      // Clipboard fails in non-secure contexts; command is on-screen anyway.
     }
   };
 

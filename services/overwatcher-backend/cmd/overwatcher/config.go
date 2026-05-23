@@ -23,15 +23,8 @@ type GitHubConfig struct {
 
 type AgentConfig struct {
 	SharedSecret string `mapstructure:"shared_secret" mask:"true"`
-	// ReleaseTag is the GitHub release tag the systemd installer downloads
-	// the agent binary from. "latest" uses the floating /releases/latest
-	// redirect; pin to e.g. "agent-v0.3.0" for reproducible installs.
-	ReleaseTag string `mapstructure:"release_tag"`
-	// PublicURL is the URL agents on the public internet should call back
-	// to. If empty, the install handler falls back to the Host header of
-	// the install.sh request — fine for typical deployments but explicit
-	// is better when the coordinator sits behind a proxy that rewrites it.
-	PublicURL string `mapstructure:"public_url"`
+	ReleaseTag   string `mapstructure:"release_tag"`
+	PublicURL    string `mapstructure:"public_url"`
 }
 
 type DispatchConfig struct {

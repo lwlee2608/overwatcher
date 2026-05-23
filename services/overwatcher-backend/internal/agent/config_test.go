@@ -6,12 +6,6 @@ import (
 	"time"
 )
 
-// TestInitConfig_FallsBackToEmbeddedYAML runs from a temp directory with no
-// application-agent.yml on disk. The binary must still come up with defaults
-// from the embedded copy (e.g. poll_timeout=30s) and pick up env overrides.
-//
-// systemd deployments rely on this — there is no on-disk YAML next to the
-// installed binary, only /etc/overwatcher-agent.env.
 func TestInitConfig_FallsBackToEmbeddedYAML(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -19,7 +13,7 @@ func TestInitConfig_FallsBackToEmbeddedYAML(t *testing.T) {
 	t.Setenv("AGENT_NAME", "embed-test")
 	t.Setenv("AGENT_SHARED_SECRET", "secret")
 	t.Setenv("AGENT_COORDINATOR_URL", "http://example.test")
-	// Don't set AGENT_POLL_TIMEOUT — verify the embedded default wins.
+	// AGENT_POLL_TIMEOUT intentionally unset — embedded default must win.
 
 	cfg, err := InitConfig()
 	if err != nil {

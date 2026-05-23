@@ -26,23 +26,11 @@ type Config struct {
 	Agent AgentConfig `mapstructure:"agent"`
 }
 
-// defaultConfigYAML is the source of truth for agent defaults. It is shipped
-// inside the binary so the systemd deployment (which has no on-disk YAML)
-// still has a complete set of defaults that env vars then override.
+// Embedded so the systemd binary runs without on-disk YAML; env vars override.
 //
 //go:embed application-agent.yml
 var defaultConfigYAML []byte
 
-// InitConfig loads agent config in this order, each later layer overriding
-// the previous:
-//
-//  1. Embedded application-agent.yml (always present).
-//  2. ./application-agent.yml on disk, if found.
-//  3. Env vars (handled by adder.AutomaticEnv).
-//
-// The embedded fallback means the binary works as a systemd unit with no
-// on-disk YAML file. Convention from rule 3 of the adder skill stands:
-// defaults belong in application-agent.yml, not in code.
 func InitConfig() (Config, error) {
 	var cfg Config
 
@@ -85,10 +73,8 @@ func InitConfig() (Config, error) {
 	return cfg, nil
 }
 
-// resolveConfigPath returns the YAML file path adder should read. If
-// ./application-agent.yml is present it wins (lets local dev override
-// defaults). Otherwise the embedded copy is materialised to a temp file
-// and that path is returned, along with a cleanup func to remove it.
+// On-disk file wins so local dev can override; otherwise materialise the
+// embedded copy because adder.ReadInConfig needs a path.
 func resolveConfigPath() (string, func(), error) {
 	const onDisk = "application-agent.yml"
 	if _, err := os.Stat(onDisk); err == nil {
@@ -111,8 +97,7 @@ func resolveConfigPath() (string, func(), error) {
 	path := tmp.Name()
 	cleanup := func() { _ = os.Remove(path) }
 
-	// Sanity: make sure the path is absolute so adder doesn't try to walk
-	// search paths.
+	// Absolute path so adder doesn't walk its search paths.
 	if abs, err := filepath.Abs(path); err == nil {
 		path = abs
 	}

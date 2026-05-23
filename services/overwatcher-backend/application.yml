@@ -8,8 +8,8 @@ github:
   private_key: ""
 agent:
   shared_secret: ""            # override with AGENT_SHARED_SECRET; required for /api/v1/deploy/* endpoints
-  release_tag: "latest"        # GitHub release tag the systemd installer downloads; pin (e.g. "agent-v0.3.0") for reproducible installs
-  public_url: ""               # AGENT_PUBLIC_URL; what AGENT_COORDINATOR_URL gets set to in /etc/overwatcher-agent.env. Falls back to the install.sh request Host if empty
+  release_tag: "latest"        # pin (e.g. "agent-v0.3.0") for reproducible installs
+  public_url: ""               # AGENT_PUBLIC_URL; empty falls back to install.sh request Host
 auth:
   session_ttl: 720h            # sliding 30d
   cookie:
