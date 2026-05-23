@@ -53,18 +53,19 @@ func (h *DeployHandler) Next(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, dto.DeployIntentResponse{
-		ID:           intentRow.ID,
-		CreatedAt:    intentRow.CreatedAt,
-		DeliveryID:   intentRow.DeliveryID,
-		ProjectID:    intentRow.ProjectID,
-		ComposeFile:  intentRow.ComposeFile,
-		Repo:         intentRow.Repo,
-		Ref:          intentRow.Ref,
-		SHA:          intentRow.SHA,
-		Stack:        intentRow.Stack,
-		Services:     intentServicesToDTO(intentRow.Services),
-		Environment:  intentRow.Environment,
-		DeploymentID: intentRow.DeploymentID,
+		ID:                 intentRow.ID,
+		CreatedAt:          intentRow.CreatedAt,
+		DeliveryID:         intentRow.DeliveryID,
+		ProjectID:          intentRow.ProjectID,
+		ComposeFile:        intentRow.ComposeFile,
+		ComposeProjectName: intentRow.ComposeProjectName,
+		Repo:               intentRow.Repo,
+		Ref:                intentRow.Ref,
+		SHA:                intentRow.SHA,
+		Stack:              intentRow.Stack,
+		Services:           intentServicesToDTO(intentRow.Services),
+		Environment:        intentRow.Environment,
+		DeploymentID:       intentRow.DeploymentID,
 	})
 }
 

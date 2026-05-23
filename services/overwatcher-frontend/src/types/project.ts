@@ -24,6 +24,7 @@ export interface ProjectResponse {
   name: string;
   description: string;
   compose_file: string;
+  compose_project_name: string;
   environment: string;
   enabled: boolean;
   role?: "owner" | "member";

@@ -356,6 +356,14 @@ export function ProjectDetail() {
               {project.compose_file}
             </span>
           </span>
+          {project.compose_project_name && (
+            <span>
+              Project name:{" "}
+              <span className="font-mono text-gray-700 dark:text-gray-300">
+                {project.compose_project_name}
+              </span>
+            </span>
+          )}
           <span
             className={`inline-block rounded-full px-2 py-0.5 font-medium ${
               project.enabled

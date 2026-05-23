@@ -175,11 +175,12 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 	// Filter by root_directory ∩ changed paths, then group surviving services
 	// by project_id preserving input order (ORDER BY p.id, s.position).
 	type group struct {
-		projectID   string
-		projectName string
-		composeFile string
-		environment string
-		services    []intent.ServiceSpec
+		projectID          string
+		projectName        string
+		composeFile        string
+		composeProjectName string
+		environment        string
+		services           []intent.ServiceSpec
 	}
 	groups := make(map[string]*group)
 	var order []string
@@ -195,10 +196,11 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 		g, ok := groups[m.ProjectID]
 		if !ok {
 			g = &group{
-				projectID:   m.ProjectID,
-				projectName: m.ProjectName,
-				composeFile: m.ProjectComposeFile,
-				environment: m.ProjectEnvironment,
+				projectID:          m.ProjectID,
+				projectName:        m.ProjectName,
+				composeFile:        m.ProjectComposeFile,
+				composeProjectName: m.ProjectComposeProjectName,
+				environment:        m.ProjectEnvironment,
 			}
 			groups[m.ProjectID] = g
 			order = append(order, m.ProjectID)
@@ -239,20 +241,21 @@ func (s *Service) handlePush(ctx context.Context, event *gh.PushEvent, deliveryI
 		slog.Info("Deployment created", "delivery_id", deliveryID, "repo", repo, "project", g.projectName, "deployment_id", deploymentID, "sha", sha)
 
 		di := &intent.DeployIntent{
-			CreatedAt:      time.Now(),
-			DeliveryID:     deliveryID,
-			ProjectID:      g.projectID,
-			ProjectName:    g.projectName,
-			ComposeFile:    g.composeFile,
-			Repo:           repo,
-			Ref:            ref,
-			SHA:            sha,
-			Stack:          g.projectName,
-			Services:       g.services,
-			Environment:    g.environment,
-			DeploymentID:   deploymentID,
-			InstallationID: installationID,
-			Status:         intent.StatusCreated,
+			CreatedAt:          time.Now(),
+			DeliveryID:         deliveryID,
+			ProjectID:          g.projectID,
+			ProjectName:        g.projectName,
+			ComposeFile:        g.composeFile,
+			ComposeProjectName: g.composeProjectName,
+			Repo:               repo,
+			Ref:                ref,
+			SHA:                sha,
+			Stack:              g.projectName,
+			Services:           g.services,
+			Environment:        g.environment,
+			DeploymentID:       deploymentID,
+			InstallationID:     installationID,
+			Status:             intent.StatusCreated,
 		}
 		s.store.Enqueue(di)
 
@@ -338,11 +341,12 @@ func (s *Service) handleWorkflowRun(ctx context.Context, event *gh.WorkflowRunEv
 	// Group matching services by project, preserving order — same shape as
 	// handlePush, but no path filter (the workflow itself decides what to build).
 	type group struct {
-		projectID   string
-		projectName string
-		composeFile string
-		environment string
-		services    []intent.ServiceSpec
+		projectID          string
+		projectName        string
+		composeFile        string
+		composeProjectName string
+		environment        string
+		services           []intent.ServiceSpec
 	}
 	groups := make(map[string]*group)
 	var order []string
@@ -351,10 +355,11 @@ func (s *Service) handleWorkflowRun(ctx context.Context, event *gh.WorkflowRunEv
 		g, ok := groups[m.ProjectID]
 		if !ok {
 			g = &group{
-				projectID:   m.ProjectID,
-				projectName: m.ProjectName,
-				composeFile: m.ProjectComposeFile,
-				environment: m.ProjectEnvironment,
+				projectID:          m.ProjectID,
+				projectName:        m.ProjectName,
+				composeFile:        m.ProjectComposeFile,
+				composeProjectName: m.ProjectComposeProjectName,
+				environment:        m.ProjectEnvironment,
 			}
 			groups[m.ProjectID] = g
 			order = append(order, m.ProjectID)
@@ -394,20 +399,21 @@ func (s *Service) handleWorkflowRun(ctx context.Context, event *gh.WorkflowRunEv
 			"deployment_id", deploymentID, "sha", sha, "workflow", workflowFile)
 
 		di := &intent.DeployIntent{
-			CreatedAt:      time.Now(),
-			DeliveryID:     deliveryID,
-			ProjectID:      g.projectID,
-			ProjectName:    g.projectName,
-			ComposeFile:    g.composeFile,
-			Repo:           repo,
-			Ref:            ref,
-			SHA:            sha,
-			Stack:          g.projectName,
-			Services:       g.services,
-			Environment:    g.environment,
-			DeploymentID:   deploymentID,
-			InstallationID: installationID,
-			Status:         intent.StatusCreated,
+			CreatedAt:          time.Now(),
+			DeliveryID:         deliveryID,
+			ProjectID:          g.projectID,
+			ProjectName:        g.projectName,
+			ComposeFile:        g.composeFile,
+			ComposeProjectName: g.composeProjectName,
+			Repo:               repo,
+			Ref:                ref,
+			SHA:                sha,
+			Stack:              g.projectName,
+			Services:           g.services,
+			Environment:        g.environment,
+			DeploymentID:       deploymentID,
+			InstallationID:     installationID,
+			Status:             intent.StatusCreated,
 		}
 		s.store.Enqueue(di)
 
@@ -560,20 +566,21 @@ func (s *Service) Redeploy(ctx context.Context, sourceID string) error {
 
 	deliveryID := "manual-" + uuid.NewString()
 	di := &intent.DeployIntent{
-		CreatedAt:      time.Now(),
-		DeliveryID:     deliveryID,
-		ProjectID:      src.ProjectID,
-		ProjectName:    src.ProjectName,
-		ComposeFile:    src.ComposeFile,
-		Repo:           src.Repo,
-		Ref:            src.Ref,
-		SHA:            src.SHA,
-		Stack:          src.Stack,
-		Services:       src.Services,
-		Environment:    src.Environment,
-		DeploymentID:   deploymentID,
-		InstallationID: src.InstallationID,
-		Status:         intent.StatusCreated,
+		CreatedAt:          time.Now(),
+		DeliveryID:         deliveryID,
+		ProjectID:          src.ProjectID,
+		ProjectName:        src.ProjectName,
+		ComposeFile:        src.ComposeFile,
+		ComposeProjectName: src.ComposeProjectName,
+		Repo:               src.Repo,
+		Ref:                src.Ref,
+		SHA:                src.SHA,
+		Stack:              src.Stack,
+		Services:           src.Services,
+		Environment:        src.Environment,
+		DeploymentID:       deploymentID,
+		InstallationID:     src.InstallationID,
+		Status:             intent.StatusCreated,
 	}
 	s.store.Enqueue(di)
 

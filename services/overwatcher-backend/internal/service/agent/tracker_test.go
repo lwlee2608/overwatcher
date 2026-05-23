@@ -74,11 +74,12 @@ func TestBindProject_OneToOneConstraint(t *testing.T) {
 	})
 	require.NoError(t, err)
 	project, err := queries.CreateProject(ctx, sqlc.CreateProjectParams{
-		UserID:       user.ID,
-		Name:         "test-project",
-		Description:  "",
-		ComposeFile:  "docker-compose.yml",
-		Environment:  "production",
+		UserID:             user.ID,
+		Name:               "test-project",
+		Description:        "",
+		ComposeFile:        "test-project/docker-compose.yml",
+		Environment:        "production",
+		ComposeProjectName: "test-project",
 	})
 	require.NoError(t, err)
 	projectID := util.UUIDToString(project.ID)
@@ -129,11 +130,12 @@ func TestBindProject_Unbind(t *testing.T) {
 	})
 	require.NoError(t, err)
 	project, err := queries.CreateProject(ctx, sqlc.CreateProjectParams{
-		UserID:       user.ID,
-		Name:         "test-project",
-		Description:  "",
-		ComposeFile:  "docker-compose.yml",
-		Environment:  "production",
+		UserID:             user.ID,
+		Name:               "test-project",
+		Description:        "",
+		ComposeFile:        "test-project/docker-compose.yml",
+		Environment:        "production",
+		ComposeProjectName: "test-project",
 	})
 	require.NoError(t, err)
 	projectID := util.UUIDToString(project.ID)

@@ -73,6 +73,9 @@ type Querier interface {
 	// already have a dispatched intent (concurrency guard) and uses FOR UPDATE
 	// SKIP LOCKED so concurrent callers don't block each other.
 	TakeNextDeployIntent(ctx context.Context) (DeployIntent, error)
+	// compose_project_name is intentionally not updatable: renaming a project must
+	// not change the docker-compose --project-name slug, otherwise containers
+	// started under the old slug are orphaned.
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpsertAgent(ctx context.Context, arg UpsertAgentParams) (Agent, error)

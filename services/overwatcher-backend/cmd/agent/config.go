@@ -16,6 +16,10 @@ type AgentConfig struct {
 	CoordinatorURL string        `mapstructure:"coordinator_url"`
 	SharedSecret   string        `mapstructure:"shared_secret" mask:"true"`
 	PollTimeout    time.Duration `mapstructure:"poll_timeout"`
+	// StacksDir is the container-side root that holds every compose stack the
+	// agent can deploy. Each intent's compose_file is resolved relative to this
+	// directory; absolute or '..'-bearing paths are rejected by the runner.
+	StacksDir string `mapstructure:"stacks_dir"`
 }
 
 type Config struct {
@@ -74,6 +78,9 @@ func validate() error {
 	}
 	if config.Agent.SharedSecret == "" {
 		return errors.New("AGENT_SHARED_SECRET must be set")
+	}
+	if config.Agent.StacksDir == "" {
+		return errors.New("agent.stacks_dir must be set")
 	}
 	return nil
 }

@@ -5,11 +5,11 @@
 INSERT INTO deploy_intents (
     delivery_id, project_id, repo, git_ref, sha,
     stack, services_spec, environment, compose_file,
-    deployment_id, installation_id
+    compose_project_name, deployment_id, installation_id
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9,
-    $10, $11
+    $10, $11, $12
 )
 ON CONFLICT (delivery_id, project_id) WHERE project_id IS NOT NULL DO NOTHING
 RETURNING *;

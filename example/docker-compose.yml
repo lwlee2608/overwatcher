@@ -4,12 +4,18 @@
 # `docker compose pull/up` on the stacks it manages.
 #
 # Prerequisites:
-#   1. Create an application-agent.yml (see example below) that maps stack
-#      names to their compose file paths inside the container.
-#   2. Mount the deployment directory so the agent can access the compose file.
+#   1. On the host, keep every stack the agent should deploy under a single
+#      root directory (e.g. /home/dev/). Each subdirectory is one stack.
+#      Example:
+#          /home/dev/medtutor/docker-compose.yml
+#          /home/dev/chatbot/docker-compose.yml
+#   2. Mount that root at /stacks in the agent container. Adding a new stack
+#      on the host then needs zero changes to the agent — just create the new
+#      subdirectory and register the project in the UI with its compose path
+#      relative to /stacks (e.g. "medtutor/docker-compose.yml").
 #
 # Usage:
-#   AGENT_SHARED_SECRET=<secret> docker compose up -d
+#   AGENT_SHARED_SECRET=<secret> AGENT_NAME=<agent-name> docker compose up -d
 #
 services:
   agent:
@@ -20,5 +26,5 @@ services:
       - AGENT_NAME=${AGENT_NAME:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /path/to/your/deployment:/opt/stacks/my-stack
+      - /home/dev:/stacks
       - ./application-agent.yml:/go/bin/application-agent.yml

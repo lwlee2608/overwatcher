@@ -3,18 +3,19 @@ package dto
 import "time"
 
 type ProjectResponse struct {
-	ID          string                   `json:"id"`
-	UserID      string                   `json:"user_id"`
-	UserEmail   string                   `json:"user_email,omitempty"`
-	Name        string                   `json:"name"`
-	Description string                   `json:"description"`
-	ComposeFile string                   `json:"compose_file"`
-	Environment string                   `json:"environment"`
-	Enabled     bool                     `json:"enabled"`
-	Role        string                   `json:"role,omitempty"`
-	Services    []ComposeServiceResponse `json:"services,omitempty"`
-	CreatedAt   time.Time                `json:"created_at"`
-	UpdatedAt   time.Time                `json:"updated_at"`
+	ID                 string                   `json:"id"`
+	UserID             string                   `json:"user_id"`
+	UserEmail          string                   `json:"user_email,omitempty"`
+	Name               string                   `json:"name"`
+	Description        string                   `json:"description"`
+	ComposeFile        string                   `json:"compose_file"`
+	ComposeProjectName string                   `json:"compose_project_name"`
+	Environment        string                   `json:"environment"`
+	Enabled            bool                     `json:"enabled"`
+	Role               string                   `json:"role,omitempty"`
+	Services           []ComposeServiceResponse `json:"services,omitempty"`
+	CreatedAt          time.Time                `json:"created_at"`
+	UpdatedAt          time.Time                `json:"updated_at"`
 }
 
 type ProjectMemberResponse struct {

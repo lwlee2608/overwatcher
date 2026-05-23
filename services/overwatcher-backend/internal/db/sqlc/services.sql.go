@@ -123,10 +123,11 @@ func (q *Queries) GetService(ctx context.Context, id pgtype.UUID) (Service, erro
 
 const listEnabledServicesByRepoAndBranch = `-- name: ListEnabledServicesByRepoAndBranch :many
 SELECT s.id, s.project_id, s.name, s.repo, s.root_directory, s.branch, s.image, s.tag, s.position, s.created_at, s.updated_at, s.workflow,
-       p.name         AS project_name,
-       p.user_id      AS project_user_id,
-       p.compose_file AS project_compose_file,
-       p.environment  AS project_environment
+       p.name                 AS project_name,
+       p.user_id              AS project_user_id,
+       p.compose_file         AS project_compose_file,
+       p.compose_project_name AS project_compose_project_name,
+       p.environment          AS project_environment
 FROM services s
 JOIN projects p ON p.id = s.project_id
 WHERE LOWER(s.repo) = LOWER($1)
@@ -141,22 +142,23 @@ type ListEnabledServicesByRepoAndBranchParams struct {
 }
 
 type ListEnabledServicesByRepoAndBranchRow struct {
-	ID                 pgtype.UUID        `json:"id"`
-	ProjectID          pgtype.UUID        `json:"project_id"`
-	Name               string             `json:"name"`
-	Repo               string             `json:"repo"`
-	RootDirectory      string             `json:"root_directory"`
-	Branch             string             `json:"branch"`
-	Image              string             `json:"image"`
-	Tag                string             `json:"tag"`
-	Position           int32              `json:"position"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	Workflow           string             `json:"workflow"`
-	ProjectName        string             `json:"project_name"`
-	ProjectUserID      pgtype.UUID        `json:"project_user_id"`
-	ProjectComposeFile string             `json:"project_compose_file"`
-	ProjectEnvironment string             `json:"project_environment"`
+	ID                        pgtype.UUID        `json:"id"`
+	ProjectID                 pgtype.UUID        `json:"project_id"`
+	Name                      string             `json:"name"`
+	Repo                      string             `json:"repo"`
+	RootDirectory             string             `json:"root_directory"`
+	Branch                    string             `json:"branch"`
+	Image                     string             `json:"image"`
+	Tag                       string             `json:"tag"`
+	Position                  int32              `json:"position"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+	Workflow                  string             `json:"workflow"`
+	ProjectName               string             `json:"project_name"`
+	ProjectUserID             pgtype.UUID        `json:"project_user_id"`
+	ProjectComposeFile        string             `json:"project_compose_file"`
+	ProjectComposeProjectName string             `json:"project_compose_project_name"`
+	ProjectEnvironment        string             `json:"project_environment"`
 }
 
 // Webhook matching: returns every service in an enabled project whose repo
@@ -187,6 +189,7 @@ func (q *Queries) ListEnabledServicesByRepoAndBranch(ctx context.Context, arg Li
 			&i.ProjectName,
 			&i.ProjectUserID,
 			&i.ProjectComposeFile,
+			&i.ProjectComposeProjectName,
 			&i.ProjectEnvironment,
 		); err != nil {
 			return nil, err
@@ -201,10 +204,11 @@ func (q *Queries) ListEnabledServicesByRepoAndBranch(ctx context.Context, arg Li
 
 const listEnabledServicesByRepoAndWorkflow = `-- name: ListEnabledServicesByRepoAndWorkflow :many
 SELECT s.id, s.project_id, s.name, s.repo, s.root_directory, s.branch, s.image, s.tag, s.position, s.created_at, s.updated_at, s.workflow,
-       p.name         AS project_name,
-       p.user_id      AS project_user_id,
-       p.compose_file AS project_compose_file,
-       p.environment  AS project_environment
+       p.name                 AS project_name,
+       p.user_id              AS project_user_id,
+       p.compose_file         AS project_compose_file,
+       p.compose_project_name AS project_compose_project_name,
+       p.environment          AS project_environment
 FROM services s
 JOIN projects p ON p.id = s.project_id
 WHERE LOWER(s.repo) = LOWER($1)
@@ -221,22 +225,23 @@ type ListEnabledServicesByRepoAndWorkflowParams struct {
 }
 
 type ListEnabledServicesByRepoAndWorkflowRow struct {
-	ID                 pgtype.UUID        `json:"id"`
-	ProjectID          pgtype.UUID        `json:"project_id"`
-	Name               string             `json:"name"`
-	Repo               string             `json:"repo"`
-	RootDirectory      string             `json:"root_directory"`
-	Branch             string             `json:"branch"`
-	Image              string             `json:"image"`
-	Tag                string             `json:"tag"`
-	Position           int32              `json:"position"`
-	CreatedAt          pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
-	Workflow           string             `json:"workflow"`
-	ProjectName        string             `json:"project_name"`
-	ProjectUserID      pgtype.UUID        `json:"project_user_id"`
-	ProjectComposeFile string             `json:"project_compose_file"`
-	ProjectEnvironment string             `json:"project_environment"`
+	ID                        pgtype.UUID        `json:"id"`
+	ProjectID                 pgtype.UUID        `json:"project_id"`
+	Name                      string             `json:"name"`
+	Repo                      string             `json:"repo"`
+	RootDirectory             string             `json:"root_directory"`
+	Branch                    string             `json:"branch"`
+	Image                     string             `json:"image"`
+	Tag                       string             `json:"tag"`
+	Position                  int32              `json:"position"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+	Workflow                  string             `json:"workflow"`
+	ProjectName               string             `json:"project_name"`
+	ProjectUserID             pgtype.UUID        `json:"project_user_id"`
+	ProjectComposeFile        string             `json:"project_compose_file"`
+	ProjectComposeProjectName string             `json:"project_compose_project_name"`
+	ProjectEnvironment        string             `json:"project_environment"`
 }
 
 // workflow_run matching: like ListEnabledServicesByRepoAndBranch but keyed on
@@ -267,6 +272,7 @@ func (q *Queries) ListEnabledServicesByRepoAndWorkflow(ctx context.Context, arg 
 			&i.ProjectName,
 			&i.ProjectUserID,
 			&i.ProjectComposeFile,
+			&i.ProjectComposeProjectName,
 			&i.ProjectEnvironment,
 		); err != nil {
 			return nil, err

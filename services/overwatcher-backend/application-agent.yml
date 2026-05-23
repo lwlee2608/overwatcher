@@ -5,3 +5,5 @@ agent:
   coordinator_url: "http://localhost:8080"
   shared_secret: ""          # override with AGENT_SHARED_SECRET
   poll_timeout: 30s          # client-side timeout; must exceed coordinator's 25s long-poll
+  stacks_dir: "/stacks"      # container-side root for every stack the agent deploys;
+                             # each project's compose_file is resolved relative to it.

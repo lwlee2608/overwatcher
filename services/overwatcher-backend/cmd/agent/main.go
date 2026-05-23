@@ -24,7 +24,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	runner := NewRunner()
+	runner := NewRunner(config.Agent.StacksDir)
 	poller, err := NewPoller(config.Agent, runner)
 	if err != nil {
 		slog.Error("failed to construct poller", "error", err)

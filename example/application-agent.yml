@@ -1,4 +1,6 @@
 log:
   level: info
 agent:
-  compose_file: /opt/stacks/my-stack/docker-compose.yml
+  # name, coordinator_url, shared_secret, poll_timeout come from env in the
+  # example deployment (see docker-compose.yml). Set them inline if you prefer.
+  stacks_dir: /stacks

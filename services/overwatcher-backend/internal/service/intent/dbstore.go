@@ -49,17 +49,18 @@ func (s *DBStore) Enqueue(i *DeployIntent) {
 	}
 
 	_, err = s.q.CreateDeployIntent(ctx, sqlc.CreateDeployIntentParams{
-		DeliveryID:     i.DeliveryID,
-		ProjectID:      projectID,
-		Repo:           i.Repo,
-		GitRef:         i.Ref,
-		Sha:            i.SHA,
-		Stack:          i.Stack,
-		ServicesSpec:   spec,
-		Environment:    i.Environment,
-		ComposeFile:    i.ComposeFile,
-		DeploymentID:   i.DeploymentID,
-		InstallationID: i.InstallationID,
+		DeliveryID:         i.DeliveryID,
+		ProjectID:          projectID,
+		Repo:               i.Repo,
+		GitRef:             i.Ref,
+		Sha:                i.SHA,
+		Stack:              i.Stack,
+		ServicesSpec:       spec,
+		Environment:        i.Environment,
+		ComposeFile:        i.ComposeFile,
+		ComposeProjectName: i.ComposeProjectName,
+		DeploymentID:       i.DeploymentID,
+		InstallationID:     i.InstallationID,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -278,20 +279,21 @@ func fromRow(row sqlc.DeployIntent) *DeployIntent {
 		}
 	}
 	di := &DeployIntent{
-		ID:             uuidToString(row.ID),
-		DeliveryID:     row.DeliveryID,
-		ProjectID:      uuidToString(row.ProjectID),
-		ComposeFile:    row.ComposeFile,
-		Repo:           row.Repo,
-		Ref:            row.GitRef,
-		SHA:            row.Sha,
-		Stack:          row.Stack,
-		Services:       services,
-		Environment:    row.Environment,
-		DeploymentID:   row.DeploymentID,
-		InstallationID: row.InstallationID,
-		Status:         Status(row.Status),
-		Attempts:       int(row.Attempts),
+		ID:                 uuidToString(row.ID),
+		DeliveryID:         row.DeliveryID,
+		ProjectID:          uuidToString(row.ProjectID),
+		ComposeFile:        row.ComposeFile,
+		ComposeProjectName: row.ComposeProjectName,
+		Repo:               row.Repo,
+		Ref:                row.GitRef,
+		SHA:                row.Sha,
+		Stack:              row.Stack,
+		Services:           services,
+		Environment:        row.Environment,
+		DeploymentID:       row.DeploymentID,
+		InstallationID:     row.InstallationID,
+		Status:             Status(row.Status),
+		Attempts:           int(row.Attempts),
 	}
 	if row.CreatedAt.Valid {
 		di.CreatedAt = row.CreatedAt.Time

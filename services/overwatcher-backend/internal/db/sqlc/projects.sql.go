@@ -12,18 +12,19 @@ import (
 )
 
 const createProject = `-- name: CreateProject :one
-INSERT INTO projects (user_id, name, description, compose_file, environment, enabled)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, user_id, name, description, compose_file, environment, enabled, created_at, updated_at
+INSERT INTO projects (user_id, name, description, compose_file, environment, enabled, compose_project_name)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
+RETURNING id, user_id, name, description, compose_file, environment, enabled, created_at, updated_at, compose_project_name
 `
 
 type CreateProjectParams struct {
-	UserID      pgtype.UUID `json:"user_id"`
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	ComposeFile string      `json:"compose_file"`
-	Environment string      `json:"environment"`
-	Enabled     bool        `json:"enabled"`
+	UserID             pgtype.UUID `json:"user_id"`
+	Name               string      `json:"name"`
+	Description        string      `json:"description"`
+	ComposeFile        string      `json:"compose_file"`
+	Environment        string      `json:"environment"`
+	Enabled            bool        `json:"enabled"`
+	ComposeProjectName string      `json:"compose_project_name"`
 }
 
 func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error) {
@@ -34,6 +35,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		arg.ComposeFile,
 		arg.Environment,
 		arg.Enabled,
+		arg.ComposeProjectName,
 	)
 	var i Project
 	err := row.Scan(
@@ -46,12 +48,13 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ComposeProjectName,
 	)
 	return i, err
 }
 
 const deleteProject = `-- name: DeleteProject :one
-DELETE FROM projects WHERE id = $1 RETURNING id, user_id, name, description, compose_file, environment, enabled, created_at, updated_at
+DELETE FROM projects WHERE id = $1 RETURNING id, user_id, name, description, compose_file, environment, enabled, created_at, updated_at, compose_project_name
 `
 
 func (q *Queries) DeleteProject(ctx context.Context, id pgtype.UUID) (Project, error) {
@@ -67,12 +70,13 @@ func (q *Queries) DeleteProject(ctx context.Context, id pgtype.UUID) (Project, e
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ComposeProjectName,
 	)
 	return i, err
 }
 
 const getProject = `-- name: GetProject :one
-SELECT id, user_id, name, description, compose_file, environment, enabled, created_at, updated_at FROM projects WHERE id = $1
+SELECT id, user_id, name, description, compose_file, environment, enabled, created_at, updated_at, compose_project_name FROM projects WHERE id = $1
 `
 
 func (q *Queries) GetProject(ctx context.Context, id pgtype.UUID) (Project, error) {
@@ -88,12 +92,13 @@ func (q *Queries) GetProject(ctx context.Context, id pgtype.UUID) (Project, erro
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ComposeProjectName,
 	)
 	return i, err
 }
 
 const getProjectByUserAndName = `-- name: GetProjectByUserAndName :one
-SELECT id, user_id, name, description, compose_file, environment, enabled, created_at, updated_at FROM projects WHERE user_id = $1 AND name = $2
+SELECT id, user_id, name, description, compose_file, environment, enabled, created_at, updated_at, compose_project_name FROM projects WHERE user_id = $1 AND name = $2
 `
 
 type GetProjectByUserAndNameParams struct {
@@ -114,6 +119,7 @@ func (q *Queries) GetProjectByUserAndName(ctx context.Context, arg GetProjectByU
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ComposeProjectName,
 	)
 	return i, err
 }
@@ -127,7 +133,7 @@ SET name         = $2,
     enabled      = $6,
     updated_at   = NOW()
 WHERE id = $1
-RETURNING id, user_id, name, description, compose_file, environment, enabled, created_at, updated_at
+RETURNING id, user_id, name, description, compose_file, environment, enabled, created_at, updated_at, compose_project_name
 `
 
 type UpdateProjectParams struct {
@@ -139,6 +145,9 @@ type UpdateProjectParams struct {
 	Enabled     bool        `json:"enabled"`
 }
 
+// compose_project_name is intentionally not updatable: renaming a project must
+// not change the docker-compose --project-name slug, otherwise containers
+// started under the old slug are orphaned.
 func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error) {
 	row := q.db.QueryRow(ctx, updateProject,
 		arg.ID,
@@ -159,6 +168,7 @@ func (q *Queries) UpdateProject(ctx context.Context, arg UpdateProjectParams) (P
 		&i.Enabled,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ComposeProjectName,
 	)
 	return i, err
 }

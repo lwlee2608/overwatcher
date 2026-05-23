@@ -19,23 +19,24 @@ type Agent struct {
 }
 
 type DeployIntent struct {
-	ID             pgtype.UUID      `json:"id"`
-	DeliveryID     string           `json:"delivery_id"`
-	Repo           string           `json:"repo"`
-	GitRef         string           `json:"git_ref"`
-	Sha            string           `json:"sha"`
-	Stack          string           `json:"stack"`
-	Environment    string           `json:"environment"`
-	DeploymentID   int64            `json:"deployment_id"`
-	InstallationID int64            `json:"installation_id"`
-	Status         string           `json:"status"`
-	Attempts       int32            `json:"attempts"`
-	CreatedAt      pgtype.Timestamp `json:"created_at"`
-	UpdatedAt      pgtype.Timestamp `json:"updated_at"`
-	DispatchedAt   pgtype.Timestamp `json:"dispatched_at"`
-	ServicesSpec   []byte           `json:"services_spec"`
-	ProjectID      pgtype.UUID      `json:"project_id"`
-	ComposeFile    string           `json:"compose_file"`
+	ID                 pgtype.UUID      `json:"id"`
+	DeliveryID         string           `json:"delivery_id"`
+	Repo               string           `json:"repo"`
+	GitRef             string           `json:"git_ref"`
+	Sha                string           `json:"sha"`
+	Stack              string           `json:"stack"`
+	Environment        string           `json:"environment"`
+	DeploymentID       int64            `json:"deployment_id"`
+	InstallationID     int64            `json:"installation_id"`
+	Status             string           `json:"status"`
+	Attempts           int32            `json:"attempts"`
+	CreatedAt          pgtype.Timestamp `json:"created_at"`
+	UpdatedAt          pgtype.Timestamp `json:"updated_at"`
+	DispatchedAt       pgtype.Timestamp `json:"dispatched_at"`
+	ServicesSpec       []byte           `json:"services_spec"`
+	ProjectID          pgtype.UUID      `json:"project_id"`
+	ComposeFile        string           `json:"compose_file"`
+	ComposeProjectName string           `json:"compose_project_name"`
 }
 
 type EventLog struct {
@@ -49,15 +50,16 @@ type EventLog struct {
 }
 
 type Project struct {
-	ID          pgtype.UUID        `json:"id"`
-	UserID      pgtype.UUID        `json:"user_id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	ComposeFile string             `json:"compose_file"`
-	Environment string             `json:"environment"`
-	Enabled     bool               `json:"enabled"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID                 pgtype.UUID        `json:"id"`
+	UserID             pgtype.UUID        `json:"user_id"`
+	Name               string             `json:"name"`
+	Description        string             `json:"description"`
+	ComposeFile        string             `json:"compose_file"`
+	Environment        string             `json:"environment"`
+	Enabled            bool               `json:"enabled"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	ComposeProjectName string             `json:"compose_project_name"`
 }
 
 type ProjectMember struct {

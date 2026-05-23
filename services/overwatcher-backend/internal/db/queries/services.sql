@@ -22,10 +22,11 @@ DELETE FROM services WHERE id = $1 AND project_id = $2 RETURNING *;
 -- matches (case-insensitive). The webhook handler still has to filter by
 -- root_directory against the pushed file paths before enqueueing intents.
 SELECT s.*,
-       p.name         AS project_name,
-       p.user_id      AS project_user_id,
-       p.compose_file AS project_compose_file,
-       p.environment  AS project_environment
+       p.name                 AS project_name,
+       p.user_id              AS project_user_id,
+       p.compose_file         AS project_compose_file,
+       p.compose_project_name AS project_compose_project_name,
+       p.environment          AS project_environment
 FROM services s
 JOIN projects p ON p.id = s.project_id
 WHERE LOWER(s.repo) = LOWER($1)
@@ -38,10 +39,11 @@ ORDER BY p.id, s.position;
 -- the workflow filename (e.g. "build-and-publish.yml"). Used when a CI run
 -- finishes successfully and we want to deploy the matching services.
 SELECT s.*,
-       p.name         AS project_name,
-       p.user_id      AS project_user_id,
-       p.compose_file AS project_compose_file,
-       p.environment  AS project_environment
+       p.name                 AS project_name,
+       p.user_id              AS project_user_id,
+       p.compose_file         AS project_compose_file,
+       p.compose_project_name AS project_compose_project_name,
+       p.environment          AS project_environment
 FROM services s
 JOIN projects p ON p.id = s.project_id
 WHERE LOWER(s.repo) = LOWER($1)

@@ -31,21 +31,22 @@ type ServiceSpec struct {
 // DeployIntent is everything an agent needs to perform a deploy. It is produced
 // on a push webhook when the repo matches services within an enabled project.
 type DeployIntent struct {
-	ID             string
-	CreatedAt      time.Time
-	DeliveryID     string
-	ProjectID      string
-	ProjectName    string
-	ComposeFile    string
-	Repo           string
-	Ref            string
-	SHA            string
-	Stack          string
-	Services       []ServiceSpec
-	Environment    string
-	DeploymentID   int64
-	InstallationID int64
-	Status         Status
-	Attempts       int
-	DispatchedAt   time.Time
+	ID                 string
+	CreatedAt          time.Time
+	DeliveryID         string
+	ProjectID          string
+	ProjectName        string
+	ComposeFile        string
+	ComposeProjectName string
+	Repo               string
+	Ref                string
+	SHA                string
+	Stack              string
+	Services           []ServiceSpec
+	Environment        string
+	DeploymentID       int64
+	InstallationID     int64
+	Status             Status
+	Attempts           int
+	DispatchedAt       time.Time
 }

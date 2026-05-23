@@ -118,6 +118,10 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		Enabled:     enabled,
 	})
 	if err != nil {
+		if errors.Is(err, project.ErrInvalidName) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "project name must contain at least one letter or digit"})
+			return
+		}
 		if isUniqueViolation(err) {
 			c.JSON(http.StatusConflict, gin.H{"error": "project name already used by this user"})
 			return
@@ -388,17 +392,18 @@ func listResp(entries []project.Project) dto.ProjectListResponse {
 
 func projectToDTO(p project.Project) dto.ProjectResponse {
 	return dto.ProjectResponse{
-		ID:          p.ID,
-		UserID:      p.UserID,
-		UserEmail:   p.UserEmail,
-		Name:        p.Name,
-		Description: p.Description,
-		ComposeFile: p.ComposeFile,
-		Environment: p.Environment,
-		Enabled:     p.Enabled,
-		Role:        p.Role,
-		CreatedAt:   p.CreatedAt,
-		UpdatedAt:   p.UpdatedAt,
+		ID:                 p.ID,
+		UserID:             p.UserID,
+		UserEmail:          p.UserEmail,
+		Name:               p.Name,
+		Description:        p.Description,
+		ComposeFile:        p.ComposeFile,
+		ComposeProjectName: p.ComposeProjectName,
+		Environment:        p.Environment,
+		Enabled:            p.Enabled,
+		Role:               p.Role,
+		CreatedAt:          p.CreatedAt,
+		UpdatedAt:          p.UpdatedAt,
 	}
 }
 

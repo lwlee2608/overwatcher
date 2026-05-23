@@ -113,7 +113,7 @@ func (q *Queries) ListProjectMembers(ctx context.Context, projectID pgtype.UUID)
 }
 
 const listProjectsForUser = `-- name: ListProjectsForUser :many
-SELECT p.id, p.user_id, p.name, p.description, p.compose_file, p.environment, p.enabled, p.created_at, p.updated_at, u.email AS user_email,
+SELECT p.id, p.user_id, p.name, p.description, p.compose_file, p.environment, p.enabled, p.created_at, p.updated_at, p.compose_project_name, u.email AS user_email,
        CASE WHEN p.user_id = $1 THEN 'owner' ELSE 'member' END AS role
 FROM projects p
 JOIN users u ON u.id = p.user_id
@@ -124,17 +124,18 @@ ORDER BY p.name ASC
 `
 
 type ListProjectsForUserRow struct {
-	ID          pgtype.UUID        `json:"id"`
-	UserID      pgtype.UUID        `json:"user_id"`
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	ComposeFile string             `json:"compose_file"`
-	Environment string             `json:"environment"`
-	Enabled     bool               `json:"enabled"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	UserEmail   string             `json:"user_email"`
-	Role        string             `json:"role"`
+	ID                 pgtype.UUID        `json:"id"`
+	UserID             pgtype.UUID        `json:"user_id"`
+	Name               string             `json:"name"`
+	Description        string             `json:"description"`
+	ComposeFile        string             `json:"compose_file"`
+	Environment        string             `json:"environment"`
+	Enabled            bool               `json:"enabled"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	ComposeProjectName string             `json:"compose_project_name"`
+	UserEmail          string             `json:"user_email"`
+	Role               string             `json:"role"`
 }
 
 func (q *Queries) ListProjectsForUser(ctx context.Context, userID pgtype.UUID) ([]ListProjectsForUserRow, error) {
@@ -156,6 +157,7 @@ func (q *Queries) ListProjectsForUser(ctx context.Context, userID pgtype.UUID) (
 			&i.Enabled,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ComposeProjectName,
 			&i.UserEmail,
 			&i.Role,
 		); err != nil {

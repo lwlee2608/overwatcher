@@ -1,6 +1,6 @@
 -- name: CreateProject :one
-INSERT INTO projects (user_id, name, description, compose_file, environment, enabled)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO projects (user_id, name, description, compose_file, environment, enabled, compose_project_name)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: GetProject :one
@@ -10,6 +10,9 @@ SELECT * FROM projects WHERE id = $1;
 SELECT * FROM projects WHERE user_id = $1 AND name = $2;
 
 -- name: UpdateProject :one
+-- compose_project_name is intentionally not updatable: renaming a project must
+-- not change the docker-compose --project-name slug, otherwise containers
+-- started under the old slug are orphaned.
 UPDATE projects
 SET name         = $2,
     description  = $3,

@@ -59,18 +59,32 @@ func stubDocker(t *testing.T, exitCode int) (logPath string, restore func()) {
 	return logPath, func() { _ = os.Setenv("PATH", oldPath) }
 }
 
-func TestRunner_Run_SingleService(t *testing.T) {
-	composeFile := filepath.Join(t.TempDir(), "compose.yml")
-	if err := os.WriteFile(composeFile, []byte("services: {}\n"), 0644); err != nil {
+// newStack creates a stacks-root with a single project subdir containing a
+// compose.yml and returns (stacksDir, relativeComposePath, absoluteComposePath).
+func newStack(t *testing.T, slug string) (string, string, string) {
+	t.Helper()
+	stacksDir := t.TempDir()
+	projectDir := filepath.Join(stacksDir, slug)
+	if err := os.MkdirAll(projectDir, 0755); err != nil {
 		t.Fatal(err)
 	}
+	abs := filepath.Join(projectDir, "compose.yml")
+	if err := os.WriteFile(abs, []byte("services: {}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	return stacksDir, filepath.Join(slug, "compose.yml"), abs
+}
+
+func TestRunner_Run_SingleService(t *testing.T) {
+	stacksDir, rel, abs := newStack(t, "app")
 
 	logPath, restore := stubDocker(t, 0)
 	defer restore()
 
-	r := NewRunner()
+	r := NewRunner(stacksDir)
 	intent := &dto.DeployIntentResponse{
-		ComposeFile: composeFile,
+		ComposeFile:        rel,
+		ComposeProjectName: "app",
 		Services: []dto.ServiceSpecDTO{
 			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "abc1234"},
 		},
@@ -86,8 +100,8 @@ func TestRunner_Run_SingleService(t *testing.T) {
 	}
 	got := strings.TrimSpace(string(out))
 	wantLines := []string{
-		"compose -f " + composeFile + " pull app|IMAGE=ghcr.io/owner/repo|IMAGE_TAG=abc1234",
-		"compose -f " + composeFile + " up -d app|IMAGE=ghcr.io/owner/repo|IMAGE_TAG=abc1234",
+		"compose --project-name app -f " + abs + " pull app|IMAGE=ghcr.io/owner/repo|IMAGE_TAG=abc1234",
+		"compose --project-name app -f " + abs + " up -d app|IMAGE=ghcr.io/owner/repo|IMAGE_TAG=abc1234",
 	}
 	if got != strings.Join(wantLines, "\n") {
 		t.Errorf("docker invocations:\n got:  %q\n want: %q", got, strings.Join(wantLines, "\n"))
@@ -95,15 +109,15 @@ func TestRunner_Run_SingleService(t *testing.T) {
 }
 
 func TestRunner_Run_MultipleServicesUseOwnImageTag(t *testing.T) {
-	composeFile := filepath.Join(t.TempDir(), "compose.yml")
-	_ = os.WriteFile(composeFile, []byte("services: {}\n"), 0644)
+	stacksDir, rel, abs := newStack(t, "multi")
 
 	logPath, restore := stubDocker(t, 0)
 	defer restore()
 
-	r := NewRunner()
+	r := NewRunner(stacksDir)
 	intent := &dto.DeployIntentResponse{
-		ComposeFile: composeFile,
+		ComposeFile:        rel,
+		ComposeProjectName: "multi",
 		Services: []dto.ServiceSpecDTO{
 			{Name: "web", Image: "ghcr.io/owner/web", Tag: "v1"},
 			{Name: "api", Image: "ghcr.io/owner/api", Tag: "v2"},
@@ -117,10 +131,10 @@ func TestRunner_Run_MultipleServicesUseOwnImageTag(t *testing.T) {
 	out, _ := os.ReadFile(logPath)
 	got := strings.TrimSpace(string(out))
 	wantLines := []string{
-		"compose -f " + composeFile + " pull web|IMAGE=ghcr.io/owner/web|IMAGE_TAG=v1",
-		"compose -f " + composeFile + " up -d web|IMAGE=ghcr.io/owner/web|IMAGE_TAG=v1",
-		"compose -f " + composeFile + " pull api|IMAGE=ghcr.io/owner/api|IMAGE_TAG=v2",
-		"compose -f " + composeFile + " up -d api|IMAGE=ghcr.io/owner/api|IMAGE_TAG=v2",
+		"compose --project-name multi -f " + abs + " pull web|IMAGE=ghcr.io/owner/web|IMAGE_TAG=v1",
+		"compose --project-name multi -f " + abs + " up -d web|IMAGE=ghcr.io/owner/web|IMAGE_TAG=v1",
+		"compose --project-name multi -f " + abs + " pull api|IMAGE=ghcr.io/owner/api|IMAGE_TAG=v2",
+		"compose --project-name multi -f " + abs + " up -d api|IMAGE=ghcr.io/owner/api|IMAGE_TAG=v2",
 	}
 	if got != strings.Join(wantLines, "\n") {
 		t.Errorf("docker invocations:\n got:  %q\n want: %q", got, strings.Join(wantLines, "\n"))
@@ -128,15 +142,15 @@ func TestRunner_Run_MultipleServicesUseOwnImageTag(t *testing.T) {
 }
 
 func TestRunner_Run_EmptyNameAppliesToWholeStack(t *testing.T) {
-	composeFile := filepath.Join(t.TempDir(), "compose.yml")
-	_ = os.WriteFile(composeFile, []byte("services: {}\n"), 0644)
+	stacksDir, rel, _ := newStack(t, "whole")
 
 	logPath, restore := stubDocker(t, 0)
 	defer restore()
 
-	r := NewRunner()
+	r := NewRunner(stacksDir)
 	intent := &dto.DeployIntentResponse{
-		ComposeFile: composeFile,
+		ComposeFile:        rel,
+		ComposeProjectName: "whole",
 		Services: []dto.ServiceSpecDTO{
 			{Name: "", Image: "ghcr.io/owner/repo", Tag: "v1"},
 		},
@@ -153,15 +167,15 @@ func TestRunner_Run_EmptyNameAppliesToWholeStack(t *testing.T) {
 }
 
 func TestRunner_Run_PullFailure(t *testing.T) {
-	composeFile := filepath.Join(t.TempDir(), "compose.yml")
-	_ = os.WriteFile(composeFile, []byte("x"), 0644)
+	stacksDir, rel, _ := newStack(t, "app")
 
 	_, restore := stubDocker(t, 1)
 	defer restore()
 
-	r := NewRunner()
+	r := NewRunner(stacksDir)
 	intent := &dto.DeployIntentResponse{
-		ComposeFile: composeFile,
+		ComposeFile:        rel,
+		ComposeProjectName: "app",
 		Services: []dto.ServiceSpecDTO{
 			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "v1"},
 		},
@@ -176,10 +190,51 @@ func TestRunner_Run_PullFailure(t *testing.T) {
 }
 
 func TestRunner_Run_NoServicesReturnsError(t *testing.T) {
-	r := NewRunner()
-	err := r.Run(context.Background(), &dto.DeployIntentResponse{ComposeFile: filepath.Join(t.TempDir(), "compose.yml")})
+	r := NewRunner(t.TempDir())
+	err := r.Run(context.Background(), &dto.DeployIntentResponse{ComposeFile: "app/compose.yml", ComposeProjectName: "app"})
 	if err == nil {
 		t.Fatal("expected error for empty services")
+	}
+}
+
+func TestRunner_Run_RejectsAbsoluteComposePath(t *testing.T) {
+	stacksDir := t.TempDir()
+	r := NewRunner(stacksDir)
+	intent := &dto.DeployIntentResponse{
+		ComposeFile:        "/etc/passwd",
+		ComposeProjectName: "x",
+		Services:           []dto.ServiceSpecDTO{{Name: "app", Image: "x", Tag: "v1"}},
+	}
+	err := r.Run(context.Background(), intent)
+	if err == nil || !strings.Contains(err.Error(), "must be relative") {
+		t.Fatalf("expected absolute-path rejection, got: %v", err)
+	}
+}
+
+func TestRunner_Run_RejectsParentTraversal(t *testing.T) {
+	stacksDir := t.TempDir()
+	r := NewRunner(stacksDir)
+	intent := &dto.DeployIntentResponse{
+		ComposeFile:        "../../etc/compose.yml",
+		ComposeProjectName: "x",
+		Services:           []dto.ServiceSpecDTO{{Name: "app", Image: "x", Tag: "v1"}},
+	}
+	err := r.Run(context.Background(), intent)
+	if err == nil || !strings.Contains(err.Error(), "escapes") {
+		t.Fatalf("expected '..' rejection, got: %v", err)
+	}
+}
+
+func TestRunner_Run_RejectsMissingProjectName(t *testing.T) {
+	stacksDir, rel, _ := newStack(t, "app")
+	r := NewRunner(stacksDir)
+	intent := &dto.DeployIntentResponse{
+		ComposeFile: rel,
+		Services:    []dto.ServiceSpecDTO{{Name: "app", Image: "x", Tag: "v1"}},
+	}
+	err := r.Run(context.Background(), intent)
+	if err == nil || !strings.Contains(err.Error(), "compose_project_name") {
+		t.Fatalf("expected compose_project_name rejection, got: %v", err)
 	}
 }
 
@@ -205,8 +260,7 @@ func stubDockerScript(t *testing.T, script string) (logPath string, restore func
 }
 
 func TestRunner_Run_PullRetriesOnManifestUnknown(t *testing.T) {
-	composeFile := filepath.Join(t.TempDir(), "compose.yml")
-	_ = os.WriteFile(composeFile, []byte("services: {}\n"), 0644)
+	stacksDir, rel, abs := newStack(t, "app")
 
 	// Fail the first two pulls with "manifest unknown", succeed on third.
 	// Up always succeeds. Counter is shared via a tempfile.
@@ -214,25 +268,22 @@ func TestRunner_Run_PullRetriesOnManifestUnknown(t *testing.T) {
 	counterFile := filepath.Join(counterDir, "n")
 	_ = os.WriteFile(counterFile, []byte("0"), 0644)
 
+	// $1=compose $2=--project-name $3=<slug> $4=-f $5=<path> $6=pull|up
 	script := `
 echo "$@" >> "$LOG_PATH"
-case "$1 $2" in
-  "compose -f")
-    case "$4" in
-      "pull")
-        n=$(cat ` + counterFile + `)
-        n=$((n+1))
-        echo "$n" > ` + counterFile + `
-        if [ "$n" -lt 3 ]; then
-          echo "manifest unknown: tag does not exist" >&2
-          exit 1
-        fi
-        exit 0
-        ;;
-      "up")
-        exit 0
-        ;;
-    esac
+case "$6" in
+  "pull")
+    n=$(cat ` + counterFile + `)
+    n=$((n+1))
+    echo "$n" > ` + counterFile + `
+    if [ "$n" -lt 3 ]; then
+      echo "manifest unknown: tag does not exist" >&2
+      exit 1
+    fi
+    exit 0
+    ;;
+  "up")
+    exit 0
     ;;
 esac
 exit 0
@@ -240,9 +291,10 @@ exit 0
 	logPath, restore := stubDockerScript(t, script)
 	defer restore()
 
-	r := &Runner{pullAttempts: 5, pullBackoff: 1 * time.Millisecond}
+	r := &Runner{stacksDir: stacksDir, pullAttempts: 5, pullBackoff: 1 * time.Millisecond}
 	intent := &dto.DeployIntentResponse{
-		ComposeFile: composeFile,
+		ComposeFile:        rel,
+		ComposeProjectName: "app",
 		Services: []dto.ServiceSpecDTO{
 			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "v1"},
 		},
@@ -252,15 +304,14 @@ exit 0
 	}
 
 	out, _ := os.ReadFile(logPath)
-	pullCount := strings.Count(string(out), "compose -f "+composeFile+" pull")
+	pullCount := strings.Count(string(out), "compose --project-name app -f "+abs+" pull")
 	if pullCount != 3 {
 		t.Errorf("expected 3 pull attempts, got %d. log:\n%s", pullCount, out)
 	}
 }
 
 func TestRunner_Run_PullExhaustsRetries(t *testing.T) {
-	composeFile := filepath.Join(t.TempDir(), "compose.yml")
-	_ = os.WriteFile(composeFile, []byte("x"), 0644)
+	stacksDir, rel, abs := newStack(t, "app")
 
 	script := `
 echo "$@" >> "$LOG_PATH"
@@ -270,9 +321,10 @@ exit 1
 	logPath, restore := stubDockerScript(t, script)
 	defer restore()
 
-	r := &Runner{pullAttempts: 3, pullBackoff: 1 * time.Millisecond}
+	r := &Runner{stacksDir: stacksDir, pullAttempts: 3, pullBackoff: 1 * time.Millisecond}
 	intent := &dto.DeployIntentResponse{
-		ComposeFile: composeFile,
+		ComposeFile:        rel,
+		ComposeProjectName: "app",
 		Services: []dto.ServiceSpecDTO{
 			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "v1"},
 		},
@@ -283,15 +335,14 @@ exit 1
 	}
 
 	out, _ := os.ReadFile(logPath)
-	pullCount := strings.Count(string(out), "compose -f "+composeFile+" pull")
+	pullCount := strings.Count(string(out), "compose --project-name app -f "+abs+" pull")
 	if pullCount != 3 {
 		t.Errorf("expected 3 pull attempts, got %d", pullCount)
 	}
 }
 
 func TestRunner_Run_PullDoesNotRetryNonTransient(t *testing.T) {
-	composeFile := filepath.Join(t.TempDir(), "compose.yml")
-	_ = os.WriteFile(composeFile, []byte("x"), 0644)
+	stacksDir, rel, abs := newStack(t, "app")
 
 	script := `
 echo "$@" >> "$LOG_PATH"
@@ -301,9 +352,10 @@ exit 1
 	logPath, restore := stubDockerScript(t, script)
 	defer restore()
 
-	r := &Runner{pullAttempts: 5, pullBackoff: 1 * time.Millisecond}
+	r := &Runner{stacksDir: stacksDir, pullAttempts: 5, pullBackoff: 1 * time.Millisecond}
 	intent := &dto.DeployIntentResponse{
-		ComposeFile: composeFile,
+		ComposeFile:        rel,
+		ComposeProjectName: "app",
 		Services: []dto.ServiceSpecDTO{
 			{Name: "app", Image: "ghcr.io/owner/repo", Tag: "v1"},
 		},
@@ -313,16 +365,17 @@ exit 1
 	}
 
 	out, _ := os.ReadFile(logPath)
-	pullCount := strings.Count(string(out), "compose -f "+composeFile+" pull")
+	pullCount := strings.Count(string(out), "compose --project-name app -f "+abs+" pull")
 	if pullCount != 1 {
 		t.Errorf("expected 1 pull attempt (no retry on non-transient), got %d", pullCount)
 	}
 }
 
 func TestRunner_Run_NoComposeFileReturnsError(t *testing.T) {
-	r := NewRunner()
+	r := NewRunner(t.TempDir())
 	err := r.Run(context.Background(), &dto.DeployIntentResponse{
-		Services: []dto.ServiceSpecDTO{{Name: "app", Image: "x", Tag: "v1"}},
+		ComposeProjectName: "x",
+		Services:           []dto.ServiceSpecDTO{{Name: "app", Image: "x", Tag: "v1"}},
 	})
 	if err == nil {
 		t.Fatal("expected error for missing compose file")

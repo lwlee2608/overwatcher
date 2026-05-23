@@ -12,21 +12,23 @@ type ServiceSpecDTO struct {
 
 // DeployIntentResponse is the wire shape returned to agents on /deploy/next.
 // It is a subset of intent.DeployIntent — internal fields like InstallationID
-// and Status are deliberately omitted. ComposeFile is the absolute path on
-// the agent VM that was recorded on the project at enqueue time.
+// and Status are deliberately omitted. ComposeFile is the compose file path
+// relative to the agent's AGENT_STACKS_DIR; ComposeProjectName is the slug
+// passed to `docker compose --project-name`.
 type DeployIntentResponse struct {
-	ID           string           `json:"id"`
-	CreatedAt    time.Time        `json:"created_at"`
-	DeliveryID   string           `json:"delivery_id"`
-	ProjectID    string           `json:"project_id"`
-	ComposeFile  string           `json:"compose_file"`
-	Repo         string           `json:"repo"`
-	Ref          string           `json:"ref"`
-	SHA          string           `json:"sha"`
-	Stack        string           `json:"stack"`
-	Services     []ServiceSpecDTO `json:"services"`
-	Environment  string           `json:"environment"`
-	DeploymentID int64            `json:"deployment_id"`
+	ID                 string           `json:"id"`
+	CreatedAt          time.Time        `json:"created_at"`
+	DeliveryID         string           `json:"delivery_id"`
+	ProjectID          string           `json:"project_id"`
+	ComposeFile        string           `json:"compose_file"`
+	ComposeProjectName string           `json:"compose_project_name"`
+	Repo               string           `json:"repo"`
+	Ref                string           `json:"ref"`
+	SHA                string           `json:"sha"`
+	Stack              string           `json:"stack"`
+	Services           []ServiceSpecDTO `json:"services"`
+	Environment        string           `json:"environment"`
+	DeploymentID       int64            `json:"deployment_id"`
 }
 
 // DeployResultRequest is what an agent POSTs to /deploy/{id}/result.

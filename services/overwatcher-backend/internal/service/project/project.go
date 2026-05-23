@@ -52,7 +52,35 @@ var (
 	ErrCannotAddOwner  = errors.New("project owner cannot be a member")
 	ErrForbidden       = errors.New("forbidden")
 	ErrInvalidRepo     = errors.New("repo must be in 'owner/repo' format")
+	ErrInvalidName     = errors.New("project name cannot be slugified for docker-compose --project-name")
 )
+
+// slugifyProjectName derives a docker-compose --project-name slug from a
+// free-form project name. Compose requires the slug to match
+// [a-z0-9][a-z0-9_-]*. Runs of disallowed chars collapse to a single '-',
+// leading/trailing punctuation is trimmed, then case is lowered.
+//
+// Returns ErrInvalidName when no valid slug can be derived (e.g. a name made
+// entirely of punctuation). The caller should bubble this up as a 400 rather
+// than silently storing an empty slug.
+var slugProjectNameRe = regexp.MustCompile(`[^A-Za-z0-9_-]+`)
+
+func slugifyProjectName(name string) (string, error) {
+	s := slugProjectNameRe.ReplaceAllString(name, "-")
+	s = strings.Trim(s, "-_")
+	s = strings.ToLower(s)
+	if s == "" {
+		return "", ErrInvalidName
+	}
+	// Compose also forbids a leading dash; Trim above handles that, but a
+	// leading underscore is still permitted by the regex character class and
+	// rejected by compose. Strip it to be safe.
+	s = strings.TrimLeft(s, "_-")
+	if s == "" {
+		return "", ErrInvalidName
+	}
+	return s, nil
+}
 
 // Roles returned by Access. Owner = projects.user_id; Member = row in
 // project_members. Members can view and trigger deploys; owner-only actions
@@ -82,8 +110,12 @@ type Project struct {
 	Name        string
 	Description string
 	ComposeFile string
-	Environment string
-	Enabled     bool
+	// ComposeProjectName is the docker-compose --project-name slug. Derived
+	// from Name once at create time, then immutable so renaming the project
+	// doesn't orphan containers started under the old slug.
+	ComposeProjectName string
+	Environment        string
+	Enabled            bool
 	// Role is the caller's role for this project ("owner" or "member"),
 	// populated only by listings that take a viewer userID. Empty otherwise.
 	Role        string
@@ -141,13 +173,18 @@ func (s *Service) CreateProject(ctx context.Context, p CreateProjectParams) (*Pr
 	if env == "" {
 		env = "production"
 	}
+	slug, err := slugifyProjectName(p.Name)
+	if err != nil {
+		return nil, err
+	}
 	row, err := s.q.CreateProject(ctx, sqlc.CreateProjectParams{
-		UserID:      userUID,
-		Name:        p.Name,
-		Description: p.Description,
-		ComposeFile: p.ComposeFile,
-		Environment: env,
-		Enabled:     p.Enabled,
+		UserID:             userUID,
+		Name:               p.Name,
+		Description:        p.Description,
+		ComposeFile:        p.ComposeFile,
+		Environment:        env,
+		Enabled:            p.Enabled,
+		ComposeProjectName: slug,
 	})
 	if err != nil {
 		return nil, err
@@ -333,20 +370,21 @@ func (s *Service) DeleteComposeService(ctx context.Context, projectID, serviceID
 // compose service joined with its owning project. The webhook handler groups
 // these by ProjectID to produce one intent per project.
 type RepoMatch struct {
-	ServiceID          string
-	ProjectID          string
-	ProjectName        string
-	ProjectUserID      string
-	ProjectComposeFile string
-	ProjectEnvironment string
-	ServiceName        string
-	Repo               string
-	RootDirectory      string
-	Branch             string
-	Image              string
-	Tag                string
-	Workflow           string
-	Position           int
+	ServiceID                 string
+	ProjectID                 string
+	ProjectName               string
+	ProjectUserID             string
+	ProjectComposeFile        string
+	ProjectComposeProjectName string
+	ProjectEnvironment        string
+	ServiceName               string
+	Repo                      string
+	RootDirectory             string
+	Branch                    string
+	Image                     string
+	Tag                       string
+	Workflow                  string
+	Position                  int
 }
 
 // ListEnabledServicesByRepoAndBranch returns every enabled service whose repo
@@ -363,20 +401,21 @@ func (s *Service) ListEnabledServicesByRepoAndBranch(ctx context.Context, repo, 
 	out := make([]RepoMatch, len(rows))
 	for i, r := range rows {
 		out[i] = RepoMatch{
-			ServiceID:          util.UUIDToString(r.ID),
-			ProjectID:          util.UUIDToString(r.ProjectID),
-			ProjectName:        r.ProjectName,
-			ProjectUserID:      util.UUIDToString(r.ProjectUserID),
-			ProjectComposeFile: r.ProjectComposeFile,
-			ProjectEnvironment: r.ProjectEnvironment,
-			ServiceName:        r.Name,
-			Repo:               r.Repo,
-			RootDirectory:      r.RootDirectory,
-			Branch:             r.Branch,
-			Image:              r.Image,
-			Tag:                r.Tag,
-			Workflow:           r.Workflow,
-			Position:           int(r.Position),
+			ServiceID:                 util.UUIDToString(r.ID),
+			ProjectID:                 util.UUIDToString(r.ProjectID),
+			ProjectName:               r.ProjectName,
+			ProjectUserID:             util.UUIDToString(r.ProjectUserID),
+			ProjectComposeFile:        r.ProjectComposeFile,
+			ProjectComposeProjectName: r.ProjectComposeProjectName,
+			ProjectEnvironment:        r.ProjectEnvironment,
+			ServiceName:               r.Name,
+			Repo:                      r.Repo,
+			RootDirectory:             r.RootDirectory,
+			Branch:                    r.Branch,
+			Image:                     r.Image,
+			Tag:                       r.Tag,
+			Workflow:                  r.Workflow,
+			Position:                  int(r.Position),
 		}
 	}
 	return out, nil
@@ -396,20 +435,21 @@ func (s *Service) ListEnabledServicesByRepoAndWorkflow(ctx context.Context, repo
 	out := make([]RepoMatch, len(rows))
 	for i, r := range rows {
 		out[i] = RepoMatch{
-			ServiceID:          util.UUIDToString(r.ID),
-			ProjectID:          util.UUIDToString(r.ProjectID),
-			ProjectName:        r.ProjectName,
-			ProjectUserID:      util.UUIDToString(r.ProjectUserID),
-			ProjectComposeFile: r.ProjectComposeFile,
-			ProjectEnvironment: r.ProjectEnvironment,
-			ServiceName:        r.Name,
-			Repo:               r.Repo,
-			RootDirectory:      r.RootDirectory,
-			Branch:             r.Branch,
-			Image:              r.Image,
-			Tag:                r.Tag,
-			Workflow:           r.Workflow,
-			Position:           int(r.Position),
+			ServiceID:                 util.UUIDToString(r.ID),
+			ProjectID:                 util.UUIDToString(r.ProjectID),
+			ProjectName:               r.ProjectName,
+			ProjectUserID:             util.UUIDToString(r.ProjectUserID),
+			ProjectComposeFile:        r.ProjectComposeFile,
+			ProjectComposeProjectName: r.ProjectComposeProjectName,
+			ProjectEnvironment:        r.ProjectEnvironment,
+			ServiceName:               r.Name,
+			Repo:                      r.Repo,
+			RootDirectory:             r.RootDirectory,
+			Branch:                    r.Branch,
+			Image:                     r.Image,
+			Tag:                       r.Tag,
+			Workflow:                  r.Workflow,
+			Position:                  int(r.Position),
 		}
 	}
 	return out, nil
@@ -523,17 +563,18 @@ func (s *Service) ListProjectsForUser(ctx context.Context, userID string) ([]Pro
 	out := make([]Project, len(rows))
 	for i, r := range rows {
 		out[i] = Project{
-			ID:          util.UUIDToString(r.ID),
-			UserID:      util.UUIDToString(r.UserID),
-			UserEmail:   r.UserEmail,
-			Name:        r.Name,
-			Description: r.Description,
-			ComposeFile: r.ComposeFile,
-			Environment: r.Environment,
-			Enabled:     r.Enabled,
-			Role:        r.Role,
-			CreatedAt:   r.CreatedAt.Time,
-			UpdatedAt:   r.UpdatedAt.Time,
+			ID:                 util.UUIDToString(r.ID),
+			UserID:             util.UUIDToString(r.UserID),
+			UserEmail:          r.UserEmail,
+			Name:               r.Name,
+			Description:        r.Description,
+			ComposeFile:        r.ComposeFile,
+			ComposeProjectName: r.ComposeProjectName,
+			Environment:        r.Environment,
+			Enabled:            r.Enabled,
+			Role:               r.Role,
+			CreatedAt:          r.CreatedAt.Time,
+			UpdatedAt:          r.UpdatedAt.Time,
 		}
 	}
 	return out, nil
@@ -655,16 +696,17 @@ func (s *Service) ListMembers(ctx context.Context, projectID string) ([]Member, 
 
 func projectRowToDomain(r sqlc.Project, email string) *Project {
 	return &Project{
-		ID:          util.UUIDToString(r.ID),
-		UserID:      util.UUIDToString(r.UserID),
-		UserEmail:   email,
-		Name:        r.Name,
-		Description: r.Description,
-		ComposeFile: r.ComposeFile,
-		Environment: r.Environment,
-		Enabled:     r.Enabled,
-		CreatedAt:   r.CreatedAt.Time,
-		UpdatedAt:   r.UpdatedAt.Time,
+		ID:                 util.UUIDToString(r.ID),
+		UserID:             util.UUIDToString(r.UserID),
+		UserEmail:          email,
+		Name:               r.Name,
+		Description:        r.Description,
+		ComposeFile:        r.ComposeFile,
+		ComposeProjectName: r.ComposeProjectName,
+		Environment:        r.Environment,
+		Enabled:            r.Enabled,
+		CreatedAt:          r.CreatedAt.Time,
+		UpdatedAt:          r.UpdatedAt.Time,
 	}
 }
 

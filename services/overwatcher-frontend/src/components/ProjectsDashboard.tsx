@@ -25,6 +25,15 @@ const emptyForm: FormState = {
   enabled: true,
 };
 
+// Mirror of services/overwatcher-backend/internal/service/project/project.go
+// slugifyProjectName. Kept in sync so the preview shown on the create form
+// matches what the server will store. If you change one, change both.
+function previewSlug(name: string): string {
+  const replaced = name.replace(/[^A-Za-z0-9_-]+/g, "-");
+  const trimmed = replaced.replace(/^[-_]+|[-_]+$/g, "");
+  return trimmed.toLowerCase().replace(/^[-_]+/, "");
+}
+
 export function ProjectsDashboard() {
   const { user } = useAuth();
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
@@ -175,6 +184,14 @@ export function ProjectsDashboard() {
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               />
+              {!editingId && form.name && (
+                <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                  docker compose --project-name:{" "}
+                  <span className="font-mono">
+                    {previewSlug(form.name) || "(invalid — needs a letter or digit)"}
+                  </span>
+                </p>
+              )}
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
@@ -192,18 +209,24 @@ export function ProjectsDashboard() {
             </div>
             <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                Compose file (absolute path on agent host)
+                Compose file (relative to the agent's stacks root)
               </label>
               <input
                 type="text"
                 required
-                placeholder="/opt/stacks/my-app/docker-compose.yml"
+                placeholder="my-app/docker-compose.yml"
                 value={form.compose_file}
                 onChange={(e) =>
                   setForm({ ...form, compose_file: e.target.value })
                 }
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-mono text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               />
+              <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                Resolved on the agent against <span className="font-mono">AGENT_STACKS_DIR</span>{" "}
+                (default <span className="font-mono">/stacks</span>). No leading{" "}
+                <span className="font-mono">/</span> and no{" "}
+                <span className="font-mono">..</span> segments.
+              </p>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
