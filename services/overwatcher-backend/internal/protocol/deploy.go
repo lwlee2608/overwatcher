@@ -1,22 +1,36 @@
 // Package protocol defines the wire contract between the coordinator and
 // the agent. Anything an agent sees or sends lives here. Coordinator-only
 // shapes (e.g. dashboard responses) stay in internal/api/http/dto.
+//
+//	  coordinator                                  agent
+//	  ┌─────────────┐                          ┌─────────────┐
+//	  │             │  GET /deploy/next        │             │
+//	  │             │ ───────────────────────► │             │
+//	  │             │  DeployIntentResponse    │             │
+//	  │             │ ◄─────────────────────── │             │
+//	  │             │                          │             │
+//	  │             │  POST /deploy/{id}/result│             │
+//	  │             │ ◄─────────────────────── │             │
+//	  │             │  DeployResultRequest     │             │
+//	  └─────────────┘                          └─────────────┘
+//
+// Coordinator and agent build from this package in the same Go module, so
+// a field change breaks both compiles until they agree.
 package protocol
 
 import "time"
 
-// ServiceSpecDTO is the per-service snapshot carried on an intent.
-// An empty Name means "apply to every service in the compose file".
+// ServiceSpecDTO is the per-service snapshot on an intent. Empty Name
+// means "apply to every service in the compose file".
 type ServiceSpecDTO struct {
 	Name  string `json:"name"`
 	Image string `json:"image" binding:"required"`
 	Tag   string `json:"tag"`
 }
 
-// DeployIntentResponse is the wire shape returned to agents on /deploy/next.
-// It is a subset of intent.DeployIntent — internal fields like InstallationID
-// and Status are deliberately omitted. ComposeFile is the absolute path on
-// the agent VM that was recorded on the project at enqueue time.
+// DeployIntentResponse is returned to agents on /deploy/next — a subset of
+// intent.DeployIntent (no InstallationID, Status, etc.). ComposeFile is the
+// absolute path on the agent VM, recorded on the project at enqueue time.
 type DeployIntentResponse struct {
 	ID           string           `json:"id"`
 	CreatedAt    time.Time        `json:"created_at"`
