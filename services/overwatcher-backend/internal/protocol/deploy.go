@@ -2,16 +2,21 @@
 // the agent. Anything an agent sees or sends lives here. Coordinator-only
 // shapes (e.g. dashboard responses) stay in internal/api/http/dto.
 //
+// The agent is always the HTTP client — it long-polls the coordinator, so
+// it can sit behind NAT/firewalls with no inbound port open.
+//
 //	  coordinator                                  agent
 //	  ┌─────────────┐                          ┌─────────────┐
 //	  │             │  GET /deploy/next        │             │
-//	  │             │ ───────────────────────► │             │
-//	  │             │  DeployIntentResponse    │             │
 //	  │             │ ◄─────────────────────── │             │
+//	  │             │  DeployIntentResponse    │             │
+//	  │             │ ───────────────────────► │             │
 //	  │             │                          │             │
 //	  │             │  POST /deploy/{id}/result│             │
-//	  │             │ ◄─────────────────────── │             │
 //	  │             │  DeployResultRequest     │             │
+//	  │             │ ◄─────────────────────── │             │
+//	  │             │  204 No Content          │             │
+//	  │             │ ───────────────────────► │             │
 //	  └─────────────┘                          └─────────────┘
 //
 // Coordinator and agent build from this package in the same Go module, so
