@@ -24,7 +24,7 @@ services:
       - AGENT_SHARED_SECRET=${AGENT_SHARED_SECRET}
       - AGENT_COORDINATOR_URL=https://your-coordinator.example.com
       - AGENT_NAME=${AGENT_NAME:-}
+      - AGENT_STACKS_DIR=/stacks
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /home/dev:/stacks
-      - ./application-agent.yml:/go/bin/application-agent.yml
