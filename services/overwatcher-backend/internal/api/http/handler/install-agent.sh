@@ -118,7 +118,9 @@ UNIT
 
 log "enabling and starting ${SERVICE_NAME}"
 systemctl daemon-reload
-systemctl enable --now "${SERVICE_NAME}"
+systemctl enable "${SERVICE_NAME}"
+# restart (not start) so re-runs pick up the swapped binary
+systemctl restart "${SERVICE_NAME}"
 
 # Give the unit a moment to settle, then surface recent logs so the user sees
 # success (or fails fast).
