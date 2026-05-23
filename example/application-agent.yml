@@ -1,4 +1,0 @@
-log:
-  level: info
-agent:
-  compose_file: /opt/stacks/my-stack/docker-compose.yml
