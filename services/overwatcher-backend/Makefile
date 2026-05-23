@@ -34,8 +34,10 @@ docker:
 docker-agent:
 	$(DOCKER) build -f Dockerfile.agent --build-arg VERSION=$(VERSION) -t $(REGISTRY)$(AGENT):$(VERSION) -t $(REGISTRY)$(AGENT):latest .
 push:
+	$(DOCKER) push $(REGISTRY)$(APP):$(VERSION)
 	$(DOCKER) push $(REGISTRY)$(APP):latest
 push-agent:
+	$(DOCKER) push $(REGISTRY)$(AGENT):$(VERSION)
 	$(DOCKER) push $(REGISTRY)$(AGENT):latest
 
 # release-agent cross-compiles the systemd agent binary for linux/amd64 and
