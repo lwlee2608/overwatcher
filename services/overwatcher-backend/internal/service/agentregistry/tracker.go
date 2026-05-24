@@ -151,10 +151,6 @@ func (s *Service) BindProject(ctx context.Context, agentID string, projectID str
 
 func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
 	lastSeen := a.LastSeenAt.Time
-	var agentType string
-	if a.AgentType.Valid {
-		agentType = a.AgentType.String
-	}
 	return AgentStatus{
 		ID:        util.UUIDToString(a.ID),
 		Name:      a.Name,
@@ -162,7 +158,7 @@ func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
 		RemoteIP:  a.RemoteIp,
 		Connected: now.Sub(lastSeen) < s.ttl,
 		ProjectID: util.UUIDToString(a.ProjectID),
-		Type:      agentType,
+		Type:      a.AgentType.String,
 	}
 }
 
