@@ -4,9 +4,15 @@
 # Usage (typically served by the coordinator at /install.sh with placeholders
 # already substituted):
 #
-#   AGENT_NAME=my-agent \
+#   curl -fsSL https://<coordinator>/install.sh | \
+#   sudo AGENT_NAME=my-agent \
 #   AGENT_SHARED_SECRET=<secret> \
-#   curl -fsSL https://<coordinator>/install.sh | sudo -E bash
+#   bash
+#
+# (The env vars must be passed to `sudo`, not to `curl` — a `VAR=val cmd1 |
+# cmd2` shell pipeline scopes the vars to cmd1 only, so they never reach
+# sudo. Putting them after `sudo` uses sudo's own VAR=val syntax, which
+# sets them in the child process regardless of env_reset.)
 #
 # Re-running upgrades the binary in place: the file is swapped and the unit
 # is restarted; the env file is left untouched if it already exists.
@@ -30,9 +36,9 @@ USER_NAME="overwatcher"
 log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
-[[ $EUID -eq 0 ]] || err "must run as root (try: curl ... | sudo -E bash)"
-[[ -n "${AGENT_NAME:-}" ]] || err "AGENT_NAME must be set in the environment"
-[[ -n "${AGENT_SHARED_SECRET:-}" ]] || err "AGENT_SHARED_SECRET must be set in the environment"
+[[ $EUID -eq 0 ]] || err "must run as root (try: curl ... | sudo AGENT_NAME=... AGENT_SHARED_SECRET=... bash)"
+[[ -n "${AGENT_NAME:-}" ]] || err "AGENT_NAME must be set (pass it to sudo: curl ... | sudo AGENT_NAME=foo AGENT_SHARED_SECRET=bar bash)"
+[[ -n "${AGENT_SHARED_SECRET:-}" ]] || err "AGENT_SHARED_SECRET must be set (pass it to sudo: curl ... | sudo AGENT_NAME=foo AGENT_SHARED_SECRET=bar bash)"
 
 # Detect docker compose plugin upfront — failing here is much friendlier
 # than the agent erroring on every deploy attempt later.

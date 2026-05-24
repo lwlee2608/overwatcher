@@ -10,9 +10,10 @@ recommended path.
 On the target VM:
 
 ```bash
-AGENT_NAME=my-agent \
+curl -fsSL https://<coordinator-host>/install.sh | \
+sudo AGENT_NAME=my-agent \
 AGENT_SHARED_SECRET=<paste-your-shared-secret> \
-curl -fsSL https://<coordinator-host>/install.sh | sudo -E bash
+bash
 ```
 
 What this does:

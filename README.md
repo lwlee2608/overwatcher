@@ -46,9 +46,10 @@ agent dashboard sets it up — the UI shows the install command, you paste
 it onto the VM.
 
 ```bash
-AGENT_NAME=my-agent \
+curl -fsSL https://<coordinator>/install.sh | \
+sudo AGENT_NAME=my-agent \
 AGENT_SHARED_SECRET=<paste-secret> \
-curl -fsSL https://<coordinator>/install.sh | sudo -E bash
+bash
 ```
 
 The agent runs as a host user in the `docker` group, so there is no

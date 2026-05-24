@@ -175,13 +175,18 @@ When the user creates an agent in the UI, the agent detail/create page
 shows a copy-paste install command:
 
 ```bash
-AGENT_NAME=my-agent \
+curl -fsSL https://<coordinator>/install.sh | \
+sudo AGENT_NAME=my-agent \
 AGENT_SHARED_SECRET=<paste-or-show-existing> \
-curl -fsSL https://<coordinator>/install.sh | sudo -E bash
+bash
 ```
 
-The `-E` flag preserves the env vars through `sudo`. The page also shows
-the systemd commands the user might want later (`systemctl status`,
+Env vars go on `sudo`, not before `curl` — the shell scopes
+`VAR=val cmd` to the single command, so `VAR=val curl … | sudo bash`
+never gets the vars into sudo. `sudo VAR=val bash` uses sudo's own
+`VAR=val` syntax which sets them in the child regardless of
+`env_reset`. The page also shows the systemd commands the user might
+want later (`systemctl status`,
 `journalctl -u overwatcher-agent -f`).
 
 Open question: where does the shared secret come from in the UI? Today
