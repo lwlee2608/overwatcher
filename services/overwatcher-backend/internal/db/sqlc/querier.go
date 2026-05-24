@@ -75,9 +75,9 @@ type Querier interface {
 	TakeNextDeployIntent(ctx context.Context, agentName string) (DeployIntent, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
-	// agent_type is passed in (empty string treated as NULL). On conflict we
-	// preserve the existing type when the caller didn't send one, so an old
-	// agent reconnecting without the header doesn't wipe a known type.
+	// agent_type and version are passed in (empty string treated as NULL). On
+	// conflict we preserve the existing value when the caller didn't send one,
+	// so an old agent reconnecting without the header doesn't wipe known data.
 	UpsertAgent(ctx context.Context, arg UpsertAgentParams) (Agent, error)
 }
 

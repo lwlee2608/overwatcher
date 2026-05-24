@@ -16,7 +16,7 @@ UPDATE agents
 SET project_id = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type
+RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version
 `
 
 type BindAgentToProjectParams struct {
@@ -36,6 +36,7 @@ func (q *Queries) BindAgentToProject(ctx context.Context, arg BindAgentToProject
 		&i.UpdatedAt,
 		&i.ProjectID,
 		&i.AgentType,
+		&i.Version,
 	)
 	return i, err
 }
@@ -53,7 +54,7 @@ func (q *Queries) ClearAgentProjectBinding(ctx context.Context, projectID pgtype
 }
 
 const getAgent = `-- name: GetAgent :one
-SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type FROM agents WHERE id = $1
+SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version FROM agents WHERE id = $1
 `
 
 func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error) {
@@ -68,12 +69,13 @@ func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error) {
 		&i.UpdatedAt,
 		&i.ProjectID,
 		&i.AgentType,
+		&i.Version,
 	)
 	return i, err
 }
 
 const getAgentByName = `-- name: GetAgentByName :one
-SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type FROM agents WHERE name = $1
+SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version FROM agents WHERE name = $1
 `
 
 func (q *Queries) GetAgentByName(ctx context.Context, name string) (Agent, error) {
@@ -88,12 +90,13 @@ func (q *Queries) GetAgentByName(ctx context.Context, name string) (Agent, error
 		&i.UpdatedAt,
 		&i.ProjectID,
 		&i.AgentType,
+		&i.Version,
 	)
 	return i, err
 }
 
 const listAgents = `-- name: ListAgents :many
-SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type FROM agents ORDER BY name ASC
+SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version FROM agents ORDER BY name ASC
 `
 
 func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
@@ -114,6 +117,7 @@ func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
 			&i.UpdatedAt,
 			&i.ProjectID,
 			&i.AgentType,
+			&i.Version,
 		); err != nil {
 			return nil, err
 		}
@@ -126,28 +130,35 @@ func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
 }
 
 const upsertAgent = `-- name: UpsertAgent :one
-INSERT INTO agents (name, remote_ip, agent_type, last_seen_at)
-VALUES ($1, $2, NULLIF($3::text, ''), NOW())
+INSERT INTO agents (name, remote_ip, agent_type, version, last_seen_at)
+VALUES ($1, $2, NULLIF($3::text, ''), NULLIF($4::text, ''), NOW())
 ON CONFLICT (name)
 DO UPDATE SET
     remote_ip     = EXCLUDED.remote_ip,
     agent_type    = COALESCE(EXCLUDED.agent_type, agents.agent_type),
+    version       = COALESCE(EXCLUDED.version, agents.version),
     last_seen_at  = NOW(),
     updated_at    = NOW()
-RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type
+RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version
 `
 
 type UpsertAgentParams struct {
 	Name      string `json:"name"`
 	RemoteIp  string `json:"remote_ip"`
 	AgentType string `json:"agent_type"`
+	Version   string `json:"version"`
 }
 
-// agent_type is passed in (empty string treated as NULL). On conflict we
-// preserve the existing type when the caller didn't send one, so an old
-// agent reconnecting without the header doesn't wipe a known type.
+// agent_type and version are passed in (empty string treated as NULL). On
+// conflict we preserve the existing value when the caller didn't send one,
+// so an old agent reconnecting without the header doesn't wipe known data.
 func (q *Queries) UpsertAgent(ctx context.Context, arg UpsertAgentParams) (Agent, error) {
-	row := q.db.QueryRow(ctx, upsertAgent, arg.Name, arg.RemoteIp, arg.AgentType)
+	row := q.db.QueryRow(ctx, upsertAgent,
+		arg.Name,
+		arg.RemoteIp,
+		arg.AgentType,
+		arg.Version,
+	)
 	var i Agent
 	err := row.Scan(
 		&i.ID,
@@ -158,6 +169,7 @@ func (q *Queries) UpsertAgent(ctx context.Context, arg UpsertAgentParams) (Agent
 		&i.UpdatedAt,
 		&i.ProjectID,
 		&i.AgentType,
+		&i.Version,
 	)
 	return i, err
 }

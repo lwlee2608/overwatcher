@@ -10,6 +10,7 @@ type AgentStatusResponse struct {
 	Connected bool      `json:"connected"`
 	ProjectID string    `json:"project_id,omitempty"`
 	Type      string    `json:"type,omitempty"`
+	Version   string    `json:"version,omitempty"`
 }
 
 type AgentListResponse struct {
