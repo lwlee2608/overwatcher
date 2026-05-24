@@ -61,6 +61,8 @@ func (h *AgentHandler) List(c *gin.Context) {
 			RemoteIP:  a.RemoteIP,
 			Connected: a.Connected,
 			ProjectID: a.ProjectID,
+			Type:      a.Type,
+			Version:   a.Version,
 		}
 	}
 	c.JSON(http.StatusOK, resp)
@@ -86,6 +88,7 @@ func (h *AgentHandler) Get(c *gin.Context) {
 		Connected: a.Connected,
 		ProjectID: a.ProjectID,
 		Type:      a.Type,
+		Version:   a.Version,
 	})
 }
 
@@ -143,5 +146,6 @@ func (h *AgentHandler) BindProject(c *gin.Context) {
 		Connected: a.Connected,
 		ProjectID: a.ProjectID,
 		Type:      a.Type,
+		Version:   a.Version,
 	})
 }

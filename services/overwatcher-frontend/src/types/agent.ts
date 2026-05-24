@@ -8,6 +8,7 @@ export interface AgentStatus {
   connected: boolean;
   project_id?: string;
   type?: AgentType;
+  version?: string;
 }
 
 export interface AgentListResponse {

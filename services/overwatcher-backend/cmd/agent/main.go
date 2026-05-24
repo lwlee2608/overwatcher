@@ -28,7 +28,7 @@ func main() {
 	defer stop()
 
 	runner := agent.NewRunner()
-	poller, err := agent.NewPoller(cfg.Agent, runner)
+	poller, err := agent.NewPoller(cfg.Agent, runner, AppVersion)
 	if err != nil {
 		slog.Error("failed to construct poller", "error", err)
 		os.Exit(1)

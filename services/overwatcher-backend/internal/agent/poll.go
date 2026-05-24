@@ -24,9 +24,10 @@ type Poller struct {
 	runner     *Runner
 	nextURL    string
 	agentType  string
+	version    string
 }
 
-func NewPoller(cfg AgentConfig, runner *Runner) (*Poller, error) {
+func NewPoller(cfg AgentConfig, runner *Runner, version string) (*Poller, error) {
 	base, err := url.Parse(cfg.CoordinatorURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid coordinator_url: %w", err)
@@ -39,6 +40,7 @@ func NewPoller(cfg AgentConfig, runner *Runner) (*Poller, error) {
 		runner:     runner,
 		nextURL:    base.ResolveReference(next).String(),
 		agentType:  detectAgentType(),
+		version:    version,
 	}, nil
 }
 
@@ -92,6 +94,7 @@ func (p *Poller) fetchNext(ctx context.Context) (*protocol.DeployIntentResponse,
 	req.Header.Set("Authorization", "Bearer "+p.cfg.SharedSecret)
 	req.Header.Set("X-Agent-Name", p.cfg.Name)
 	req.Header.Set("X-Agent-Type", p.agentType)
+	req.Header.Set("X-Agent-Version", p.version)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
@@ -161,6 +164,7 @@ func (p *Poller) postResult(ctx context.Context, intentID string, success bool, 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Agent-Name", p.cfg.Name)
 	req.Header.Set("X-Agent-Type", p.agentType)
+	req.Header.Set("X-Agent-Version", p.version)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {

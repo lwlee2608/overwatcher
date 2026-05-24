@@ -45,6 +45,19 @@ export function AgentCard({ agent }: AgentCardProps) {
           </span>
           <span>{timeAgo(agent.last_seen)}</span>
         </div>
+
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-gray-500 dark:text-gray-500">
+            Version
+          </span>
+          {agent.version ? (
+            <span className="font-mono">{agent.version}</span>
+          ) : (
+            <span className="italic text-gray-400 dark:text-gray-600">
+              unknown
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

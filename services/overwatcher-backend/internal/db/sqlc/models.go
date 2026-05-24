@@ -17,6 +17,7 @@ type Agent struct {
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 	ProjectID  pgtype.UUID        `json:"project_id"`
 	AgentType  pgtype.Text        `json:"agent_type"`
+	Version    pgtype.Text        `json:"version"`
 }
 
 type DeployIntent struct {

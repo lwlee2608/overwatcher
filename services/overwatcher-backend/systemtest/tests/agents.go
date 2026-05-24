@@ -30,7 +30,7 @@ func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agentregistry.Servic
 	})
 
 	// Seed an agent via the service so we can query it
-	err := agentSvc.Record(context.Background(), "test-agent", "10.0.0.1", "")
+	err := agentSvc.Record(context.Background(), "test-agent", "10.0.0.1", "", "")
 	require.NoError(t, err)
 
 	t.Run("ListAfterRecord", func(t *testing.T) {
