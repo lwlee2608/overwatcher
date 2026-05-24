@@ -85,6 +85,7 @@ func (h *AgentHandler) Get(c *gin.Context) {
 		RemoteIP:  a.RemoteIP,
 		Connected: a.Connected,
 		ProjectID: a.ProjectID,
+		Type:      a.Type,
 	})
 }
 
@@ -141,5 +142,6 @@ func (h *AgentHandler) BindProject(c *gin.Context) {
 		RemoteIP:  a.RemoteIP,
 		Connected: a.Connected,
 		ProjectID: a.ProjectID,
+		Type:      a.Type,
 	})
 }

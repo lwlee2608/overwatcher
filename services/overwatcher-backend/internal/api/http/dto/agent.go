@@ -9,6 +9,7 @@ type AgentStatusResponse struct {
 	RemoteIP  string    `json:"remote_ip"`
 	Connected bool      `json:"connected"`
 	ProjectID string    `json:"project_id,omitempty"`
+	Type      string    `json:"type,omitempty"`
 }
 
 type AgentListResponse struct {

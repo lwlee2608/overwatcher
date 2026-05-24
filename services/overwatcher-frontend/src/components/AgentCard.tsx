@@ -1,4 +1,5 @@
 import type { AgentStatus } from "../types/agent";
+import { AgentTypeBadge } from "./AgentTypeBadge";
 import { StatusBadge } from "./StatusBadge";
 
 function timeAgo(isoString: string): string {
@@ -21,9 +22,12 @@ export function AgentCard({ agent }: AgentCardProps) {
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          {agent.name}
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            {agent.name}
+          </h3>
+          {agent.type && <AgentTypeBadge type={agent.type} />}
+        </div>
         <StatusBadge connected={agent.connected} />
       </div>
 
