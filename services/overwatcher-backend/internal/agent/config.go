@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -111,8 +113,35 @@ func validate(cfg *Config) error {
 	if cfg.Agent.CoordinatorURL == "" {
 		return errors.New("agent.coordinator_url must be set")
 	}
+	if err := validateCoordinatorURL(cfg.Agent.CoordinatorURL); err != nil {
+		return err
+	}
 	if cfg.Agent.SharedSecret == "" {
 		return errors.New("AGENT_SHARED_SECRET must be set")
 	}
 	return nil
+}
+
+// Plain http:// to non-loopback hosts breaks POST: edge proxies 301 to https,
+// and Go's client downgrades POST→GET on 301, dropping deploy results.
+func validateCoordinatorURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("agent.coordinator_url: %w", err)
+	}
+	switch u.Scheme {
+	case "https":
+		return nil
+	case "http":
+		host := u.Hostname()
+		if host == "localhost" {
+			return nil
+		}
+		if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+			return nil
+		}
+		return fmt.Errorf("agent.coordinator_url must use https:// (got %q); http to non-loopback hosts breaks POST through 301 redirects", raw)
+	default:
+		return fmt.Errorf("agent.coordinator_url: unsupported scheme %q", u.Scheme)
+	}
 }
