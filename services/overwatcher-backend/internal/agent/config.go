@@ -122,11 +122,8 @@ func validate(cfg *Config) error {
 	return nil
 }
 
-// validateCoordinatorURL rejects plain http:// for non-loopback hosts. Reason:
-// edge proxies (Railway, Cloudflare) 301 http→https, and Go's http client
-// silently downgrades POST→GET on 301 — so /deploy/:id/result becomes a GET,
-// hits no route, and the agent never reports deploy outcomes. Loopback stays
-// allowed for local dev where no such proxy exists.
+// Plain http:// to non-loopback hosts breaks POST: edge proxies 301 to https,
+// and Go's client downgrades POST→GET on 301, dropping deploy results.
 func validateCoordinatorURL(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -143,7 +140,7 @@ func validateCoordinatorURL(raw string) error {
 		if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
 			return nil
 		}
-		return fmt.Errorf("agent.coordinator_url must use https:// (got %q); plain http to non-loopback hosts breaks POST through 301 redirects", raw)
+		return fmt.Errorf("agent.coordinator_url must use https:// (got %q); http to non-loopback hosts breaks POST through 301 redirects", raw)
 	default:
 		return fmt.Errorf("agent.coordinator_url: unsupported scheme %q", u.Scheme)
 	}

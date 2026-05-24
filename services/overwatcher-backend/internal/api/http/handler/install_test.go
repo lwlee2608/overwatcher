@@ -81,9 +81,6 @@ func TestInstallHandler_HonorsForwardedProto(t *testing.T) {
 func TestInstallHandler_DefaultsToHttpsBehindProxy(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// Proxy is in front (X-Forwarded-For present) but didn't set Proto. The
-	// handler must still produce https — otherwise the served install.sh
-	// writes a broken http coordinator URL into the agent env file.
 	cases := []struct {
 		name   string
 		header string
