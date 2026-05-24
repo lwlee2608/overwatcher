@@ -23,6 +23,7 @@ type Poller struct {
 	cfg        AgentConfig
 	runner     *Runner
 	nextURL    string
+	agentType  string
 }
 
 func NewPoller(cfg AgentConfig, runner *Runner) (*Poller, error) {
@@ -37,6 +38,7 @@ func NewPoller(cfg AgentConfig, runner *Runner) (*Poller, error) {
 		cfg:        cfg,
 		runner:     runner,
 		nextURL:    base.ResolveReference(next).String(),
+		agentType:  detectAgentType(),
 	}, nil
 }
 
@@ -89,6 +91,7 @@ func (p *Poller) fetchNext(ctx context.Context) (*protocol.DeployIntentResponse,
 	}
 	req.Header.Set("Authorization", "Bearer "+p.cfg.SharedSecret)
 	req.Header.Set("X-Agent-Name", p.cfg.Name)
+	req.Header.Set("X-Agent-Type", p.agentType)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
@@ -157,6 +160,7 @@ func (p *Poller) postResult(ctx context.Context, intentID string, success bool, 
 	req.Header.Set("Authorization", "Bearer "+p.cfg.SharedSecret)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Agent-Name", p.cfg.Name)
+	req.Header.Set("X-Agent-Type", p.agentType)
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {

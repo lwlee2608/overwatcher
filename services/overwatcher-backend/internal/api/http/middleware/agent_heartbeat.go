@@ -13,7 +13,8 @@ func AgentHeartbeat(svc *agentregistry.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		name := c.GetHeader("X-Agent-Name")
 		if name != "" {
-			if err := svc.Record(c.Request.Context(), name, c.ClientIP()); err != nil {
+			agentType := c.GetHeader("X-Agent-Type")
+			if err := svc.Record(c.Request.Context(), name, c.ClientIP(), agentType); err != nil {
 				slog.Error("agent heartbeat failed", "agent", name, "error", err)
 			}
 		}

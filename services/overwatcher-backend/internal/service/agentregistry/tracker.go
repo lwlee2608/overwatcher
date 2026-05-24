@@ -22,6 +22,7 @@ type AgentStatus struct {
 	RemoteIP  string    `json:"remote_ip"`
 	Connected bool      `json:"connected"`
 	ProjectID string    `json:"project_id,omitempty"`
+	Type      string    `json:"type,omitempty"`
 }
 
 // Service manages agent registration and heartbeats backed by PostgreSQL.
@@ -35,11 +36,13 @@ func NewService(pool *pgxpool.Pool, q *sqlc.Queries, ttl time.Duration) *Service
 	return &Service{pool: pool, q: q, ttl: ttl}
 }
 
-// Record upserts an agent entry with the current time.
-func (s *Service) Record(ctx context.Context, name string, remoteIP string) error {
+// Record upserts an agent entry with the current time. An empty agentType
+// leaves any existing stored type intact (see UpsertAgent SQL).
+func (s *Service) Record(ctx context.Context, name string, remoteIP string, agentType string) error {
 	_, err := s.q.UpsertAgent(ctx, sqlc.UpsertAgentParams{
-		Name:     name,
-		RemoteIp: remoteIP,
+		Name:      name,
+		RemoteIp:  remoteIP,
+		AgentType: agentType,
 	})
 	return err
 }
@@ -155,6 +158,7 @@ func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
 		RemoteIP:  a.RemoteIp,
 		Connected: now.Sub(lastSeen) < s.ttl,
 		ProjectID: util.UUIDToString(a.ProjectID),
+		Type:      a.AgentType.String,
 	}
 }
 
