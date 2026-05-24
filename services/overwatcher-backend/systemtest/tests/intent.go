@@ -59,7 +59,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 
 		ctx := context.Background()
 		for _, want := range []string{"s1", "s2", "s3"} {
-			got, err := s.TakeNext(ctx)
+			got, err := s.TakeNext(ctx, TestAgentName)
 			if err != nil {
 				t.Fatalf("TakeNext: %v", err)
 			}
@@ -87,7 +87,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 		}
 		done := make(chan result, 1)
 		go func() {
-			i, err := s.TakeNext(context.Background())
+			i, err := s.TakeNext(context.Background(), TestAgentName)
 			done <- result{i, err}
 		}()
 
@@ -117,7 +117,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 		ctx, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
 		go func() {
-			_, err := s.TakeNext(ctx)
+			_, err := s.TakeNext(ctx, TestAgentName)
 			done <- err
 		}()
 		cancel()
@@ -135,7 +135,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 	t.Run("Complete", func(t *testing.T) {
 		s := freshIntentStore(t, pool)
 		s.Enqueue(newIntent("d1", "s1"))
-		taken, err := s.TakeNext(context.Background())
+		taken, err := s.TakeNext(context.Background(), TestAgentName)
 		if err != nil {
 			t.Fatalf("TakeNext: %v", err)
 		}
@@ -161,7 +161,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 
 		t.Run("failure transitions to StatusFailed", func(t *testing.T) {
 			s.Enqueue(newIntent("d2", "s2"))
-			b, err := s.TakeNext(context.Background())
+			b, err := s.TakeNext(context.Background(), TestAgentName)
 			if err != nil {
 				t.Fatalf("TakeNext: %v", err)
 			}
@@ -178,7 +178,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 	t.Run("TakeNext_SetsAttemptsAndDispatchedAt", func(t *testing.T) {
 		s := freshIntentStore(t, pool)
 		s.Enqueue(newIntent("d1", "s1"))
-		i, err := s.TakeNext(context.Background())
+		i, err := s.TakeNext(context.Background(), TestAgentName)
 		if err != nil {
 			t.Fatalf("TakeNext: %v", err)
 		}
@@ -195,7 +195,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 		s.Enqueue(newIntent("d1", "s1"))
 		s.Enqueue(newIntent("d2", "s1"))
 
-		first, err := s.TakeNext(context.Background())
+		first, err := s.TakeNext(context.Background(), TestAgentName)
 		if err != nil {
 			t.Fatalf("TakeNext: %v", err)
 		}
@@ -205,12 +205,12 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
-		if _, err := s.TakeNext(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		if _, err := s.TakeNext(ctx, TestAgentName); !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("expected DeadlineExceeded, got %v", err)
 		}
 
 		s.Complete(first.ID, true)
-		second, err := s.TakeNext(context.Background())
+		second, err := s.TakeNext(context.Background(), TestAgentName)
 		if err != nil {
 			t.Fatalf("TakeNext after Complete: %v", err)
 		}
@@ -224,11 +224,11 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 		s.Enqueue(newIntent("d1", "s1"))
 		s.Enqueue(newIntent("d2", "s2"))
 
-		first, err := s.TakeNext(context.Background())
+		first, err := s.TakeNext(context.Background(), TestAgentName)
 		if err != nil {
 			t.Fatalf("TakeNext 1: %v", err)
 		}
-		second, err := s.TakeNext(context.Background())
+		second, err := s.TakeNext(context.Background(), TestAgentName)
 		if err != nil {
 			t.Fatalf("TakeNext 2: %v", err)
 		}
@@ -242,11 +242,11 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 		s.Enqueue(newIntent("d1", "s1"))
 		s.Enqueue(newIntent("d2", "s1"))
 
-		first, _ := s.TakeNext(context.Background())
+		first, _ := s.TakeNext(context.Background(), TestAgentName)
 
 		done := make(chan *intent.DeployIntent, 1)
 		go func() {
-			i, _ := s.TakeNext(context.Background())
+			i, _ := s.TakeNext(context.Background(), TestAgentName)
 			done <- i
 		}()
 
@@ -268,7 +268,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 		s.Enqueue(newIntent("d1", "s1"))
 		s.Enqueue(newIntent("d2", "s2"))
 
-		taken, _ := s.TakeNext(context.Background())
+		taken, _ := s.TakeNext(context.Background(), TestAgentName)
 		if taken.DeliveryID != "d1" {
 			t.Fatalf("got %q, want d1", taken.DeliveryID)
 		}
@@ -282,7 +282,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 		if len(s.InFlight()) != 0 {
 			t.Errorf("InFlight = %d, want 0", len(s.InFlight()))
 		}
-		next, _ := s.TakeNext(context.Background())
+		next, _ := s.TakeNext(context.Background(), TestAgentName)
 		if next.DeliveryID != "d1" {
 			t.Errorf("got %q, want d1", next.DeliveryID)
 		}
@@ -291,7 +291,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 	t.Run("SweepTimedOut_Requeue", func(t *testing.T) {
 		s := freshIntentStore(t, pool)
 		s.Enqueue(newIntent("d1", "s1"))
-		i, _ := s.TakeNext(context.Background())
+		i, _ := s.TakeNext(context.Background(), TestAgentName)
 
 		backdateInFlight(t, pool, i.ID, time.Now().Add(-15*time.Minute), 1)
 
@@ -313,7 +313,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 	t.Run("SweepTimedOut_PermanentFailure", func(t *testing.T) {
 		s := freshIntentStore(t, pool)
 		s.Enqueue(newIntent("d1", "s1"))
-		i, _ := s.TakeNext(context.Background())
+		i, _ := s.TakeNext(context.Background(), TestAgentName)
 
 		backdateInFlight(t, pool, i.ID, time.Now().Add(-15*time.Minute), 3)
 
@@ -332,7 +332,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 	t.Run("SweepTimedOut_NotYetTimedOut", func(t *testing.T) {
 		s := freshIntentStore(t, pool)
 		s.Enqueue(newIntent("d1", "s1"))
-		if _, err := s.TakeNext(context.Background()); err != nil {
+		if _, err := s.TakeNext(context.Background(), TestAgentName); err != nil {
 			t.Fatalf("TakeNext: %v", err)
 		}
 		requeued, failed := s.SweepTimedOut(10*time.Minute, 3)
@@ -365,7 +365,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 			go func() {
 				defer wg.Done()
 				for {
-					i, err := s.TakeNext(ctx)
+					i, err := s.TakeNext(ctx, TestAgentName)
 					if err != nil {
 						return
 					}
@@ -393,6 +393,47 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 	})
 }
 
+// Fixed agent/project identifiers used by the intent/deploy/dispatch/reaper
+// tests so seeded intents are claimable by TestAgentName. Idempotent across
+// tests via ON CONFLICT.
+const (
+	TestAgentName = "test-agent"
+	TestProjectID = "11111111-1111-1111-1111-111111111111"
+)
+
+// SeedTestAgent creates (or refreshes) a user, project, and agent bound to
+// that project so TakeNextDeployIntent has an agents row matching the
+// (agent_name, project_id) filter.
+func SeedTestAgent(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var userID string
+	if err := pool.QueryRow(ctx, `
+        INSERT INTO users (email, name)
+        VALUES ('intent-test@example.com', 'Intent Test User')
+        ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name
+        RETURNING id::text`).Scan(&userID); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+        INSERT INTO projects (id, user_id, name, compose_file)
+        VALUES ($1::uuid, $2::uuid, 'intent-test-project', 'docker-compose.yml')
+        ON CONFLICT (id) DO UPDATE SET user_id = EXCLUDED.user_id`, TestProjectID, userID); err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+
+	if _, err := pool.Exec(ctx, `
+        INSERT INTO agents (name, project_id)
+        VALUES ($1, $2::uuid)
+        ON CONFLICT (name) DO UPDATE SET project_id = EXCLUDED.project_id`,
+		TestAgentName, TestProjectID); err != nil {
+		t.Fatalf("seed agent: %v", err)
+	}
+}
+
 func freshIntentStore(t *testing.T, pool *pgxpool.Pool) *intent.DBStore {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -400,12 +441,14 @@ func freshIntentStore(t *testing.T, pool *pgxpool.Pool) *intent.DBStore {
 	if _, err := pool.Exec(ctx, "TRUNCATE deploy_intents"); err != nil {
 		t.Fatalf("truncate: %v", err)
 	}
+	SeedTestAgent(t, pool)
 	return intent.NewDBStore(pool)
 }
 
 func newIntent(deliveryID, stack string) *intent.DeployIntent {
 	return &intent.DeployIntent{
 		DeliveryID:     deliveryID,
+		ProjectID:      TestProjectID,
 		Repo:           "owner/repo",
 		Ref:            "refs/heads/main",
 		SHA:            "deadbeef",

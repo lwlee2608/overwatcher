@@ -60,10 +60,11 @@ func NewForTest(store *intent.DBStore, updater StatusUpdater) *Service {
 	return &Service{store: store, updater: updater}
 }
 
-// Next blocks until an intent is available or ctx is cancelled. The
-// in_progress GitHub status update is best-effort; failures are logged.
-func (d *Service) Next(ctx context.Context) (*intent.DeployIntent, error) {
-	i, err := d.store.TakeNext(ctx)
+// Next blocks until an intent for agentName's project is available or ctx is
+// cancelled. The in_progress GitHub status update is best-effort; failures
+// are logged.
+func (d *Service) Next(ctx context.Context, agentName string) (*intent.DeployIntent, error) {
+	i, err := d.store.TakeNext(ctx, agentName)
 	if err != nil {
 		return nil, err
 	}

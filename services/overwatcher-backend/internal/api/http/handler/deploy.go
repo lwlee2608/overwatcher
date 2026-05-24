@@ -37,12 +37,19 @@ func NewDeployHandler(dispatchService *dispatch.Service, webhookService *webhook
 // Next is a long-poll. It blocks inside DispatchService.Next for up to
 // longPollTimeout, or until the request context is cancelled (agent
 // disconnect). On either, it returns 204 so the agent can re-poll cleanly
-// without treating it as a transport error.
+// without treating it as a transport error. X-Agent-Name scopes the claim to
+// the project bound to that agent.
 func (h *DeployHandler) Next(c *gin.Context) {
+	agentName := c.GetHeader("X-Agent-Name")
+	if agentName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing X-Agent-Name header"})
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(c.Request.Context(), LongPollTimeout)
 	defer cancel()
 
-	intentRow, err := h.dispatchService.Next(ctx)
+	intentRow, err := h.dispatchService.Next(ctx, agentName)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			c.Status(http.StatusNoContent)

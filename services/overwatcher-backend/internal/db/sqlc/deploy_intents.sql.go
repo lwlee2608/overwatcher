@@ -444,13 +444,15 @@ func (q *Queries) RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOu
 
 const takeNextDeployIntent = `-- name: TakeNextDeployIntent :one
 WITH candidate AS (
-    SELECT id
-    FROM deploy_intents
-    WHERE status = 'created'
-      AND stack NOT IN (
+    SELECT di.id
+    FROM deploy_intents di
+    JOIN agents a ON a.project_id = di.project_id
+    WHERE di.status = 'created'
+      AND a.name = $1
+      AND di.stack NOT IN (
           SELECT DISTINCT stack FROM deploy_intents WHERE status = 'dispatched'
       )
-    ORDER BY created_at ASC
+    ORDER BY di.created_at ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED
 )
@@ -464,11 +466,14 @@ WHERE di.id = c.id
 RETURNING di.id, di.delivery_id, di.repo, di.git_ref, di.sha, di.stack, di.environment, di.deployment_id, di.installation_id, di.status, di.attempts, di.created_at, di.updated_at, di.dispatched_at, di.services_spec, di.project_id, di.compose_file
 `
 
-// Atomically claim the oldest dispatchable intent. The CTE skips stacks that
-// already have a dispatched intent (concurrency guard) and uses FOR UPDATE
-// SKIP LOCKED so concurrent callers don't block each other.
-func (q *Queries) TakeNextDeployIntent(ctx context.Context) (DeployIntent, error) {
-	row := q.db.QueryRow(ctx, takeNextDeployIntent)
+// Atomically claim the oldest dispatchable intent for the agent identified by
+// @agent_name. The JOIN on agents.project_id confines an agent to intents for
+// the project it's bound to — without this filter, any polling agent could
+// claim any project's intent. The CTE skips stacks that already have a
+// dispatched intent (concurrency guard) and uses FOR UPDATE SKIP LOCKED so
+// concurrent callers don't block each other.
+func (q *Queries) TakeNextDeployIntent(ctx context.Context, agentName string) (DeployIntent, error) {
+	row := q.db.QueryRow(ctx, takeNextDeployIntent, agentName)
 	var i DeployIntent
 	err := row.Scan(
 		&i.ID,

@@ -69,10 +69,13 @@ type Querier interface {
 	RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOutIntentsParams) ([]DeployIntent, error)
 	SetUserPasswordHash(ctx context.Context, arg SetUserPasswordHashParams) error
-	// Atomically claim the oldest dispatchable intent. The CTE skips stacks that
-	// already have a dispatched intent (concurrency guard) and uses FOR UPDATE
-	// SKIP LOCKED so concurrent callers don't block each other.
-	TakeNextDeployIntent(ctx context.Context) (DeployIntent, error)
+	// Atomically claim the oldest dispatchable intent for the agent identified by
+	// @agent_name. The JOIN on agents.project_id confines an agent to intents for
+	// the project it's bound to — without this filter, any polling agent could
+	// claim any project's intent. The CTE skips stacks that already have a
+	// dispatched intent (concurrency guard) and uses FOR UPDATE SKIP LOCKED so
+	// concurrent callers don't block each other.
+	TakeNextDeployIntent(ctx context.Context, agentName string) (DeployIntent, error)
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 	UpsertAgent(ctx context.Context, arg UpsertAgentParams) (Agent, error)

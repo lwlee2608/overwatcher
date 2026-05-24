@@ -16,6 +16,7 @@ func TestReaper(t *testing.T, pool *pgxpool.Pool) {
 		updater := &fakeStatusUpdater{}
 
 		store.Enqueue(&intent.DeployIntent{
+			ProjectID:      TestProjectID,
 			DeliveryID:     "d1",
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
@@ -26,7 +27,7 @@ func TestReaper(t *testing.T, pool *pgxpool.Pool) {
 			DeploymentID:   99,
 			InstallationID: 42,
 		})
-		i, err := store.TakeNext(context.Background())
+		i, err := store.TakeNext(context.Background(), TestAgentName)
 		if err != nil {
 			t.Fatalf("TakeNext: %v", err)
 		}

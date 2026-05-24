@@ -89,7 +89,10 @@ func TestSystemIntegration(t *testing.T) {
 	t.Run("Agents", func(t *testing.T) { tests.TestAgents(t, engine, agentSvc, sessionToken) })
 	t.Run("Users", func(t *testing.T) { tests.TestUsers(t, engine, sessionToken) })
 	t.Run("Projects", func(t *testing.T) { tests.TestProjects(t, engine, sessionUserID, sessionToken) })
-	t.Run("Deploy", func(t *testing.T) { tests.TestDeploy(t, engine, intentStore, services.AgentSharedSecret) })
+	t.Run("Deploy", func(t *testing.T) {
+		tests.SeedTestAgent(t, pool)
+		tests.TestDeploy(t, engine, intentStore, services.AgentSharedSecret)
+	})
 	t.Run("Intent", func(t *testing.T) { tests.TestIntent(t, pool) })
 	t.Run("Dispatch", func(t *testing.T) { tests.TestDispatch(t, pool) })
 	t.Run("Reaper", func(t *testing.T) { tests.TestReaper(t, pool) })
