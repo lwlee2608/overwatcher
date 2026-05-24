@@ -8,6 +8,7 @@ export function AgentDashboard() {
   const [agents, setAgents] = useState<AgentStatus[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showInstall, setShowInstall] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -53,27 +54,41 @@ export function AgentDashboard() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <InstallAgentCard />
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
           {error}
         </div>
       )}
 
-      <div className="mb-6 flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-        <span>
-          <span className="font-semibold text-gray-900 dark:text-gray-100">
-            {connected}
-          </span>{" "}
-          connected
-        </span>
-        <span>
-          <span className="font-semibold text-gray-900 dark:text-gray-100">
-            {agents.length}
-          </span>{" "}
-          total
-        </span>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+          <span>
+            <span className="font-semibold text-gray-900 dark:text-gray-100">
+              {connected}
+            </span>{" "}
+            connected
+          </span>
+          <span>
+            <span className="font-semibold text-gray-900 dark:text-gray-100">
+              {agents.length}
+            </span>{" "}
+            total
+          </span>
+        </div>
+        {!showInstall && (
+          <button
+            type="button"
+            onClick={() => setShowInstall(true)}
+            className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400"
+          >
+            + New agent
+          </button>
+        )}
       </div>
+
+      {showInstall && (
+        <InstallAgentCard onClose={() => setShowInstall(false)} />
+      )}
 
       {sorted.length === 0 && !error && (
         <div className="text-center py-12 text-gray-400 dark:text-gray-500">
