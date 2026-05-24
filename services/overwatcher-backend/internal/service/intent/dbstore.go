@@ -77,8 +77,6 @@ func (s *DBStore) Enqueue(i *DeployIntent) {
 }
 
 // TakeNext blocks until an intent bound to agentName's project is available.
-// Filtering by agent name (instead of returning the global oldest) keeps one
-// agent from claiming another agent's project's intent.
 func (s *DBStore) TakeNext(ctx context.Context, agentName string) (*DeployIntent, error) {
 	for {
 		row, err := s.q.TakeNextDeployIntent(ctx, agentName)

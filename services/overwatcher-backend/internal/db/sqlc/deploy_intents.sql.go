@@ -466,12 +466,9 @@ WHERE di.id = c.id
 RETURNING di.id, di.delivery_id, di.repo, di.git_ref, di.sha, di.stack, di.environment, di.deployment_id, di.installation_id, di.status, di.attempts, di.created_at, di.updated_at, di.dispatched_at, di.services_spec, di.project_id, di.compose_file
 `
 
-// Atomically claim the oldest dispatchable intent for the agent identified by
-// @agent_name. The JOIN on agents.project_id confines an agent to intents for
-// the project it's bound to — without this filter, any polling agent could
-// claim any project's intent. The CTE skips stacks that already have a
-// dispatched intent (concurrency guard) and uses FOR UPDATE SKIP LOCKED so
-// concurrent callers don't block each other.
+// Claim the oldest dispatchable intent for @agent_name's bound project.
+// FOR UPDATE SKIP LOCKED + the dispatched-stack guard keep concurrent
+// pollers from blocking each other or double-claiming a stack.
 func (q *Queries) TakeNextDeployIntent(ctx context.Context, agentName string) (DeployIntent, error) {
 	row := q.db.QueryRow(ctx, takeNextDeployIntent, agentName)
 	var i DeployIntent

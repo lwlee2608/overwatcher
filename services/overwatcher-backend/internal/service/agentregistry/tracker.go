@@ -2,6 +2,7 @@ package agentregistry
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -10,6 +11,8 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 	"github.com/lwlee2608/overwatcher/internal/util"
 )
+
+var ErrNotFound = errors.New("agent not found")
 
 // AgentStatus is a point-in-time snapshot of a registered agent.
 type AgentStatus struct {
@@ -54,6 +57,20 @@ func (s *Service) List(ctx context.Context) ([]AgentStatus, error) {
 		out[i] = s.toStatus(a, now)
 	}
 	return out, nil
+}
+
+// GetByName returns a single agent by its name. Returns ErrNotFound when no
+// agent with that name exists.
+func (s *Service) GetByName(ctx context.Context, name string) (*AgentStatus, error) {
+	a, err := s.q.GetAgentByName(ctx, name)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	status := s.toStatus(a, time.Now())
+	return &status, nil
 }
 
 // GetByID returns a single agent by its UUID.
