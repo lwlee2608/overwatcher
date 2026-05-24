@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { AgentStatus } from "../types/agent";
 import { fetchAgents } from "../api/agents";
 import { AgentCard } from "./AgentCard";
+import { InstallAgentCard } from "./InstallAgentCard";
 
 export function AgentDashboard() {
   const [agents, setAgents] = useState<AgentStatus[]>([]);
@@ -52,6 +53,7 @@ export function AgentDashboard() {
 
   return (
     <div className="max-w-4xl mx-auto">
+      <InstallAgentCard />
       {error && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
           {error}

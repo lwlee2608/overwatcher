@@ -1,0 +1,43 @@
+name: Agent Release
+
+# Triggered by pushing an annotated tag of the form `agent-vX.Y.Z`. Builds
+# linux/amd64 + linux/arm64 binaries with version stamped in via ldflags,
+# attaches a SHA256SUMS file, and publishes them as a GitHub release.
+on:
+  push:
+    tags:
+      - 'agent-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/overwatcher-backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache-dependency-path: services/overwatcher-backend/go.sum
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#agent-}" >> "$GITHUB_OUTPUT"
+        working-directory: .
+
+      - name: Build release artifacts
+        run: make release-agent VERSION=${{ steps.version.outputs.version }}
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            services/overwatcher-backend/dist/overwatcher-agent_linux_amd64
+            services/overwatcher-backend/dist/overwatcher-agent_linux_arm64
+            services/overwatcher-backend/dist/SHA256SUMS
+          generate_release_notes: true

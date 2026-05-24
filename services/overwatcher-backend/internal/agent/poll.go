@@ -1,4 +1,4 @@
-package main
+package agent
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
+	"github.com/lwlee2608/overwatcher/internal/protocol"
 )
 
 // Poller pulls one intent at a time from the coordinator and feeds it to the
@@ -82,7 +82,7 @@ func (p *Poller) Run(ctx context.Context) {
 
 // fetchNext returns nil intent on 204 (long-poll timeout, no work). Returns
 // an error on transport failure or unexpected status.
-func (p *Poller) fetchNext(ctx context.Context) (*dto.DeployIntentResponse, error) {
+func (p *Poller) fetchNext(ctx context.Context) (*protocol.DeployIntentResponse, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.nextURL, nil)
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func (p *Poller) fetchNext(ctx context.Context) (*dto.DeployIntentResponse, erro
 	case http.StatusNoContent:
 		return nil, nil
 	case http.StatusOK:
-		var intent dto.DeployIntentResponse
+		var intent protocol.DeployIntentResponse
 		if err := json.NewDecoder(resp.Body).Decode(&intent); err != nil {
 			return nil, fmt.Errorf("decode intent: %w", err)
 		}
@@ -111,7 +111,7 @@ func (p *Poller) fetchNext(ctx context.Context) (*dto.DeployIntentResponse, erro
 	}
 }
 
-func (p *Poller) handleIntent(ctx context.Context, intent *dto.DeployIntentResponse) {
+func (p *Poller) handleIntent(ctx context.Context, intent *protocol.DeployIntentResponse) {
 	slog.Info("intent received",
 		"intent_id", intent.ID,
 		"repo", intent.Repo,
@@ -144,7 +144,7 @@ func (p *Poller) postResult(ctx context.Context, intentID string, success bool, 
 	if !success {
 		state = "failure"
 	}
-	body, err := json.Marshal(dto.DeployResultRequest{State: state, Error: errMsg})
+	body, err := json.Marshal(protocol.DeployResultRequest{State: state, Error: errMsg})
 	if err != nil {
 		return err
 	}

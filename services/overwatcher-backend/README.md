@@ -113,19 +113,26 @@ dispatch:
   shutdown_timeout: 30s # graceful shutdown deadline
 ```
 
-### Agent (`application-agent.yml`)
+### Agent
+
+Defaults live in `internal/agent/application-agent.yml` and are embedded
+into the binary via `//go:embed`. Production deployments override them via
+env vars (`AGENT_NAME`, `AGENT_SHARED_SECRET`, `AGENT_COORDINATOR_URL`,
+`AGENT_POLL_TIMEOUT`, `LOG_LEVEL`); for local dev, place an
+`application-agent.yml` next to the binary to override the embedded copy.
 
 ```yaml
 log:
   level: info
 agent:
-  name: "" # optional; defaults to hostname
-  coordinator_url: "http://coordinator:8080"
-  shared_secret: "" # env: AGENT_SHARED_SECRET
-  poll_timeout: 30s # must exceed coordinator's 25s long-poll
-  stacks:
-    my-stack: /opt/stacks/my-stack/docker-compose.yml
+  name: ""                  # env: AGENT_NAME
+  coordinator_url: "http://localhost:8080"
+  shared_secret: ""         # env: AGENT_SHARED_SECRET
+  poll_timeout: 30s         # must exceed coordinator's 25s long-poll
 ```
+
+The compose-file path is **carried on each deploy intent** by the
+coordinator (`projects.compose_file`), not configured per-agent.
 
 ## Build
 

@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
+	"github.com/lwlee2608/overwatcher/internal/protocol"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
 	"github.com/lwlee2608/overwatcher/internal/service/project"
@@ -52,7 +53,7 @@ func (h *DeployHandler) Next(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.DeployIntentResponse{
+	c.JSON(http.StatusOK, protocol.DeployIntentResponse{
 		ID:           intentRow.ID,
 		CreatedAt:    intentRow.CreatedAt,
 		DeliveryID:   intentRow.DeliveryID,
@@ -166,10 +167,10 @@ func (h *DeployHandler) Redeploy(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
-func intentServicesToDTO(specs []intent.ServiceSpec) []dto.ServiceSpecDTO {
-	out := make([]dto.ServiceSpecDTO, len(specs))
+func intentServicesToDTO(specs []intent.ServiceSpec) []protocol.ServiceSpecDTO {
+	out := make([]protocol.ServiceSpecDTO, len(specs))
 	for i, s := range specs {
-		out[i] = dto.ServiceSpecDTO{Name: s.Name, Image: s.Image, Tag: s.Tag}
+		out[i] = protocol.ServiceSpecDTO{Name: s.Name, Image: s.Image, Tag: s.Tag}
 	}
 	return out
 }
@@ -183,7 +184,7 @@ func (h *DeployHandler) Result(c *gin.Context) {
 		return
 	}
 
-	var req dto.DeployResultRequest
+	var req protocol.DeployResultRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
 		return

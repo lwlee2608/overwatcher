@@ -23,11 +23,12 @@ RUN go build -o app -ldflags "-X main.AppVersion=${VERSION}" agent/*.go
 #   -v /opt/stacks:/opt/stacks   (or wherever the configured compose files live)
 #
 # Required env: AGENT_SHARED_SECRET
-# Required config: application-agent.yml in /go/bin (or bind-mount your own)
+# Defaults are embedded in the binary via //go:embed application-agent.yml;
+# bind-mount /go/bin/application-agent.yml only if you need to override
+# defaults beyond what env vars can do.
 FROM docker:27-cli
 
 WORKDIR /go/bin
-COPY application-agent.yml /go/bin/application-agent.yml
 COPY --from=build-env /build/app .
 RUN chmod +x app
 

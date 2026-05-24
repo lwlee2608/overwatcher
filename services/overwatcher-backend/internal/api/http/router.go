@@ -4,7 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/handler"
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
-	"github.com/lwlee2608/overwatcher/internal/service/agent"
+	"github.com/lwlee2608/overwatcher/internal/service/agentregistry"
 	"github.com/lwlee2608/overwatcher/internal/service/auth"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
@@ -20,13 +20,15 @@ type Config struct {
 type Services struct {
 	WebhookService    *webhook.Service
 	DispatchService   *dispatch.Service
-	AgentService      *agent.Service
+	AgentService      *agentregistry.Service
 	EventLogService   *eventlog.Service
 	UserService       *user.Service
 	ProjectService    *project.Service
 	AuthService       *auth.Service
 	WebhookSecret     string
 	AgentSharedSecret string
+	AgentReleaseTag   string
+	AgentPublicURL    string
 	CookieConfig      middleware.CookieConfig
 }
 
@@ -35,6 +37,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	engine.Use(middleware.ErrorHandler())
 
 	healthHandler := handler.NewHealthHandler()
+	installHandler := handler.NewInstallHandler(srvs.AgentReleaseTag, srvs.AgentPublicURL)
 	webhookHandler := handler.NewWebhookHandler(srvs.WebhookService)
 	deployHandler := handler.NewDeployHandler(srvs.DispatchService, srvs.WebhookService, srvs.ProjectService)
 	agentHandler := handler.NewAgentHandler(srvs.AgentService, srvs.ProjectService)
@@ -44,6 +47,8 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	authHandler := handler.NewAuthHandler(srvs.AuthService, srvs.CookieConfig)
 
 	engine.GET("/health", healthHandler.Check)
+	// Public: piped into bash before any credentials exist on the VM.
+	engine.GET("/install.sh", installHandler.Serve)
 
 	apis := engine.Group("/api/v1")
 	{

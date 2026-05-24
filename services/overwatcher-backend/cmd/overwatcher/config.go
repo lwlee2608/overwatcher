@@ -23,6 +23,8 @@ type GitHubConfig struct {
 
 type AgentConfig struct {
 	SharedSecret string `mapstructure:"shared_secret" mask:"true"`
+	ReleaseTag   string `mapstructure:"release_tag"`
+	PublicURL    string `mapstructure:"public_url"`
 }
 
 type DispatchConfig struct {

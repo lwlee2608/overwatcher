@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 	"github.com/lwlee2608/overwatcher/internal/api/http/handler"
+	"github.com/lwlee2608/overwatcher/internal/protocol"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,7 +65,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 
 		require.Equal(t, http.StatusOK, rr.Code)
 
-		var resp dto.DeployIntentResponse
+		var resp protocol.DeployIntentResponse
 		err := json.NewDecoder(rr.Body).Decode(&resp)
 		require.NoError(t, err)
 		assert.NotEmpty(t, resp.ID)
@@ -105,11 +105,11 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 		router.ServeHTTP(rr, req)
 		require.Equal(t, http.StatusOK, rr.Code)
 
-		var resp dto.DeployIntentResponse
+		var resp protocol.DeployIntentResponse
 		require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 
 		// Report success via HTTP.
-		body, _ := json.Marshal(dto.DeployResultRequest{State: "success"})
+		body, _ := json.Marshal(protocol.DeployResultRequest{State: "success"})
 		rr = httptest.NewRecorder()
 		req = httptest.NewRequest("POST", "/api/v1/deploy/"+resp.ID+"/result", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -139,10 +139,10 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 		router.ServeHTTP(rr, req)
 		require.Equal(t, http.StatusOK, rr.Code)
 
-		var resp dto.DeployIntentResponse
+		var resp protocol.DeployIntentResponse
 		require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 
-		body, _ := json.Marshal(dto.DeployResultRequest{State: "failure", Error: "compose pull exit 1"})
+		body, _ := json.Marshal(protocol.DeployResultRequest{State: "failure", Error: "compose pull exit 1"})
 		rr = httptest.NewRecorder()
 		req = httptest.NewRequest("POST", "/api/v1/deploy/"+resp.ID+"/result", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
@@ -154,7 +154,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 	})
 
 	t.Run("ReportUnknownID", func(t *testing.T) {
-		body, _ := json.Marshal(dto.DeployResultRequest{State: "success"})
+		body, _ := json.Marshal(protocol.DeployResultRequest{State: "success"})
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/api/v1/deploy/00000000-0000-0000-0000-000000000000/result", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
