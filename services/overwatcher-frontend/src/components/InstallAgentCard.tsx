@@ -12,8 +12,8 @@ export function InstallAgentCard() {
   const safeName = name.trim() || "<your-agent-name>";
   const command = useMemo(
     () =>
-      `AGENT_NAME=${safeName} \\
-AGENT_SHARED_SECRET=${SECRET_PLACEHOLDER} \\
+      `AGENT_NAME="${safeName}" \\
+AGENT_SHARED_SECRET="${SECRET_PLACEHOLDER}" \\
 curl -fsSL ${installURL} | sudo -E bash`,
     [safeName, installURL],
   );
