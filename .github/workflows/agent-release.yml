@@ -1,12 +1,12 @@
 name: Agent Release
 
-# Triggered by pushing an annotated tag of the form `agent-vX.Y.Z`. Builds
+# Triggered by pushing an annotated tag of the form `vX.Y.Z`. Builds
 # linux/amd64 + linux/arm64 binaries with version stamped in via ldflags,
 # attaches a SHA256SUMS file, and publishes them as a GitHub release.
 on:
   push:
     tags:
-      - 'agent-v*'
+      - 'v*'
 
 permissions:
   contents: write
@@ -25,13 +25,8 @@ jobs:
           go-version: '1.25'
           cache-dependency-path: services/overwatcher-backend/go.sum
 
-      - name: Extract version from tag
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#agent-}" >> "$GITHUB_OUTPUT"
-        working-directory: .
-
       - name: Build release artifacts
-        run: make release-agent VERSION=${{ steps.version.outputs.version }}
+        run: make release-agent VERSION=${{ github.ref_name }}
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
