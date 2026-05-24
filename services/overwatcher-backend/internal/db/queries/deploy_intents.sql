@@ -23,17 +23,19 @@ ORDER BY created_at ASC;
 SELECT * FROM deploy_intents WHERE id = $1;
 
 -- name: TakeNextDeployIntent :one
--- Atomically claim the oldest dispatchable intent. The CTE skips stacks that
--- already have a dispatched intent (concurrency guard) and uses FOR UPDATE
--- SKIP LOCKED so concurrent callers don't block each other.
+-- Claim the oldest dispatchable intent for @agent_name's bound project.
+-- FOR UPDATE SKIP LOCKED + the dispatched-stack guard keep concurrent
+-- pollers from blocking each other or double-claiming a stack.
 WITH candidate AS (
-    SELECT id
-    FROM deploy_intents
-    WHERE status = 'created'
-      AND stack NOT IN (
+    SELECT di.id
+    FROM deploy_intents di
+    JOIN agents a ON a.project_id = di.project_id
+    WHERE di.status = 'created'
+      AND a.name = @agent_name
+      AND di.stack NOT IN (
           SELECT DISTINCT stack FROM deploy_intents WHERE status = 'dispatched'
       )
-    ORDER BY created_at ASC
+    ORDER BY di.created_at ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED
 )

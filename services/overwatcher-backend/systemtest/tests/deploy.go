@@ -19,6 +19,7 @@ import (
 
 func authReq(req *http.Request, secret string) {
 	req.Header.Set("Authorization", "Bearer "+secret)
+	req.Header.Set("X-Agent-Name", TestAgentName)
 }
 
 func webSvc(tag string) []intent.ServiceSpec {
@@ -48,6 +49,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 	t.Run("EnqueueAndNext", func(t *testing.T) {
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-1",
+			ProjectID:      TestProjectID,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "abc123",
@@ -88,6 +90,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 	t.Run("ReportSuccess", func(t *testing.T) {
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-success",
+			ProjectID:      TestProjectID,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "def456",
@@ -123,6 +126,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 	t.Run("ReportFailure", func(t *testing.T) {
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-failure",
+			ProjectID:      TestProjectID,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "ghi789",
@@ -167,6 +171,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 	t.Run("ConcurrencyGuardSameStack", func(t *testing.T) {
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-guard-1",
+			ProjectID:      TestProjectID,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "aaa111",
@@ -178,6 +183,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 		})
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-guard-2",
+			ProjectID:      TestProjectID,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "bbb222",
@@ -191,21 +197,21 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 		// First take succeeds.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		first, err := store.TakeNext(ctx)
+		first, err := store.TakeNext(ctx, TestAgentName)
 		require.NoError(t, err)
 		assert.Equal(t, "aaa111", first.SHA)
 
 		// Second take should block — same stack is in-flight.
 		ctx2, cancel2 := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel2()
-		_, err = store.TakeNext(ctx2)
+		_, err = store.TakeNext(ctx2, TestAgentName)
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 
 		// Complete first — second should now be available.
 		store.Complete(first.ID, true)
 		ctx3, cancel3 := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel3()
-		second, err := store.TakeNext(ctx3)
+		second, err := store.TakeNext(ctx3, TestAgentName)
 		require.NoError(t, err)
 		assert.Equal(t, "bbb222", second.SHA)
 
@@ -216,10 +222,9 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 		// Dedup is keyed on (delivery_id, project_id) via a partial unique
 		// index (WHERE project_id IS NOT NULL), so both rows must carry the
 		// same project_id for the conflict to fire.
-		dupProjectID := "11111111-1111-1111-1111-111111111111"
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-dup",
-			ProjectID:      dupProjectID,
+			ProjectID:      TestProjectID,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "ccc333",
@@ -231,7 +236,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 		})
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-dup",
-			ProjectID:      dupProjectID,
+			ProjectID:      TestProjectID,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "ccc333",
@@ -253,7 +258,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		i, err := store.TakeNext(ctx)
+		i, err := store.TakeNext(ctx, TestAgentName)
 		require.NoError(t, err)
 		store.Complete(i.ID, true)
 	})
@@ -261,6 +266,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 	t.Run("SweepTimedOutRequeue", func(t *testing.T) {
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-sweep-rq",
+			ProjectID:      TestProjectID,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "ddd444",
@@ -273,7 +279,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		taken, err := store.TakeNext(ctx)
+		taken, err := store.TakeNext(ctx, TestAgentName)
 		require.NoError(t, err)
 
 		// Let dispatched_at age past the sweep cutoff.
@@ -286,7 +292,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 		// Intent is back in the queue — clean up.
 		ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel2()
-		i, err := store.TakeNext(ctx2)
+		i, err := store.TakeNext(ctx2, TestAgentName)
 		require.NoError(t, err)
 		store.Complete(i.ID, true)
 	})
@@ -294,6 +300,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 	t.Run("SweepTimedOutPermanentFailure", func(t *testing.T) {
 		store.Enqueue(&intent.DeployIntent{
 			DeliveryID:     "delivery-sweep-fail",
+			ProjectID:      TestProjectID,
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
 			SHA:            "eee555",
@@ -307,7 +314,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 		// TakeNext sets attempts=1.
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_, err := store.TakeNext(ctx)
+		_, err := store.TakeNext(ctx, TestAgentName)
 		require.NoError(t, err)
 
 		// Sweep with maxAttempts=1 → permanently failed.

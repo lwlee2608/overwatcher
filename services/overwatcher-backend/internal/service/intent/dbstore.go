@@ -76,9 +76,10 @@ func (s *DBStore) Enqueue(i *DeployIntent) {
 	}
 }
 
-func (s *DBStore) TakeNext(ctx context.Context) (*DeployIntent, error) {
+// TakeNext blocks until an intent bound to agentName's project is available.
+func (s *DBStore) TakeNext(ctx context.Context, agentName string) (*DeployIntent, error) {
 	for {
-		row, err := s.q.TakeNextDeployIntent(ctx)
+		row, err := s.q.TakeNextDeployIntent(ctx, agentName)
 		if err == nil {
 			return fromRow(row), nil
 		}

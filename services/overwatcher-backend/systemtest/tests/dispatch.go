@@ -52,6 +52,7 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 	t.Run("Next_HappyPath", func(t *testing.T) {
 		d, store, upd := newSvc(t)
 		store.Enqueue(&intent.DeployIntent{
+			ProjectID:      TestProjectID,
 			DeliveryID:     "d1",
 			Repo:           "owner/repo",
 			Ref:            "refs/heads/main",
@@ -63,7 +64,7 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 			InstallationID: 7,
 		})
 
-		got, err := d.Next(context.Background())
+		got, err := d.Next(context.Background(), TestAgentName)
 		if err != nil {
 			t.Fatalf("Next: %v", err)
 		}
@@ -95,6 +96,7 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 		upd.err = errors.New("github 503")
 
 		store.Enqueue(&intent.DeployIntent{
+			ProjectID:      TestProjectID,
 			DeliveryID:     "d1",
 			Repo:           "o/r",
 			Ref:            "refs/heads/main",
@@ -106,7 +108,7 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 			InstallationID: 1,
 		})
 
-		got, err := d.Next(context.Background())
+		got, err := d.Next(context.Background(), TestAgentName)
 		if err != nil {
 			t.Fatalf("Next must not propagate updater errors: %v", err)
 		}
@@ -124,7 +126,7 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		if _, err := d.Next(ctx); !errors.Is(err, context.Canceled) {
+		if _, err := d.Next(ctx, TestAgentName); !errors.Is(err, context.Canceled) {
 			t.Errorf("err = %v, want context.Canceled", err)
 		}
 	})
@@ -132,6 +134,7 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 	t.Run("Report_HappyPath", func(t *testing.T) {
 		d, store, upd := newSvc(t)
 		store.Enqueue(&intent.DeployIntent{
+			ProjectID:      TestProjectID,
 			DeliveryID:     "d1",
 			Repo:           "o/r",
 			Ref:            "refs/heads/main",
@@ -142,7 +145,7 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 			DeploymentID:   99,
 			InstallationID: 3,
 		})
-		taken, err := d.Next(context.Background())
+		taken, err := d.Next(context.Background(), TestAgentName)
 		if err != nil {
 			t.Fatalf("Next: %v", err)
 		}
@@ -170,6 +173,7 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 	t.Run("Report_FailureCarriesErrorMsg", func(t *testing.T) {
 		d, store, upd := newSvc(t)
 		store.Enqueue(&intent.DeployIntent{
+			ProjectID:      TestProjectID,
 			DeliveryID:     "d1",
 			Repo:           "o/r",
 			Ref:            "refs/heads/main",
@@ -180,7 +184,7 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 			DeploymentID:   1,
 			InstallationID: 1,
 		})
-		taken, err := d.Next(context.Background())
+		taken, err := d.Next(context.Background(), TestAgentName)
 		if err != nil {
 			t.Fatalf("Next: %v", err)
 		}
