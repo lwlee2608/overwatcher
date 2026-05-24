@@ -26,11 +26,12 @@ func NewInstallHandler(releaseTag, publicURL string) *InstallHandler {
 func (h *InstallHandler) Serve(c *gin.Context) {
 	coordinator := h.publicURL
 	if coordinator == "" {
-		scheme := "https"
-		// Trust X-Forwarded-Proto when behind a proxy; otherwise gin's TLS field.
-		if c.Request.TLS == nil && c.GetHeader("X-Forwarded-Proto") == "" {
-			scheme = "http"
-		} else if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
+		scheme := "http"
+		if c.Request.TLS != nil {
+			scheme = "https"
+		}
+		// X-Forwarded-Proto wins when set — proxies terminate TLS upstream.
+		if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
 			scheme = proto
 		}
 		coordinator = scheme + "://" + c.Request.Host
