@@ -30,9 +30,14 @@ func (h *InstallHandler) Serve(c *gin.Context) {
 		if c.Request.TLS != nil {
 			scheme = "https"
 		}
-		// X-Forwarded-Proto wins when set — proxies terminate TLS upstream.
 		if proto := c.GetHeader("X-Forwarded-Proto"); proto != "" {
 			scheme = proto
+		} else if c.GetHeader("X-Forwarded-For") != "" || c.GetHeader("X-Forwarded-Host") != "" {
+			// Behind a proxy that didn't set X-Forwarded-Proto (Railway's edge
+			// is one). Real-world proxies terminate TLS upstream, so plain
+			// http here would silently produce a broken AGENT_COORDINATOR_URL
+			// — and the agent now refuses to start on http to non-loopback.
+			scheme = "https"
 		}
 		coordinator = scheme + "://" + c.Request.Host
 	}
