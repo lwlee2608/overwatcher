@@ -14,6 +14,7 @@ export function InstallAgentCard({ onClose }: InstallAgentCardProps) {
   const [mode, setMode] = useState<Mode>("systemd");
   const [copied, setCopied] = useState(false);
   const [sharedSecret, setSharedSecret] = useState("");
+  const [revealed, setRevealed] = useState(false);
 
   const coordinatorURL = useMemo(() => window.location.origin, []);
   const installURL = `${coordinatorURL}/install.sh`;
@@ -46,7 +47,7 @@ bash`;
 
   const build = mode === "systemd" ? buildSystemd : buildDocker;
   const command = build(realSecret);
-  const displayCommand = build(displaySecret);
+  const displayCommand = build(revealed ? realSecret : displaySecret);
 
   const handleCopy = async () => {
     try {
@@ -136,16 +137,26 @@ bash`;
       </label>
 
       <div className="relative">
-        <pre className="overflow-x-auto rounded bg-gray-900 p-3 pr-20 text-xs text-gray-100 dark:bg-gray-950">
+        <pre className="overflow-x-auto rounded bg-gray-900 p-3 pr-32 text-xs text-gray-100 dark:bg-gray-950">
           <code>{displayCommand}</code>
         </pre>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="absolute right-2 top-2 rounded bg-gray-700 px-2 py-1 text-xs text-gray-100 hover:bg-gray-600"
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
+        <div className="absolute right-2 top-2 flex gap-1">
+          <button
+            type="button"
+            onClick={() => setRevealed((v) => !v)}
+            disabled={!sharedSecret}
+            className="rounded bg-gray-700 px-2 py-1 text-xs text-gray-100 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {revealed ? "Hide" : "Show"}
+          </button>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="rounded bg-gray-700 px-2 py-1 text-xs text-gray-100 hover:bg-gray-600"
+          >
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
       </div>
 
       {mode === "systemd" ? (
