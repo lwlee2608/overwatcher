@@ -1,7 +1,7 @@
 FROM golang:1.25 AS build-env
 
 ARG APP=overwatcher
-ARG COMMIT_SHA=dev
+ARG COMMIT_SHA=
 ARG RAILWAY_GIT_COMMIT_SHA
 
 ENV GO111MODULE=on  \
@@ -18,7 +18,7 @@ COPY internal/ internal/
 COPY VERSION ./
 RUN VERSION=$(cat VERSION) && \
     SHA=$(echo "${RAILWAY_GIT_COMMIT_SHA:-$COMMIT_SHA}" | cut -c1-7) && \
-    go build -o app -ldflags "-X main.AppVersion=${VERSION}-${SHA}" ${APP}/*.go
+    go build -o app -ldflags "-X main.AppVersion=${VERSION}${SHA:+-$SHA}" ${APP}/*.go
 
 
 FROM alpine

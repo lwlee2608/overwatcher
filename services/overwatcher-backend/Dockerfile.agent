@@ -1,6 +1,6 @@
 FROM golang:1.25 AS build-env
 
-ARG COMMIT_SHA=dev
+ARG COMMIT_SHA=
 
 ENV GO111MODULE=on  \
     CGO_ENABLED=0   \
@@ -16,7 +16,7 @@ COPY internal/ internal/
 COPY VERSION ./
 RUN VERSION=$(cat VERSION) && \
     SHA=$(echo "${COMMIT_SHA}" | cut -c1-7) && \
-    go build -o app -ldflags "-X main.AppVersion=${VERSION}-${SHA}" agent/*.go
+    go build -o app -ldflags "-X main.AppVersion=${VERSION}${SHA:+-$SHA}" agent/*.go
 
 
 # docker:27-cli ships the docker CLI plus the compose plugin without bundling
