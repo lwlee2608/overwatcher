@@ -4,8 +4,8 @@ DOCKER = $(shell which docker 2>/dev/null)
 REGISTRY        ?= lwlee2608/
 APP             := overwatcher
 AGENT           := agent
-VERSION         ?= v0.3.2
-COMMIT_SHA      ?= dev
+VERSION         ?= $(shell cat VERSION)
+COMMIT_SHA      ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 LDFLAGS         := -ldflags "-X main.AppVersion=$(VERSION)-$(COMMIT_SHA)"
 
 .PHONY: all build build-agent clean run run-agent test dep generate release-agent
@@ -31,9 +31,9 @@ generate:
 	sqlc generate
 
 docker:
-	$(DOCKER) build --build-arg APP=$(APP) --build-arg VERSION=$(VERSION) --build-arg COMMIT_SHA=$(COMMIT_SHA) -t $(REGISTRY)$(APP):$(VERSION) -t $(REGISTRY)$(APP):latest .
+	$(DOCKER) build --build-arg APP=$(APP) --build-arg COMMIT_SHA=$(COMMIT_SHA) -t $(REGISTRY)$(APP):$(VERSION) -t $(REGISTRY)$(APP):latest .
 docker-agent:
-	$(DOCKER) build -f Dockerfile.agent --build-arg VERSION=$(VERSION) --build-arg COMMIT_SHA=$(COMMIT_SHA) -t $(REGISTRY)$(AGENT):$(VERSION) -t $(REGISTRY)$(AGENT):latest .
+	$(DOCKER) build -f Dockerfile.agent --build-arg COMMIT_SHA=$(COMMIT_SHA) -t $(REGISTRY)$(AGENT):$(VERSION) -t $(REGISTRY)$(AGENT):latest .
 push:
 	$(DOCKER) push $(REGISTRY)$(APP):$(VERSION)
 	$(DOCKER) push $(REGISTRY)$(APP):latest

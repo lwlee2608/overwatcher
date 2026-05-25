@@ -1,8 +1,8 @@
 FROM golang:1.25 AS build-env
 
 ARG APP=overwatcher
-ARG VERSION=dev
 ARG COMMIT_SHA=dev
+ARG RAILWAY_GIT_COMMIT_SHA
 
 ENV GO111MODULE=on  \
     CGO_ENABLED=0   \
@@ -15,7 +15,10 @@ RUN go mod download
 
 COPY cmd/${APP} ${APP}/
 COPY internal/ internal/
-RUN go build -o app -ldflags "-X main.AppVersion=${VERSION}-${COMMIT_SHA}" ${APP}/*.go
+COPY VERSION ./
+RUN VERSION=$(cat VERSION) && \
+    SHA=$(echo "${RAILWAY_GIT_COMMIT_SHA:-$COMMIT_SHA}" | cut -c1-7) && \
+    go build -o app -ldflags "-X main.AppVersion=${VERSION}-${SHA}" ${APP}/*.go
 
 
 FROM alpine
