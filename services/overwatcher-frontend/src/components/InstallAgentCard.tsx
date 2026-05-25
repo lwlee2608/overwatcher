@@ -25,23 +25,28 @@ export function InstallAgentCard({ onClose }: InstallAgentCardProps) {
   }, []);
 
   const safeName = name.trim() || "<your-agent-name>";
-  const secret = sharedSecret || SECRET_PLACEHOLDER;
+  // Real secret goes to clipboard; display swaps in bullets so it can't be
+  // shoulder-surfed or screenshotted.
+  const realSecret = sharedSecret || SECRET_PLACEHOLDER;
+  const displaySecret = sharedSecret ? "••••••••••••••••" : SECRET_PLACEHOLDER;
 
-  const systemdCommand = `curl -fsSL ${installURL} | \\
+  const buildSystemd = (s: string) => `curl -fsSL ${installURL} | \\
 sudo AGENT_NAME="${safeName}" \\
-AGENT_SHARED_SECRET="${secret}" \\
+AGENT_SHARED_SECRET="${s}" \\
 bash`;
 
-  const dockerCommand = `docker run -d --name overwatcher-agent --restart unless-stopped \\
+  const buildDocker = (s: string) => `docker run -d --name overwatcher-agent --restart unless-stopped \\
   -e AGENT_NAME="${safeName}" \\
-  -e AGENT_SHARED_SECRET="${secret}" \\
+  -e AGENT_SHARED_SECRET="${s}" \\
   -e AGENT_COORDINATOR_URL="${coordinatorURL}" \\
   -v /var/run/docker.sock:/var/run/docker.sock \\
   -v /path/to/your/deployment:/opt/stacks/my-stack \\
   -v ~/.docker/config.json:/root/.docker/config.json:ro \\
   lwlee2608/agent:latest`;
 
-  const command = mode === "systemd" ? systemdCommand : dockerCommand;
+  const build = mode === "systemd" ? buildSystemd : buildDocker;
+  const command = build(realSecret);
+  const displayCommand = build(displaySecret);
 
   const handleCopy = async () => {
     try {
@@ -132,7 +137,7 @@ bash`;
 
       <div className="relative">
         <pre className="overflow-x-auto rounded bg-gray-900 p-3 pr-20 text-xs text-gray-100 dark:bg-gray-950">
-          <code>{command}</code>
+          <code>{displayCommand}</code>
         </pre>
         <button
           type="button"
