@@ -151,14 +151,14 @@ bash`;
             disabled={!sharedSecret}
             aria-label={revealed ? "Hide secret" : "Show secret"}
             title={revealed ? "Hide secret" : "Show secret"}
-            className="inline-flex h-7 w-7 items-center justify-center rounded bg-gray-700 text-gray-100 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-700 text-gray-100 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {revealed ? (
               <svg
                 aria-hidden="true"
                 viewBox="0 0 20 20"
                 fill="currentColor"
-                className="h-4 w-4"
+                className="h-3.5 w-3.5"
               >
                 <path d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06l-1.745-1.745A10.029 10.029 0 0 0 19.336 10.59a1.65 1.65 0 0 0 0-1.18C17.857 6.066 14.208 3.5 10 3.5a9.92 9.92 0 0 0-4.512 1.072L3.28 2.22ZM7.752 6.69 9.34 8.28a3 3 0 0 1 3.38 3.38l1.59 1.59A4 4 0 0 0 7.752 6.69ZM10.748 13.93l2.523 2.523a9.987 9.987 0 0 1-3.27.547c-4.208 0-7.858-2.566-9.337-5.91a1.65 1.65 0 0 1 0-1.18 10.014 10.014 0 0 1 2.341-3.272l3.305 3.305a4 4 0 0 0 4.438 4.438Z" />
               </svg>
@@ -167,7 +167,7 @@ bash`;
                 aria-hidden="true"
                 viewBox="0 0 20 20"
                 fill="currentColor"
-                className="h-4 w-4"
+                className="h-3.5 w-3.5"
               >
                 <path
                   fillRule="evenodd"
@@ -187,14 +187,14 @@ bash`;
             onClick={handleCopy}
             aria-label={copied ? "Copied" : "Copy install command"}
             title={copied ? "Copied" : "Copy install command"}
-            className="inline-flex h-7 w-7 items-center justify-center rounded bg-gray-700 text-gray-100 hover:bg-gray-600"
+            className="inline-flex h-6 w-6 items-center justify-center rounded bg-gray-700 text-gray-100 hover:bg-gray-600"
           >
             {copied ? (
               <svg
                 aria-hidden="true"
                 viewBox="0 0 20 20"
                 fill="currentColor"
-                className="h-4 w-4 text-green-400"
+                className="h-3.5 w-3.5 text-green-400"
               >
                 <path
                   fillRule="evenodd"
@@ -207,7 +207,7 @@ bash`;
                 aria-hidden="true"
                 viewBox="0 0 20 20"
                 fill="currentColor"
-                className="h-4 w-4"
+                className="h-3.5 w-3.5"
               >
                 <path d="M7 3.5A1.5 1.5 0 0 1 8.5 2h6A1.5 1.5 0 0 1 16 3.5v8a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 7 11.5v-8Z" />
                 <path d="M4 6.5A1.5 1.5 0 0 1 5.5 5H6v6.5A2.5 2.5 0 0 0 8.5 14H13v.5a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 4 14.5v-8Z" />
