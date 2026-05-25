@@ -31,15 +31,19 @@ export function InstallAgentCard({ onClose }: InstallAgentCardProps) {
   const realSecret = sharedSecret || SECRET_PLACEHOLDER;
   const displaySecret = sharedSecret ? "••••••••••••••••" : SECRET_PLACEHOLDER;
 
+  // Wrap in single quotes for POSIX shells: '...' is literal, no metachar
+  // expansion. Only ' itself needs the close-escape-reopen dance.
+  const sh = (v: string) => `'${v.replace(/'/g, "'\\''")}'`;
+
   const buildSystemd = (s: string) => `curl -fsSL ${installURL} | \\
-sudo AGENT_NAME="${safeName}" \\
-AGENT_SHARED_SECRET="${s}" \\
+sudo AGENT_NAME=${sh(safeName)} \\
+AGENT_SHARED_SECRET=${sh(s)} \\
 bash`;
 
   const buildDocker = (s: string) => `docker run -d --name overwatcher-agent --restart unless-stopped \\
-  -e AGENT_NAME="${safeName}" \\
-  -e AGENT_SHARED_SECRET="${s}" \\
-  -e AGENT_COORDINATOR_URL="${coordinatorURL}" \\
+  -e AGENT_NAME=${sh(safeName)} \\
+  -e AGENT_SHARED_SECRET=${sh(s)} \\
+  -e AGENT_COORDINATOR_URL=${sh(coordinatorURL)} \\
   -v /var/run/docker.sock:/var/run/docker.sock \\
   -v /path/to/your/deployment:/opt/stacks/my-stack \\
   -v ~/.docker/config.json:/root/.docker/config.json:ro \\
