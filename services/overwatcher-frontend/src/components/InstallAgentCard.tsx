@@ -141,7 +141,7 @@ bash`;
       </label>
 
       <div className="relative">
-        <pre className="overflow-x-auto rounded bg-gray-900 p-3 pr-32 text-xs text-gray-100 dark:bg-gray-950">
+        <pre className="overflow-x-auto rounded bg-gray-900 p-3 pr-20 text-xs text-gray-100 dark:bg-gray-950">
           <code>{displayCommand}</code>
         </pre>
         <div className="absolute right-2 top-2 flex gap-1">
@@ -149,16 +149,70 @@ bash`;
             type="button"
             onClick={() => setRevealed((v) => !v)}
             disabled={!sharedSecret}
-            className="rounded bg-gray-700 px-2 py-1 text-xs text-gray-100 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label={revealed ? "Hide secret" : "Show secret"}
+            title={revealed ? "Hide secret" : "Show secret"}
+            className="inline-flex h-7 w-7 items-center justify-center rounded bg-gray-700 text-gray-100 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {revealed ? "Hide" : "Show"}
+            {revealed ? (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="h-4 w-4"
+              >
+                <path d="M3.28 2.22a.75.75 0 0 0-1.06 1.06l14.5 14.5a.75.75 0 1 0 1.06-1.06l-1.745-1.745A10.029 10.029 0 0 0 19.336 10.59a1.65 1.65 0 0 0 0-1.18C17.857 6.066 14.208 3.5 10 3.5a9.92 9.92 0 0 0-4.512 1.072L3.28 2.22ZM7.752 6.69 9.34 8.28a3 3 0 0 1 3.38 3.38l1.59 1.59A4 4 0 0 0 7.752 6.69ZM10.748 13.93l2.523 2.523a9.987 9.987 0 0 1-3.27.547c-4.208 0-7.858-2.566-9.337-5.91a1.65 1.65 0 0 1 0-1.18 10.014 10.014 0 0 1 2.341-3.272l3.305 3.305a4 4 0 0 0 4.438 4.438Z" />
+              </svg>
+            ) : (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="h-4 w-4"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"
+                  clipRule="evenodd"
+                />
+                <path
+                  fillRule="evenodd"
+                  d="M.664 10.59a1.65 1.65 0 0 1 0-1.18C2.143 6.066 5.793 3.5 10 3.5c4.208 0 7.857 2.566 9.336 5.91a1.65 1.65 0 0 1 0 1.18C17.857 13.934 14.208 16.5 10 16.5c-4.207 0-7.857-2.566-9.336-5.91ZM14 10a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            )}
           </button>
           <button
             type="button"
             onClick={handleCopy}
-            className="rounded bg-gray-700 px-2 py-1 text-xs text-gray-100 hover:bg-gray-600"
+            aria-label={copied ? "Copied" : "Copy install command"}
+            title={copied ? "Copied" : "Copy install command"}
+            className="inline-flex h-7 w-7 items-center justify-center rounded bg-gray-700 text-gray-100 hover:bg-gray-600"
           >
-            {copied ? "Copied" : "Copy"}
+            {copied ? (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="h-4 w-4 text-green-400"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.313a1 1 0 0 1-1.42.002L3.29 9.23a1 1 0 1 1 1.42-1.408l4.04 4.072 6.54-6.598a1 1 0 0 1 1.414-.006Z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            ) : (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="h-4 w-4"
+              >
+                <path d="M7 3.5A1.5 1.5 0 0 1 8.5 2h6A1.5 1.5 0 0 1 16 3.5v8a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 7 11.5v-8Z" />
+                <path d="M4 6.5A1.5 1.5 0 0 1 5.5 5H6v6.5A2.5 2.5 0 0 0 8.5 14H13v.5a1.5 1.5 0 0 1-1.5 1.5h-6A1.5 1.5 0 0 1 4 14.5v-8Z" />
+              </svg>
+            )}
           </button>
         </div>
       </div>
