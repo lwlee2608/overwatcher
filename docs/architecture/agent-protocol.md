@@ -30,7 +30,9 @@ The agent's HTTP client timeout is 30s (`agent.poll_timeout`). The 5s gap is del
 
 **`POST /api/v1/deploy/{id}/result`** — report the outcome after running `docker compose`. Body is `{"state": "success" | "failure", "error": "..."}`. The coordinator responds `204`. Unknown intent IDs return `404`; failed deploys don't auto-retry — the next git push creates a new intent.
 
-Both endpoints authenticate with `Authorization: Bearer <AGENT_SHARED_SECRET>` and identify the agent with `X-Agent-Name: <name>`.
+Both endpoints authenticate with `Authorization: Bearer <AGENT_SHARED_SECRET>` and identify the agent with `X-Agent-Name: <name>`. Two optional headers report the agent's deployment surface: `X-Agent-Type` (`docker` or `systemd`, auto-detected from `/.dockerenv`) and `X-Agent-Version` (the agent's build version). The coordinator stores these on the agent row so the dashboard can render a badge per agent; empty values leave the stored value intact.
+
+`/deploy/next` additionally requires the agent to be **bound to a project**. An unbound agent gets `412 Precondition Failed` — the binding is the project↔agent 1:1 row, set from the project's Agent panel in the UI. A `X-Agent-Name` that's never been seen returns `404` ("agent not registered"); the agent registers itself implicitly on its first authenticated poll via the heartbeat middleware.
 
 ## A full poll cycle
 
@@ -96,7 +98,9 @@ Trade-off: the coordinator now "knows" filesystem paths on agent VMs, which is a
 | `200 OK` | intent ready on `/deploy/next` | decode, run deploy |
 | `204 No Content` | `/deploy/next` timed out, or `/result` accepted | re-poll immediately |
 | `401` | bad/missing bearer token | backoff, log; won't self-heal |
-| `404` | `/result` for unknown intent id | log, continue |
+| `404` on `/deploy/next` | agent not registered yet | backoff; resolves once heartbeat upserts the row |
+| `404` on `/result` | `/result` for unknown intent id | log, continue |
+| `412 Precondition Failed` | agent has no project binding | backoff; resolves once an operator binds the agent in the UI |
 | `5xx` / network error | coordinator down or transient glitch | backoff (see `poll.go`) |
 
 ## Auth and heartbeat

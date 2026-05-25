@@ -4,9 +4,9 @@ PostgreSQL backs the entire control plane. Migrations live under `services/overw
 
 ## Shape
 
-The schema is split along two axes:
+The schema is split along three axes:
 
-- **Auth & tenancy** — `users`, `sessions`. The UI logs in with email + password (cookie-based sessions); a "bootstrap admin" is seeded with a one-time password on first start.
+- **Auth & tenancy** — `users`, `sessions`, `project_members`. The UI logs in with email + password (cookie-based sessions); a "bootstrap admin" is seeded with a one-time password on first start. `project_members` lets the owner share a project with other users.
 - **Deploy model** — `projects`, `services`, `agents`, `deploy_intents`. A user owns N projects. A project has exactly one compose file, exactly one agent (1:1, partial unique), and N services. A service is a `(repo, root_directory, branch, image, tag, workflow)` row that triggers a deploy when its `workflow_run` arrives.
 - **Observability** — `event_logs`. Every received GitHub webhook delivery is recorded so the UI can show what was seen, even when it didn't produce a deploy.
 
@@ -35,27 +35,28 @@ The schema is split along two axes:
  │ user_id      UUID FK → users     │         │ name          VARCHAR UQ         │
  │ name         VARCHAR             │         │ project_id    UUID FK → projects │
  │ description  TEXT                │         │ remote_ip     VARCHAR(45)        │
- │ compose_file VARCHAR(512)        │         │ last_seen_at  TIMESTAMPTZ        │
- │ environment  VARCHAR(64)         │         │ created_at    TIMESTAMPTZ        │
- │ enabled      BOOLEAN             │         │ updated_at    TIMESTAMPTZ        │
- │ created_at   TIMESTAMPTZ         │         │                                  │
- │ updated_at   TIMESTAMPTZ         │         │ partial UQ(project_id)           │
+ │ compose_file VARCHAR(512)        │         │ agent_type    TEXT               │
+ │ environment  VARCHAR(64)         │         │ version       TEXT               │
+ │ enabled      BOOLEAN             │         │ last_seen_at  TIMESTAMPTZ        │
+ │ created_at   TIMESTAMPTZ         │         │ created_at    TIMESTAMPTZ        │
+ │ updated_at   TIMESTAMPTZ         │         │ updated_at    TIMESTAMPTZ        │
+ │                                  │         │                                  │
+ │ UQ(user_id, name)                │         │ partial UQ(project_id)           │
  │                                  │         │   WHERE project_id IS NOT NULL   │
- │ UQ(user_id, name)                │         └──────────────────────────────────┘
- └────────────────┬─────────────────┘
+ └────────────────┬─────────────────┘         └──────────────────────────────────┘
                   │ 1:N
                   ▼
- ┌──────────────────────────────────┐
- │           services               │
- ├──────────────────────────────────┤
- │ id              UUID PK          │
- │ project_id      UUID FK→projects │
- │ name            VARCHAR          │
- │ repo            VARCHAR(512)     │
- │ root_directory  VARCHAR(512)     │
- │ branch          VARCHAR(255)     │
- │ image           VARCHAR(512)     │
- │ tag             VARCHAR(255)     │
+ ┌──────────────────────────────────┐         ┌──────────────────────────────────┐
+ │           services               │         │        project_members           │
+ ├──────────────────────────────────┤         ├──────────────────────────────────┤
+ │ id              UUID PK          │         │ project_id  UUID FK → projects   │
+ │ project_id      UUID FK→projects │         │ user_id     UUID FK → users      │
+ │ name            VARCHAR          │         │ role        VARCHAR(16)          │
+ │ repo            VARCHAR(512)     │         │ added_by    UUID FK → users      │
+ │ root_directory  VARCHAR(512)     │         │ created_at  TIMESTAMPTZ          │
+ │ branch          VARCHAR(255)     │         │                                  │
+ │ image           VARCHAR(512)     │         │ PK(project_id, user_id)          │
+ │ tag             VARCHAR(255)     │         └──────────────────────────────────┘
  │ workflow        VARCHAR(255)     │
  │ position        INTEGER          │
  │ created_at      TIMESTAMPTZ      │
@@ -113,7 +114,11 @@ A compose service definition. The webhook handler looks up services by `(LOWER(r
 
 ### agents
 
-Persistent agent registration. The agent upserts its row on first poll, binds itself to a project (1:1, enforced by partial unique `idx_agents_project_id WHERE project_id IS NOT NULL`), and `last_seen_at` updates on every poll. `compose_file` is **not** stored here — it lives on the project, since an agent serves exactly one project.
+Persistent agent registration. The agent upserts its row on first poll, binds itself to a project (1:1, enforced by partial unique `idx_agents_project_id WHERE project_id IS NOT NULL`), and `last_seen_at` updates on every poll. `compose_file` is **not** stored here — it lives on the project, since an agent serves exactly one project. `agent_type` (`docker` or `systemd`) and `version` are reported by the agent via `X-Agent-Type` / `X-Agent-Version` headers on every poll; empty values leave any existing stored value intact.
+
+### project_members
+
+Shares a project with users other than the owner. The owner (the user pointed to by `projects.user_id`) is implicit — no `project_members` row is needed for them. Membership is checked on read/write paths to gate access; `role` is currently always `member` but reserved for future role expansion. Adding the owner as a member is rejected at the service layer (`ErrCannotAddOwner`).
 
 ### deploy_intents
 
@@ -125,7 +130,7 @@ Every received GitHub webhook delivery, including ones that didn't match any ser
 
 ## Migration History
 
-Migrations are numbered 0001–0016 and applied in order. Notable points:
+Migrations are numbered 0001–0019 and applied in order. Notable points:
 
 - `0001` — `deploy_intents` (the original MVP table).
 - `0003` — original `agents` + `deploy_mappings` schema.
@@ -136,3 +141,6 @@ Migrations are numbered 0001–0016 and applied in order. Notable points:
 - `0012` — drops `deploy_mappings`, `deploy_mapping_services`, `deploy_intents.stack_index`, and `agents.compose_file` after cutover.
 - `0013` — `services.workflow` for the `workflow_run` trigger.
 - `0014`–`0016` — login auth: `users.password_hash`, `sessions`, `users.password_is_bootstrap`.
+- `0017` — `project_members` for sharing a project with users other than its owner.
+- `0018` — `agents.agent_type` (`docker` / `systemd`), reported by the agent on each poll.
+- `0019` — `agents.version`, the agent's build version, reported on each poll.

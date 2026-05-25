@@ -4,9 +4,14 @@ Overwatcher automates the **CD** half of the pipeline for projects deployed as D
 
 ## Architecture
 
-Overwatcher is a central coordinator that integrates with GitHub. The actual `docker pull` + restart is executed by a small **agent** that lives inside each target VM's compose stack. The agent mounts `/var/run/docker.sock` so it can manage its sibling containers, and opens an **outbound** HTTP long-poll connection to Overwatcher to receive deploy commands.
+Overwatcher is a central coordinator that integrates with GitHub. The actual `docker pull` + restart is executed by a small **agent** on each target VM. The agent talks to the local Docker daemon (via `/var/run/docker.sock`) to manage compose stacks, and opens an **outbound** HTTP long-poll connection to Overwatcher to receive deploy commands. It ships in two deployment modes:
 
-The coordinator is backed by PostgreSQL — it persists users, projects, services (the repo→stack mapping), deploy intents, agent registrations, and the webhook event log. A React frontend provides dashboards for users, projects, agents, deployments, and event logs. Login auth (sessions + cookies) gates the UI and management APIs; the agent transport uses a separate shared-secret bearer token.
+- **Docker** — agent runs as a container in the same compose stack it manages, with `docker.sock` bind-mounted in.
+- **Systemd** — agent runs as a host-level systemd unit installed via `install.sh`, managing one or more compose stacks on the VM.
+
+The mode is auto-detected (presence of `/.dockerenv`) and reported to the coordinator so the UI can show a badge per agent.
+
+The coordinator is backed by PostgreSQL — it persists users, projects, project memberships, services (the repo→stack mapping), deploy intents, agent registrations, and the webhook event log. A React frontend provides dashboards for users, projects, agents, deployments, and event logs. Login auth (sessions + cookies) gates the UI and management APIs; the agent transport uses a separate shared-secret bearer token. A project owner can share a project with other users through `project_members` so a team can view and trigger deploys without sharing the owner account.
 
 ```
 Developer ──git push main──> GitHub repo ──> GitHub Actions (CI: build image)
