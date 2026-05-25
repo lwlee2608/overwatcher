@@ -6,12 +6,11 @@ import { InstallAgentCard } from "./InstallAgentCard";
 
 type StatusFilter = "all" | ConnectionStatus;
 
-const filterOptions: { value: StatusFilter; label: string; dot?: string }[] = [
-  { value: "all", label: "All" },
-  { value: "connected", label: "Connected", dot: "bg-green-500" },
-  { value: "stale", label: "Stale", dot: "bg-amber-500" },
-  { value: "disconnected", label: "Disconnected", dot: "bg-red-500" },
-  { value: "lost", label: "Lost", dot: "bg-gray-400" },
+const statusOptions: { value: ConnectionStatus; label: string }[] = [
+  { value: "connected", label: "Connected" },
+  { value: "stale", label: "Stale" },
+  { value: "disconnected", label: "Disconnected" },
+  { value: "lost", label: "Lost" },
 ];
 
 export function AgentDashboard() {
@@ -47,8 +46,6 @@ export function AgentDashboard() {
       clearInterval(id);
     };
   }, []);
-
-  const connected = agents.filter((a) => a.status === "connected").length;
 
   const statusRank: Record<AgentStatus["status"], number> = {
     connected: 0,
@@ -89,20 +86,42 @@ export function AgentDashboard() {
         </div>
       )}
 
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-          <span>
-            <span className="font-semibold text-gray-900 dark:text-gray-100">
-              {connected}
-            </span>{" "}
-            connected
-          </span>
-          <span>
-            <span className="font-semibold text-gray-900 dark:text-gray-100">
-              {agents.length}
-            </span>{" "}
-            total
-          </span>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        <div className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white pl-2 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700">
+          <svg
+            className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+          </svg>
+          <select
+            aria-label="Filter agents by status"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as StatusFilter)}
+            className="cursor-pointer border-0 bg-transparent py-0.5 pr-1 text-xs text-gray-900 focus:outline-none focus:ring-0 dark:text-gray-100"
+          >
+            <option
+              value="all"
+              className="bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100"
+            >
+              All ({agents.length})
+            </option>
+            {statusOptions.map((s) => (
+              <option
+                key={s.value}
+                value={s.value}
+                className="bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100"
+              >
+                {s.label} ({counts[s.value]})
+              </option>
+            ))}
+          </select>
         </div>
         {!showInstall && (
           <button
@@ -117,34 +136,6 @@ export function AgentDashboard() {
 
       {showInstall && (
         <InstallAgentCard onClose={() => setShowInstall(false)} />
-      )}
-
-      {agents.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {filterOptions.map((opt) => {
-            const active = filter === opt.value;
-            return (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setFilter(opt.value)}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-                  active
-                    ? "border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-400 dark:bg-blue-900/30 dark:text-blue-300"
-                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
-                }`}
-              >
-                {opt.dot && (
-                  <span className={`h-2 w-2 rounded-full ${opt.dot}`} />
-                )}
-                {opt.label}
-                <span className="text-gray-400 dark:text-gray-500">
-                  {counts[opt.value]}
-                </span>
-              </button>
-            );
-          })}
-        </div>
       )}
 
       {agents.length === 0 && !error && (
