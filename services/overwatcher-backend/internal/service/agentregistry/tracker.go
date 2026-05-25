@@ -41,25 +41,27 @@ type AgentStatus struct {
 	Version   string           `json:"version,omitempty"`
 }
 
-// Service manages agent registration and heartbeats backed by PostgreSQL.
-type Service struct {
-	pool              *pgxpool.Pool
-	q                 *sqlc.Queries
-	staleAfter        time.Duration
-	disconnectedAfter time.Duration
-	lostAfter         time.Duration
+// Thresholds defines the age cutoffs (now − last_seen) used to derive
+// ConnectionStatus. Must satisfy StaleAfter ≤ DisconnectedAfter ≤ LostAfter.
+type Thresholds struct {
+	StaleAfter        time.Duration
+	DisconnectedAfter time.Duration
+	LostAfter         time.Duration
 }
 
-// NewService constructs the registry. staleAfter, disconnectedAfter, and
-// lostAfter are thresholds against (now − last_seen) and must satisfy
-// staleAfter ≤ disconnectedAfter ≤ lostAfter.
-func NewService(pool *pgxpool.Pool, q *sqlc.Queries, staleAfter, disconnectedAfter, lostAfter time.Duration) *Service {
+// Service manages agent registration and heartbeats backed by PostgreSQL.
+type Service struct {
+	pool       *pgxpool.Pool
+	q          *sqlc.Queries
+	thresholds Thresholds
+}
+
+// NewService constructs the registry.
+func NewService(pool *pgxpool.Pool, q *sqlc.Queries, thresholds Thresholds) *Service {
 	return &Service{
-		pool:              pool,
-		q:                 q,
-		staleAfter:        staleAfter,
-		disconnectedAfter: disconnectedAfter,
-		lostAfter:         lostAfter,
+		pool:       pool,
+		q:          q,
+		thresholds: thresholds,
 	}
 }
 
@@ -182,11 +184,11 @@ func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
 	age := now.Sub(lastSeen)
 	var status ConnectionStatus
 	switch {
-	case age < s.staleAfter:
+	case age < s.thresholds.StaleAfter:
 		status = StatusConnected
-	case age < s.disconnectedAfter:
+	case age < s.thresholds.DisconnectedAfter:
 		status = StatusStale
-	case age < s.lostAfter:
+	case age < s.thresholds.LostAfter:
 		status = StatusDisconnected
 	default:
 		status = StatusLost
