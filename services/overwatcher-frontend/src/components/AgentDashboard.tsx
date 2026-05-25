@@ -43,6 +43,7 @@ export function AgentDashboard() {
     connected: 0,
     stale: 1,
     disconnected: 2,
+    lost: 3,
   };
   const sorted = [...agents].sort((a, b) => {
     const r = statusRank[a.status] - statusRank[b.status];

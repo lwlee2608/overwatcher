@@ -16,15 +16,17 @@ var ErrNotFound = errors.New("agent not found")
 
 // ConnectionStatus describes how recently an agent has heartbeated.
 //
-//	connected:    last_seen within staleAfter         — healthy
-//	stale:        staleAfter ≤ age < disconnectedAfter — missed a few polls
-//	disconnected: age ≥ disconnectedAfter             — assume gone
+//	connected:    age < staleAfter                          — healthy
+//	stale:        staleAfter ≤ age < disconnectedAfter      — missed a few polls
+//	disconnected: disconnectedAfter ≤ age < lostAfter       — assume gone
+//	lost:         age ≥ lostAfter                           — long gone, likely abandoned
 type ConnectionStatus string
 
 const (
 	StatusConnected    ConnectionStatus = "connected"
 	StatusStale        ConnectionStatus = "stale"
 	StatusDisconnected ConnectionStatus = "disconnected"
+	StatusLost         ConnectionStatus = "lost"
 )
 
 // AgentStatus is a point-in-time snapshot of a registered agent.
@@ -45,18 +47,19 @@ type Service struct {
 	q                 *sqlc.Queries
 	staleAfter        time.Duration
 	disconnectedAfter time.Duration
+	lostAfter         time.Duration
 }
 
-// NewService constructs the registry. staleAfter and disconnectedAfter are the
-// thresholds against (now − last_seen): below staleAfter the agent is reported
-// connected, between the two it is stale, at or above disconnectedAfter it is
-// disconnected. disconnectedAfter must be ≥ staleAfter.
-func NewService(pool *pgxpool.Pool, q *sqlc.Queries, staleAfter, disconnectedAfter time.Duration) *Service {
+// NewService constructs the registry. staleAfter, disconnectedAfter, and
+// lostAfter are thresholds against (now − last_seen) and must satisfy
+// staleAfter ≤ disconnectedAfter ≤ lostAfter.
+func NewService(pool *pgxpool.Pool, q *sqlc.Queries, staleAfter, disconnectedAfter, lostAfter time.Duration) *Service {
 	return &Service{
 		pool:              pool,
 		q:                 q,
 		staleAfter:        staleAfter,
 		disconnectedAfter: disconnectedAfter,
+		lostAfter:         lostAfter,
 	}
 }
 
@@ -183,8 +186,10 @@ func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
 		status = StatusConnected
 	case age < s.disconnectedAfter:
 		status = StatusStale
-	default:
+	case age < s.lostAfter:
 		status = StatusDisconnected
+	default:
+		status = StatusLost
 	}
 	return AgentStatus{
 		ID:        util.UUIDToString(a.ID),

@@ -8,12 +8,14 @@ const dotClass: Record<ConnectionStatus, string> = {
   connected: "bg-green-500",
   stale: "bg-amber-500",
   disconnected: "bg-red-500",
+  lost: "bg-gray-400",
 };
 
 const label: Record<ConnectionStatus, string> = {
   connected: "Connected",
   stale: "Stale",
   disconnected: "Disconnected",
+  lost: "Lost",
 };
 
 export function StatusBadge({ status }: StatusBadgeProps) {

@@ -394,6 +394,8 @@ export function ProjectDetail() {
               stale:
                 "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
               disconnected:
+                "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+              lost:
                 "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
             }[bound.status];
             return (
@@ -423,11 +425,13 @@ export function ProjectDetail() {
                 <option key={a.id} value={a.id}>
                   {a.name}
                   {boundElsewhere ? " (reassign)" : ""}
-                  {a.status === "disconnected"
-                    ? " [offline]"
-                    : a.status === "stale"
-                      ? " [stale]"
-                      : ""}
+                  {a.status === "lost"
+                    ? " [lost]"
+                    : a.status === "disconnected"
+                      ? " [offline]"
+                      : a.status === "stale"
+                        ? " [stale]"
+                        : ""}
                 </option>
               );
             })}
