@@ -28,7 +28,7 @@ export function AgentCard({ agent }: AgentCardProps) {
           </h3>
           {agent.type && <AgentTypeBadge type={agent.type} />}
         </div>
-        <StatusBadge connected={agent.connected} />
+        <StatusBadge status={agent.status} />
       </div>
 
       <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">

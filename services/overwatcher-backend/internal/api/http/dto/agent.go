@@ -7,7 +7,7 @@ type AgentStatusResponse struct {
 	Name      string    `json:"name"`
 	LastSeen  time.Time `json:"last_seen"`
 	RemoteIP  string    `json:"remote_ip"`
-	Connected bool      `json:"connected"`
+	Status    string    `json:"status"`
 	ProjectID string    `json:"project_id,omitempty"`
 	Type      string    `json:"type,omitempty"`
 	Version   string    `json:"version,omitempty"`

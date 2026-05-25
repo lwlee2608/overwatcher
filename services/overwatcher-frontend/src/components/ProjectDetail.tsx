@@ -388,15 +388,21 @@ export function ProjectDetail() {
                 </span>
               );
             }
+            const badgeClass = {
+              connected:
+                "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+              stale:
+                "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+              disconnected:
+                "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+              lost:
+                "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400",
+            }[bound.status];
             return (
               <span
-                className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
-                  bound.connected
-                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                    : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
-                }`}
+                className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass}`}
               >
-                {bound.connected ? "connected" : "disconnected"}
+                {bound.status}
               </span>
             );
           })()}
@@ -419,7 +425,13 @@ export function ProjectDetail() {
                 <option key={a.id} value={a.id}>
                   {a.name}
                   {boundElsewhere ? " (reassign)" : ""}
-                  {!a.connected ? " [offline]" : ""}
+                  {a.status === "lost"
+                    ? " [lost]"
+                    : a.status === "disconnected"
+                      ? " [offline]"
+                      : a.status === "stale"
+                        ? " [stale]"
+                        : ""}
                 </option>
               );
             })}

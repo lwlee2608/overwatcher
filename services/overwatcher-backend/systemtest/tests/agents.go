@@ -47,7 +47,7 @@ func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agentregistry.Servic
 		require.Len(t, resp.Agents, 1)
 		assert.Equal(t, "test-agent", resp.Agents[0].Name)
 		assert.Equal(t, "10.0.0.1", resp.Agents[0].RemoteIP)
-		assert.True(t, resp.Agents[0].Connected)
+		assert.Equal(t, string(agentregistry.StatusConnected), resp.Agents[0].Status)
 	})
 
 	t.Run("GetByID", func(t *testing.T) {

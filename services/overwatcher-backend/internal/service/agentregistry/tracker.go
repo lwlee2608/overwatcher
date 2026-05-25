@@ -14,27 +14,55 @@ import (
 
 var ErrNotFound = errors.New("agent not found")
 
+// ConnectionStatus describes how recently an agent has heartbeated.
+//
+//	connected:    age < staleAfter                          — healthy
+//	stale:        staleAfter ≤ age < disconnectedAfter      — missed a few polls
+//	disconnected: disconnectedAfter ≤ age < lostAfter       — assume gone
+//	lost:         age ≥ lostAfter                           — long gone, likely abandoned
+type ConnectionStatus string
+
+const (
+	StatusConnected    ConnectionStatus = "connected"
+	StatusStale        ConnectionStatus = "stale"
+	StatusDisconnected ConnectionStatus = "disconnected"
+	StatusLost         ConnectionStatus = "lost"
+)
+
 // AgentStatus is a point-in-time snapshot of a registered agent.
 type AgentStatus struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	LastSeen  time.Time `json:"last_seen"`
-	RemoteIP  string    `json:"remote_ip"`
-	Connected bool      `json:"connected"`
-	ProjectID string    `json:"project_id,omitempty"`
-	Type      string    `json:"type,omitempty"`
-	Version   string    `json:"version,omitempty"`
+	ID        string           `json:"id"`
+	Name      string           `json:"name"`
+	LastSeen  time.Time        `json:"last_seen"`
+	RemoteIP  string           `json:"remote_ip"`
+	Status    ConnectionStatus `json:"status"`
+	ProjectID string           `json:"project_id,omitempty"`
+	Type      string           `json:"type,omitempty"`
+	Version   string           `json:"version,omitempty"`
+}
+
+// Thresholds defines the age cutoffs (now − last_seen) used to derive
+// ConnectionStatus. Must satisfy StaleAfter ≤ DisconnectedAfter ≤ LostAfter.
+type Thresholds struct {
+	StaleAfter        time.Duration
+	DisconnectedAfter time.Duration
+	LostAfter         time.Duration
 }
 
 // Service manages agent registration and heartbeats backed by PostgreSQL.
 type Service struct {
-	pool *pgxpool.Pool
-	q    *sqlc.Queries
-	ttl  time.Duration
+	pool       *pgxpool.Pool
+	q          *sqlc.Queries
+	thresholds Thresholds
 }
 
-func NewService(pool *pgxpool.Pool, q *sqlc.Queries, ttl time.Duration) *Service {
-	return &Service{pool: pool, q: q, ttl: ttl}
+// NewService constructs the registry.
+func NewService(pool *pgxpool.Pool, q *sqlc.Queries, thresholds Thresholds) *Service {
+	return &Service{
+		pool:       pool,
+		q:          q,
+		thresholds: thresholds,
+	}
 }
 
 // Record upserts an agent entry with the current time. Empty agentType or
@@ -153,15 +181,26 @@ func (s *Service) BindProject(ctx context.Context, agentID string, projectID str
 
 func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
 	lastSeen := a.LastSeenAt.Time
+	age := now.Sub(lastSeen)
+	var status ConnectionStatus
+	switch {
+	case age < s.thresholds.StaleAfter:
+		status = StatusConnected
+	case age < s.thresholds.DisconnectedAfter:
+		status = StatusStale
+	case age < s.thresholds.LostAfter:
+		status = StatusDisconnected
+	default:
+		status = StatusLost
+	}
 	return AgentStatus{
 		ID:        util.UUIDToString(a.ID),
 		Name:      a.Name,
 		LastSeen:  lastSeen,
 		RemoteIP:  a.RemoteIp,
-		Connected: now.Sub(lastSeen) < s.ttl,
+		Status:    status,
 		ProjectID: util.UUIDToString(a.ProjectID),
 		Type:      a.AgentType.String,
 		Version:   a.Version.String,
 	}
 }
-

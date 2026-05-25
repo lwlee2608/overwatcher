@@ -37,10 +37,17 @@ export function AgentDashboard() {
     };
   }, []);
 
-  const connected = agents.filter((a) => a.connected).length;
+  const connected = agents.filter((a) => a.status === "connected").length;
 
+  const statusRank: Record<AgentStatus["status"], number> = {
+    connected: 0,
+    stale: 1,
+    disconnected: 2,
+    lost: 3,
+  };
   const sorted = [...agents].sort((a, b) => {
-    if (a.connected !== b.connected) return a.connected ? -1 : 1;
+    const r = statusRank[a.status] - statusRank[b.status];
+    if (r !== 0) return r;
     return a.name.localeCompare(b.name);
   });
 
