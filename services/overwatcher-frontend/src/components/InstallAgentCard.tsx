@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { fetchInstallConfig } from "../api/agents";
 
-// Global secret today — the UI doesn't know it; user pastes their own.
 const SECRET_PLACEHOLDER = "<your-AGENT_SHARED_SECRET>";
 
 type Mode = "systemd" | "docker";
@@ -13,20 +13,28 @@ export function InstallAgentCard({ onClose }: InstallAgentCardProps) {
   const [name, setName] = useState("");
   const [mode, setMode] = useState<Mode>("systemd");
   const [copied, setCopied] = useState(false);
+  const [sharedSecret, setSharedSecret] = useState("");
 
   const coordinatorURL = useMemo(() => window.location.origin, []);
   const installURL = `${coordinatorURL}/install.sh`;
 
+  useEffect(() => {
+    fetchInstallConfig()
+      .then((cfg) => setSharedSecret(cfg.shared_secret))
+      .catch(() => setSharedSecret(""));
+  }, []);
+
   const safeName = name.trim() || "<your-agent-name>";
+  const secret = sharedSecret || SECRET_PLACEHOLDER;
 
   const systemdCommand = `curl -fsSL ${installURL} | \\
 sudo AGENT_NAME="${safeName}" \\
-AGENT_SHARED_SECRET="${SECRET_PLACEHOLDER}" \\
+AGENT_SHARED_SECRET="${secret}" \\
 bash`;
 
   const dockerCommand = `docker run -d --name overwatcher-agent --restart unless-stopped \\
   -e AGENT_NAME="${safeName}" \\
-  -e AGENT_SHARED_SECRET="${SECRET_PLACEHOLDER}" \\
+  -e AGENT_SHARED_SECRET="${secret}" \\
   -e AGENT_COORDINATOR_URL="${coordinatorURL}" \\
   -v /var/run/docker.sock:/var/run/docker.sock \\
   -v /path/to/your/deployment:/opt/stacks/my-stack \\

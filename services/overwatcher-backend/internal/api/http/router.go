@@ -37,7 +37,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	engine.Use(middleware.ErrorHandler())
 
 	healthHandler := handler.NewHealthHandler()
-	installHandler := handler.NewInstallHandler(srvs.AgentReleaseTag, srvs.AgentPublicURL)
+	installHandler := handler.NewInstallHandler(srvs.AgentReleaseTag, srvs.AgentPublicURL, srvs.AgentSharedSecret)
 	webhookHandler := handler.NewWebhookHandler(srvs.WebhookService)
 	deployHandler := handler.NewDeployHandler(srvs.DispatchService, srvs.WebhookService, srvs.ProjectService, srvs.AgentService)
 	agentHandler := handler.NewAgentHandler(srvs.AgentService, srvs.ProjectService)
@@ -80,6 +80,8 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 			ui.GET("/agents", agentHandler.List)
 			ui.GET("/agents/:id", agentHandler.Get)
 			ui.PUT("/agents/:id/project", agentHandler.BindProject)
+
+			ui.GET("/install/config", installHandler.Config)
 
 			ui.GET("/users", userHandler.List)
 			ui.POST("/users", userHandler.Create)

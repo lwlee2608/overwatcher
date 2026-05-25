@@ -11,7 +11,7 @@ import (
 func TestInstallHandler_TemplatesVars(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	h := NewInstallHandler("agent-v0.3.0", "https://overwatch.example.com")
+	h := NewInstallHandler("agent-v0.3.0", "https://overwatch.example.com", "")
 	r := gin.New()
 	r.GET("/install.sh", h.Serve)
 
@@ -44,7 +44,7 @@ func TestInstallHandler_TemplatesVars(t *testing.T) {
 func TestInstallHandler_FallsBackToHostHeader(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	h := NewInstallHandler("latest", "") // no PublicURL
+	h := NewInstallHandler("latest", "", "") // no PublicURL
 	r := gin.New()
 	r.GET("/install.sh", h.Serve)
 
@@ -62,7 +62,7 @@ func TestInstallHandler_FallsBackToHostHeader(t *testing.T) {
 func TestInstallHandler_HonorsForwardedProto(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	h := NewInstallHandler("latest", "")
+	h := NewInstallHandler("latest", "", "")
 	r := gin.New()
 	r.GET("/install.sh", h.Serve)
 
@@ -91,7 +91,7 @@ func TestInstallHandler_DefaultsToHttpsBehindProxy(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			h := NewInstallHandler("latest", "")
+			h := NewInstallHandler("latest", "", "")
 			r := gin.New()
 			r.GET("/install.sh", h.Serve)
 
