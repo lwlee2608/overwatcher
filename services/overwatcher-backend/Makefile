@@ -5,7 +5,8 @@ REGISTRY        ?= lwlee2608/
 APP             := overwatcher
 AGENT           := agent
 VERSION         ?= v0.3.2
-LDFLAGS         := -ldflags "-X main.AppVersion=$(VERSION)"
+COMMIT_SHA      ?= dev
+LDFLAGS         := -ldflags "-X main.AppVersion=$(VERSION)-$(COMMIT_SHA)"
 
 .PHONY: all build build-agent clean run run-agent test dep generate release-agent
 
@@ -30,9 +31,9 @@ generate:
 	sqlc generate
 
 docker:
-	$(DOCKER) build --build-arg APP=$(APP) --build-arg VERSION=$(VERSION) -t $(REGISTRY)$(APP):$(VERSION) -t $(REGISTRY)$(APP):latest .
+	$(DOCKER) build --build-arg APP=$(APP) --build-arg VERSION=$(VERSION) --build-arg COMMIT_SHA=$(COMMIT_SHA) -t $(REGISTRY)$(APP):$(VERSION) -t $(REGISTRY)$(APP):latest .
 docker-agent:
-	$(DOCKER) build -f Dockerfile.agent --build-arg VERSION=$(VERSION) -t $(REGISTRY)$(AGENT):$(VERSION) -t $(REGISTRY)$(AGENT):latest .
+	$(DOCKER) build -f Dockerfile.agent --build-arg VERSION=$(VERSION) --build-arg COMMIT_SHA=$(COMMIT_SHA) -t $(REGISTRY)$(AGENT):$(VERSION) -t $(REGISTRY)$(AGENT):latest .
 push:
 	$(DOCKER) push $(REGISTRY)$(APP):$(VERSION)
 	$(DOCKER) push $(REGISTRY)$(APP):latest
@@ -47,9 +48,9 @@ release-agent:
 	$(RM) -rf dist
 	mkdir -p dist
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-		$(GO) build -trimpath -ldflags "-s -w -X main.AppVersion=$(VERSION)" \
+		$(GO) build -trimpath -ldflags "-s -w -X main.AppVersion=$(VERSION)-$(COMMIT_SHA)" \
 		-o dist/overwatcher-agent_linux_amd64 cmd/$(AGENT)/*.go
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-		$(GO) build -trimpath -ldflags "-s -w -X main.AppVersion=$(VERSION)" \
+		$(GO) build -trimpath -ldflags "-s -w -X main.AppVersion=$(VERSION)-$(COMMIT_SHA)" \
 		-o dist/overwatcher-agent_linux_arm64 cmd/$(AGENT)/*.go
 	cd dist && shasum -a 256 overwatcher-agent_linux_amd64 overwatcher-agent_linux_arm64 > SHA256SUMS
