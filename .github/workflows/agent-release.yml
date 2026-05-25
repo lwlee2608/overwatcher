@@ -26,7 +26,7 @@ jobs:
           cache-dependency-path: services/overwatcher-backend/go.sum
 
       - name: Build release artifacts
-        run: make release-agent VERSION=${{ github.ref_name }} COMMIT_SHA=${{ github.sha }}
+        run: make release-agent COMMIT_SHA=
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
