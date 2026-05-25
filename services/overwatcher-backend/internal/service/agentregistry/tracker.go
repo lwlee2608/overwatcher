@@ -14,27 +14,50 @@ import (
 
 var ErrNotFound = errors.New("agent not found")
 
+// ConnectionStatus describes how recently an agent has heartbeated.
+//
+//	connected:    last_seen within staleAfter         — healthy
+//	stale:        staleAfter ≤ age < disconnectedAfter — missed a few polls
+//	disconnected: age ≥ disconnectedAfter             — assume gone
+type ConnectionStatus string
+
+const (
+	StatusConnected    ConnectionStatus = "connected"
+	StatusStale        ConnectionStatus = "stale"
+	StatusDisconnected ConnectionStatus = "disconnected"
+)
+
 // AgentStatus is a point-in-time snapshot of a registered agent.
 type AgentStatus struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	LastSeen  time.Time `json:"last_seen"`
-	RemoteIP  string    `json:"remote_ip"`
-	Connected bool      `json:"connected"`
-	ProjectID string    `json:"project_id,omitempty"`
-	Type      string    `json:"type,omitempty"`
-	Version   string    `json:"version,omitempty"`
+	ID        string           `json:"id"`
+	Name      string           `json:"name"`
+	LastSeen  time.Time        `json:"last_seen"`
+	RemoteIP  string           `json:"remote_ip"`
+	Status    ConnectionStatus `json:"status"`
+	ProjectID string           `json:"project_id,omitempty"`
+	Type      string           `json:"type,omitempty"`
+	Version   string           `json:"version,omitempty"`
 }
 
 // Service manages agent registration and heartbeats backed by PostgreSQL.
 type Service struct {
-	pool *pgxpool.Pool
-	q    *sqlc.Queries
-	ttl  time.Duration
+	pool              *pgxpool.Pool
+	q                 *sqlc.Queries
+	staleAfter        time.Duration
+	disconnectedAfter time.Duration
 }
 
-func NewService(pool *pgxpool.Pool, q *sqlc.Queries, ttl time.Duration) *Service {
-	return &Service{pool: pool, q: q, ttl: ttl}
+// NewService constructs the registry. staleAfter and disconnectedAfter are the
+// thresholds against (now − last_seen): below staleAfter the agent is reported
+// connected, between the two it is stale, at or above disconnectedAfter it is
+// disconnected. disconnectedAfter must be ≥ staleAfter.
+func NewService(pool *pgxpool.Pool, q *sqlc.Queries, staleAfter, disconnectedAfter time.Duration) *Service {
+	return &Service{
+		pool:              pool,
+		q:                 q,
+		staleAfter:        staleAfter,
+		disconnectedAfter: disconnectedAfter,
+	}
 }
 
 // Record upserts an agent entry with the current time. Empty agentType or
@@ -153,15 +176,24 @@ func (s *Service) BindProject(ctx context.Context, agentID string, projectID str
 
 func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
 	lastSeen := a.LastSeenAt.Time
+	age := now.Sub(lastSeen)
+	var status ConnectionStatus
+	switch {
+	case age < s.staleAfter:
+		status = StatusConnected
+	case age < s.disconnectedAfter:
+		status = StatusStale
+	default:
+		status = StatusDisconnected
+	}
 	return AgentStatus{
 		ID:        util.UUIDToString(a.ID),
 		Name:      a.Name,
 		LastSeen:  lastSeen,
 		RemoteIP:  a.RemoteIp,
-		Connected: now.Sub(lastSeen) < s.ttl,
+		Status:    status,
 		ProjectID: util.UUIDToString(a.ProjectID),
 		Type:      a.AgentType.String,
 		Version:   a.Version.String,
 	}
 }
-

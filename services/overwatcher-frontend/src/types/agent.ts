@@ -1,11 +1,13 @@
 export type AgentType = "systemd" | "docker";
 
+export type ConnectionStatus = "connected" | "stale" | "disconnected";
+
 export interface AgentStatus {
   id: string;
   name: string;
   last_seen: string;
   remote_ip: string;
-  connected: boolean;
+  status: ConnectionStatus;
   project_id?: string;
   type?: AgentType;
   version?: string;

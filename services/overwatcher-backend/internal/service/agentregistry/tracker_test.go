@@ -49,7 +49,7 @@ func TestBindProject_OneToOneConstraint(t *testing.T) {
 	defer pool.Close()
 
 	queries := sqlc.New(pool)
-	svc := NewService(pool, queries, 60*time.Second)
+	svc := NewService(pool, queries, 30*time.Second, 120*time.Second)
 
 	// Seed two agents.
 	require.NoError(t, svc.Record(ctx, "agent-a", "10.0.0.1", "", ""))
@@ -114,7 +114,7 @@ func TestBindProject_Unbind(t *testing.T) {
 	defer pool.Close()
 
 	queries := sqlc.New(pool)
-	svc := NewService(pool, queries, 60*time.Second)
+	svc := NewService(pool, queries, 30*time.Second, 120*time.Second)
 
 	require.NoError(t, svc.Record(ctx, "agent-a", "10.0.0.1", "", ""))
 
