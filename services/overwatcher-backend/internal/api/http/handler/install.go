@@ -12,15 +12,25 @@ import (
 var installScript string
 
 type InstallHandler struct {
-	releaseTag string
-	publicURL  string
+	releaseTag   string
+	publicURL    string
+	sharedSecret string
 }
 
-func NewInstallHandler(releaseTag, publicURL string) *InstallHandler {
+func NewInstallHandler(releaseTag, publicURL, sharedSecret string) *InstallHandler {
 	if releaseTag == "" {
 		releaseTag = "latest"
 	}
-	return &InstallHandler{releaseTag: releaseTag, publicURL: publicURL}
+	return &InstallHandler{releaseTag: releaseTag, publicURL: publicURL, sharedSecret: sharedSecret}
+}
+
+// Config returns the values the dashboard needs to render a ready-to-paste
+// install command. Session-protected — the shared secret authenticates every
+// agent to the coordinator, so only logged-in users may read it.
+func (h *InstallHandler) Config(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"shared_secret": h.sharedSecret,
+	})
 }
 
 func (h *InstallHandler) Serve(c *gin.Context) {

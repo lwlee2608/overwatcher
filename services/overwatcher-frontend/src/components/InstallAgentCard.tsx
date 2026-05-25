@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { fetchInstallConfig } from "../api/agents";
 
-// Global secret today — the UI doesn't know it; user pastes their own.
 const SECRET_PLACEHOLDER = "<your-AGENT_SHARED_SECRET>";
 
 type Mode = "systemd" | "docker";
@@ -13,27 +13,45 @@ export function InstallAgentCard({ onClose }: InstallAgentCardProps) {
   const [name, setName] = useState("");
   const [mode, setMode] = useState<Mode>("systemd");
   const [copied, setCopied] = useState(false);
+  const [sharedSecret, setSharedSecret] = useState("");
+  const [revealed, setRevealed] = useState(false);
 
   const coordinatorURL = useMemo(() => window.location.origin, []);
   const installURL = `${coordinatorURL}/install.sh`;
 
-  const safeName = name.trim() || "<your-agent-name>";
+  useEffect(() => {
+    fetchInstallConfig()
+      .then((cfg) => setSharedSecret(cfg.shared_secret))
+      .catch(() => setSharedSecret(""));
+  }, []);
 
-  const systemdCommand = `curl -fsSL ${installURL} | \\
-sudo AGENT_NAME="${safeName}" \\
-AGENT_SHARED_SECRET="${SECRET_PLACEHOLDER}" \\
+  const safeName = name.trim() || "<your-agent-name>";
+  // Real secret goes to clipboard; display swaps in bullets so it can't be
+  // shoulder-surfed or screenshotted.
+  const realSecret = sharedSecret || SECRET_PLACEHOLDER;
+  const displaySecret = sharedSecret ? "••••••••••••••••" : SECRET_PLACEHOLDER;
+
+  // Wrap in single quotes for POSIX shells: '...' is literal, no metachar
+  // expansion. Only ' itself needs the close-escape-reopen dance.
+  const sh = (v: string) => `'${v.replace(/'/g, "'\\''")}'`;
+
+  const buildSystemd = (s: string) => `curl -fsSL ${installURL} | \\
+sudo AGENT_NAME=${sh(safeName)} \\
+AGENT_SHARED_SECRET=${sh(s)} \\
 bash`;
 
-  const dockerCommand = `docker run -d --name overwatcher-agent --restart unless-stopped \\
-  -e AGENT_NAME="${safeName}" \\
-  -e AGENT_SHARED_SECRET="${SECRET_PLACEHOLDER}" \\
-  -e AGENT_COORDINATOR_URL="${coordinatorURL}" \\
+  const buildDocker = (s: string) => `docker run -d --name overwatcher-agent --restart unless-stopped \\
+  -e AGENT_NAME=${sh(safeName)} \\
+  -e AGENT_SHARED_SECRET=${sh(s)} \\
+  -e AGENT_COORDINATOR_URL=${sh(coordinatorURL)} \\
   -v /var/run/docker.sock:/var/run/docker.sock \\
   -v /path/to/your/deployment:/opt/stacks/my-stack \\
   -v ~/.docker/config.json:/root/.docker/config.json:ro \\
   lwlee2608/agent:latest`;
 
-  const command = mode === "systemd" ? systemdCommand : dockerCommand;
+  const build = mode === "systemd" ? buildSystemd : buildDocker;
+  const command = build(realSecret);
+  const displayCommand = build(revealed ? realSecret : displaySecret);
 
   const handleCopy = async () => {
     try {
@@ -123,16 +141,26 @@ bash`;
       </label>
 
       <div className="relative">
-        <pre className="overflow-x-auto rounded bg-gray-900 p-3 pr-20 text-xs text-gray-100 dark:bg-gray-950">
-          <code>{command}</code>
+        <pre className="overflow-x-auto rounded bg-gray-900 p-3 pr-32 text-xs text-gray-100 dark:bg-gray-950">
+          <code>{displayCommand}</code>
         </pre>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="absolute right-2 top-2 rounded bg-gray-700 px-2 py-1 text-xs text-gray-100 hover:bg-gray-600"
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
+        <div className="absolute right-2 top-2 flex gap-1">
+          <button
+            type="button"
+            onClick={() => setRevealed((v) => !v)}
+            disabled={!sharedSecret}
+            className="rounded bg-gray-700 px-2 py-1 text-xs text-gray-100 hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {revealed ? "Hide" : "Show"}
+          </button>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="rounded bg-gray-700 px-2 py-1 text-xs text-gray-100 hover:bg-gray-600"
+          >
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
       </div>
 
       {mode === "systemd" ? (

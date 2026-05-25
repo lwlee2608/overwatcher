@@ -9,6 +9,14 @@ export async function fetchAgents(): Promise<AgentListResponse> {
   return apiJSON<AgentListResponse>("/api/v1/agents");
 }
 
+export interface InstallConfig {
+  shared_secret: string;
+}
+
+export async function fetchInstallConfig(): Promise<InstallConfig> {
+  return apiJSON<InstallConfig>("/api/v1/install/config");
+}
+
 export async function bindAgentProject(
   agentId: string,
   req: BindAgentProjectRequest,
