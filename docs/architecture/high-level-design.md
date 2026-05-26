@@ -7,7 +7,7 @@ Overwatcher automates the **CD** half of the pipeline for projects deployed as D
 Overwatcher is a central coordinator that integrates with GitHub. The actual `docker pull` + restart is executed by a small **agent** on each target VM. The agent talks to the local Docker daemon (via `/var/run/docker.sock`) to manage compose stacks, and opens an **outbound** HTTP long-poll connection to Overwatcher to receive deploy commands. It ships in two deployment modes:
 
 - **Docker** — agent runs as a container in the same compose stack it manages, with `docker.sock` bind-mounted in.
-- **Systemd** — agent runs as a host-level systemd unit installed via `install.sh`, managing one or more compose stacks on the VM.
+- **Systemd** — agent runs as a host-level systemd unit installed via `install.sh`, managing the compose stack for its bound project on the VM.
 
 The mode is auto-detected (presence of `/.dockerenv`) and reported to the coordinator so the UI can show a badge per agent.
 
@@ -19,7 +19,7 @@ Developer ──git push main──> GitHub repo ──> GitHub Actions (CI: bui
                                                     ▼
                                           Container registry
                                                     │
-            workflow_run webhook                    │
+      push or workflow_run webhook                  │
                   │                                 │
                   ▼                                 │
            ┌─────────────────────┐                  │
@@ -47,7 +47,7 @@ Developer ──git push main──> GitHub repo ──> GitHub Actions (CI: bui
 
 1. Developer pushes to `main`.
 2. GitHub Actions runs CI, builds the Docker image, and pushes it to the container registry.
-3. On workflow success GitHub fires a `workflow_run` webhook to Overwatcher. Overwatcher verifies the signature, looks up the matching project/service, and persists a deploy intent.
+3. GitHub fires a webhook to Overwatcher. Services with no `workflow` filter deploy from `push`; services with a configured workflow deploy from `workflow_run(success)` after CI finishes. Overwatcher verifies the signature, looks up the matching project/service, and persists a deploy intent.
 4. The agent's outbound long-poll picks up the intent.
 5. The agent uses `docker.sock` to pull the new image and restart its neighbour containers.
 6. The agent reports status back to Overwatcher, which updates the GitHub Deployments API so the result is visible on the commit/PR.
@@ -56,8 +56,8 @@ Developer ──git push main──> GitHub repo ──> GitHub Actions (CI: bui
 
 - **No inbound ports on the VM.** The agent only needs outbound network to Overwatcher and the registry — a much better fit for EC2 instances that shouldn't expose SSH publicly.
 - **No central SSH key store.** Credentials don't grow with the fleet.
-- **Scales naturally.** Adding a new VM means dropping the agent into its compose file; nothing needs to be registered centrally.
-- **Self-contained.** The agent ships as part of the stack it manages.
+- **Scales naturally.** Adding a new VM means installing the agent, letting it self-register by polling, then binding it to a project in the UI.
+- **Simple ownership.** One project binds to one agent, so dispatch routing and operator responsibility stay explicit.
 
 ## Trade-offs to handle
 

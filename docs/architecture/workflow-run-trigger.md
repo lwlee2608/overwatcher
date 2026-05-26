@@ -46,9 +46,7 @@ coordinator never receives the event.
 - Go to your App's settings page on GitHub: **Settings → Developer settings
   → GitHub Apps → \<your app\> → Permissions & events → Subscribe to events**.
 - Tick **Workflow run**.
-- (Permissions: `Actions: Read` is required for the App to receive
-  workflow events. If `push` already works, you have what's needed for
-  `workflow_run` too — they share the same metadata level.)
+- Permissions: set **Actions** to **Read-only**. `push` webhooks can work without this permission, so verify it explicitly when enabling `workflow_run`.
 - Save. Existing installations pick up the new subscription automatically.
 
 ### 2. Overwatcher service config

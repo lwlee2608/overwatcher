@@ -7,7 +7,7 @@ PostgreSQL backs the entire control plane. Migrations live under `services/overw
 The schema is split along three axes:
 
 - **Auth & tenancy** — `users`, `sessions`, `project_members`. The UI logs in with email + password (cookie-based sessions); a "bootstrap admin" is seeded with a one-time password on first start. `project_members` lets the owner share a project with other users.
-- **Deploy model** — `projects`, `services`, `agents`, `deploy_intents`. A user owns N projects. A project has exactly one compose file, exactly one agent (1:1, partial unique), and N services. A service is a `(repo, root_directory, branch, image, tag, workflow)` row that triggers a deploy when its `workflow_run` arrives.
+- **Deploy model** — `projects`, `services`, `agents`, `deploy_intents`. A user owns N projects. A project has exactly one compose file, exactly one agent (1:1, partial unique), and N services. A service is a `(repo, root_directory, branch, image, tag, workflow)` row that triggers from `push` when `workflow` is empty, or from `workflow_run(success)` when `workflow` is set.
 - **Observability** — `event_logs`. Every received GitHub webhook delivery is recorded so the UI can show what was seen, even when it didn't produce a deploy.
 
 `deploy_intents` is the deploy event log. It denormalizes everything it needs from the project/services rows at enqueue time (`compose_file`, `services_spec` JSONB, `repo`, `sha`) so deletions in the config tables don't erase deploy history.
@@ -110,7 +110,7 @@ The deployable unit (Railway-style). Each project owns exactly one `compose_file
 
 ### services
 
-A compose service definition. The webhook handler looks up services by `(LOWER(repo), workflow)` (partial index) — a `workflow_run` for `owner/repo` from workflow `deploy.yml` matches any service with `repo='owner/repo'` and `workflow='deploy.yml'`. `root_directory` filters by changed paths within the repo. `image`/`tag` drive what the agent passes to `docker compose pull` + `up -d`. `position` orders services within a project.
+A compose service definition. For `push`, the webhook handler looks up enabled services by repo and branch, ignores services with a `workflow` filter, then applies `root_directory` against changed paths. For `workflow_run`, it looks up enabled services by repo, branch, and workflow filename; the workflow itself decides what to build, so no path filter is applied. `image`/`tag` drive what the agent passes to `docker compose pull` + `up -d`. `position` orders services within a project.
 
 ### agents
 

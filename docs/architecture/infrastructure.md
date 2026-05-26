@@ -61,6 +61,6 @@ Snapshot of where Overwatcher and its currently-connected agents run in producti
 Agents connect **outbound only** — Railway never initiates a connection toward the VM. There are two packaging modes:
 
 - **docker mode**: the agent runs as a container inside the same compose stack it manages, with `/var/run/docker.sock` bind-mounted in.
-- **systemd mode**: the agent runs as a host-level systemd unit installed via `install.sh`, and shells out to `docker compose` against one or more stacks on the host.
+- **systemd mode**: the agent runs as a host-level systemd unit installed via `install.sh`, and shells out to `docker compose` against the compose file for its bound project on the host.
 
 See [high-level-design.md](high-level-design.md) for the deploy flow and [agent-protocol.md](agent-protocol.md) for the wire protocol.

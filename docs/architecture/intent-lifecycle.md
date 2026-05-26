@@ -53,13 +53,13 @@ Every transition is a coordinator-side DB write. The agent's only inputs are "I'
 
 | Transition | Trigger | Code |
 |---|---|---|
-| → `created` | `workflow_run` webhook matches an enabled project | `intent.DBStore.Enqueue` (called by `webhook.Service`) |
+| → `created` | `push` or `workflow_run` webhook matches an enabled project | `intent.DBStore.Enqueue` (called by `webhook.Service`) |
 | `created` → `dispatched` | Agent long-poll claims the row | `intent.DBStore.TakeNext` (CTE: `SELECT … FOR UPDATE SKIP LOCKED` → `UPDATE … RETURNING`) |
 | `dispatched` → `succeeded` / `failed` | Agent POSTs `/result` | `dispatch.Service.Report` → `intent.DBStore.Complete` |
 | `dispatched` → `created` | Reaper sees `dispatched_at` older than `dispatch_timeout`, attempts under cap | `intent.DBStore.SweepTimedOut` (`RequeueTimedOutIntents`) — `attempts` is **not** reset |
 | `dispatched` → `permanently_failed` | Same sweep, attempts at or above cap | `intent.DBStore.SweepTimedOut` (`FailTimedOutIntents`) |
 
-The agent's `POST /result` carries `{"state": "success" \| "failure"}` — a `failure` state lands at `failed`, not back at `created`. **No auto-retry on application-level failure.** The next git push creates a fresh intent. Only *no answer at all* (the reaper case) requeues.
+The agent's `POST /result` carries `{"state": "success" \| "failure"}` — a `failure` state lands at `failed`, not back at `created`. **No auto-retry on application-level failure.** A fresh intent is created by the next git push, workflow rerun, or manual redeploy. Only *no answer at all* (the reaper case) requeues the same row.
 
 ## Why state lives on the coordinator
 
@@ -108,7 +108,7 @@ When the third dispatch times out, the reaper gives up. In one sweep it:
 2. Pushes `state=failure` to the GitHub Deployments API with a `"timed out after N attempts"` description, so the commit/PR shows red.
 3. Logs the event.
 
-`permanently_failed` is terminal — `TakeNext` only sees `created`, so no agent picks the row up again. A late `/result` from the original (presumed-dead) agent is a no-op for the same reason `Complete` filters on `status='dispatched'`. To redeploy, the user pushes again or re-runs the workflow; that produces a fresh intent with `attempts=0`. There is no "retry" button by design — three consecutive losses usually mean something real is broken, and a human should look before we pound it again.
+`permanently_failed` is terminal — `TakeNext` only sees `created`, so no agent picks the row up again. A late `/result` from the original (presumed-dead) agent is a no-op for the same reason `Complete` filters on `status='dispatched'`. To redeploy, the user pushes again, re-runs the workflow, or uses the dashboard's **Redeploy** action. Redeploy clones the original intent into a fresh row with `attempts=0`; it does not mutate the terminal row.
 
 Time to `permanently_failed` is **only bounded if an agent keeps reclaiming the row** after each requeue. In the lucky case — agent comes back up between sweeps and claims immediately — it's roughly `max_attempts × (in_flight_timeout + sweep_interval)` = `3 × (10m + 1m)` ≈ **33 minutes**.
 
