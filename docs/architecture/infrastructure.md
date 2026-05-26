@@ -5,27 +5,29 @@ Snapshot of where Overwatcher and its currently-connected agents run in producti
 ## Topology
 
 ```
-                       ┌───────────────────────────────┐
-                       │ GitHub                        │
-                       │  · workflow_run webhooks      │
-                       │  · Deployments API            │
-                       └──────────────┬────────────────┘
-                                      │ HTTPS
-                                      ▼
-   ┌───────────────────────────────────────────────────────────────────────────────────┐
-   │ Railway                                                                           │
-   │                                                                                   │
-   │   ┌────────────────────┐    ┌─────────────────────────┐    ┌────────────────────┐ │
-   │   │ frontend           │    │ backend                 │    │ PostgreSQL         │ │
-   │   │ (React + Vite)     │───▶│ (Go coordinator)        │───▶│                    │ │
-   │   └────────────────────┘    │   HTTP API + UI         │    └────────────────────┘ │
-   │                             └────────────┬────────────┘                           │
-   │                                          │                                        │
-   └──────────────────────────────────────────┼────────────────────────────────────────┘
+      ┌──────────────────────┐                ┌────────────────────────────┐
+      │ Browser              │                │ GitHub                     │
+      │  · admin UI users    │                │  · workflow_run webhooks   │
+      │                      │                │  · Deployments API         │
+      └──────────┬───────────┘                └─────────────┬──────────────┘
+                 │ HTTPS                                    │ HTTPS
+                 │                                          │ /api/v1/github/webhook
+   ┌─────────────┼──────────────────────────────────────────┼─────────────────────────────┐
+   │ Railway     │                                          │                             │
+   │             ▼                                          ▼                             │
+   │   ┌──────────────────────┐                   ┌────────────────────────┐   ┌────────┐ │
+   │   │ frontend             │  proxy /api/*     │ backend                │   │Postgres│ │
+   │   │ (React + Vite)       │                   │ (Go coordinator)       │   │        │ │
+   │   │  nginx               │──────────────────▶│   HTTP API             │──▶│        │ │
+   │   └──────────────────────┘                   └────────────┬───────────┘   └────────┘ │
+   │                                                           │                          │
+   │                                          ┌────────────────┘                          │
+   │                                          │                                           │
+   └──────────────────────────────────────────┼───────────────────────────────────────────┘
                                               │ outbound long-poll (HTTPS)
-                  ┌───────────────────────────┼─────────────────────────────────┐
-                  │                           │                                 │
-                  ▼                           ▼                                 ▼
+                  ┌───────────────────────────┼───────────────────────────────────┐
+                  ▲                           ▲                                   ▲
+                  │                           │                                   │
    ┌──────────────────────────┐ ┌──────────────────────────┐       ┌──────────────────────────┐
    │ Alibaba Cloud ECS        │ │ Google Cloud GCE         │       │ Future VM (TBD)          │
    │ 47.254.192.25            │ │ 34.142.204.214           │       │ (IP TBD)                 │
@@ -49,8 +51,8 @@ Snapshot of where Overwatcher and its currently-connected agents run in producti
 
 ### Coordinator plane — Railway
 
-- **backend** — Go coordinator, exposes the HTTP API, UI assets, and the agent long-poll endpoints. Receives `workflow_run` webhooks from GitHub and reports status back via the Deployments API.
-- **frontend** — React + Vite SPA, served as a separate Railway service.
+- **backend** — Go coordinator, exposes the HTTP API and the agent long-poll endpoints. GitHub posts `workflow_run` webhooks directly here (`/api/v1/github/webhook`), agents long-poll it directly (URL baked into `install.sh` via `agent.public_url`), and it reports status back via the Deployments API.
+- **frontend** — React + Vite SPA on a separate Railway service. nginx serves the static assets and proxies `/api/*` and `/install.sh` to the backend; browser admin UI traffic enters here.
 - **PostgreSQL** — Railway-managed Postgres. Stores users, projects, services, deploy intents, agent registrations, and the webhook event log.
 
 ### Agent plane
