@@ -52,11 +52,7 @@ func main() {
 	queries := sqlc.New(pool)
 	intentStore := intent.NewDBStore(pool)
 
-	agentSvc := agentregistry.NewService(pool, queries, agentregistry.Thresholds{
-		StaleAfter:        30 * time.Second,
-		DisconnectedAfter: time.Hour,
-		LostAfter:         12 * time.Hour,
-	})
+	agentSvc := agentregistry.NewService(pool, queries, config.AgentRegistry)
 	eventLogSvc := eventlog.NewService(queries)
 	userSvc := user.NewService(pool)
 	projectSvc := project.NewService(pool)

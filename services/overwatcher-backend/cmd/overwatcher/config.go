@@ -12,6 +12,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/api/http"
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/db"
+	"github.com/lwlee2608/overwatcher/internal/service/agentregistry"
 	"github.com/lwlee2608/overwatcher/internal/service/auth"
 )
 
@@ -41,13 +42,14 @@ type AuthConfig struct {
 }
 
 type Config struct {
-	Log      LogConfig
-	Http     http.Config
-	GitHub   GitHubConfig   `mapstructure:"github"`
-	Agent    AgentConfig    `mapstructure:"agent"`
-	Dispatch DispatchConfig `mapstructure:"dispatch"`
-	Auth     AuthConfig     `mapstructure:"auth"`
-	Database db.Config      `mapstructure:"database"`
+	Log           LogConfig
+	Http          http.Config
+	GitHub        GitHubConfig             `mapstructure:"github"`
+	Agent         AgentConfig              `mapstructure:"agent"`
+	AgentRegistry agentregistry.Thresholds `mapstructure:"agent_registry"`
+	Dispatch      DispatchConfig           `mapstructure:"dispatch"`
+	Auth          AuthConfig               `mapstructure:"auth"`
+	Database      db.Config                `mapstructure:"database"`
 }
 
 var config Config
@@ -102,6 +104,9 @@ func validate() error {
 	}
 	if config.Database.URL == "" {
 		return errors.New("database.url must be set")
+	}
+	if err := config.AgentRegistry.Validate(); err != nil {
+		return fmt.Errorf("agent_registry: %w", err)
 	}
 	return nil
 }

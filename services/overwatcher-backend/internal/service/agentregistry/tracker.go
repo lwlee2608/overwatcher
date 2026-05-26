@@ -48,9 +48,21 @@ type AgentStatus struct {
 // Thresholds defines the age cutoffs (now − last_seen) used to derive
 // ConnectionStatus. Must satisfy StaleAfter ≤ DisconnectedAfter ≤ LostAfter.
 type Thresholds struct {
-	StaleAfter        time.Duration
-	DisconnectedAfter time.Duration
-	LostAfter         time.Duration
+	StaleAfter        time.Duration `mapstructure:"stale_after"`
+	DisconnectedAfter time.Duration `mapstructure:"disconnected_after"`
+	LostAfter         time.Duration `mapstructure:"lost_after"`
+}
+
+// Validate enforces StaleAfter ≤ DisconnectedAfter ≤ LostAfter and rejects
+// non-positive values.
+func (t Thresholds) Validate() error {
+	if t.StaleAfter <= 0 || t.DisconnectedAfter <= 0 || t.LostAfter <= 0 {
+		return errors.New("agentregistry thresholds must be positive durations")
+	}
+	if t.StaleAfter > t.DisconnectedAfter || t.DisconnectedAfter > t.LostAfter {
+		return errors.New("agentregistry thresholds must satisfy stale_after ≤ disconnected_after ≤ lost_after")
+	}
+	return nil
 }
 
 // Service manages agent registration and heartbeats backed by PostgreSQL.
