@@ -14,10 +14,16 @@ DO UPDATE SET
 RETURNING *;
 
 -- name: GetAgent :one
-SELECT * FROM agents WHERE id = $1;
+SELECT a.*, p.name AS project_name
+FROM agents a
+LEFT JOIN projects p ON p.id = a.project_id
+WHERE a.id = $1;
 
 -- name: ListAgents :many
-SELECT * FROM agents ORDER BY name ASC;
+SELECT a.*, p.name AS project_name
+FROM agents a
+LEFT JOIN projects p ON p.id = a.project_id
+ORDER BY a.name ASC;
 
 -- name: GetAgentByName :one
 SELECT * FROM agents WHERE name = $1;

@@ -35,7 +35,7 @@ type Querier interface {
 	DeleteSessionsForUser(ctx context.Context, userID pgtype.UUID) error
 	DeleteUser(ctx context.Context, id pgtype.UUID) (User, error)
 	FailTimedOutIntents(ctx context.Context, arg FailTimedOutIntentsParams) ([]DeployIntent, error)
-	GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error)
+	GetAgent(ctx context.Context, id pgtype.UUID) (GetAgentRow, error)
 	GetAgentByName(ctx context.Context, name string) (Agent, error)
 	GetDeployIntentByID(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	GetProject(ctx context.Context, id pgtype.UUID) (Project, error)
@@ -46,7 +46,7 @@ type Querier interface {
 	GetUser(ctx context.Context, id pgtype.UUID) (User, error)
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
 	GetUserPasswordHashByEmail(ctx context.Context, lower string) (GetUserPasswordHashByEmailRow, error)
-	ListAgents(ctx context.Context) ([]Agent, error)
+	ListAgents(ctx context.Context) ([]ListAgentsRow, error)
 	ListDeployIntentsByStatus(ctx context.Context, status string) ([]DeployIntent, error)
 	// Webhook matching: returns every service in an enabled project whose repo
 	// matches (case-insensitive). The webhook handler still has to filter by

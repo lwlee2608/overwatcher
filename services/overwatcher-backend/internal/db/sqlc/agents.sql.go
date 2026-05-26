@@ -66,12 +66,28 @@ func (q *Queries) DeleteAgent(ctx context.Context, id pgtype.UUID) (int64, error
 }
 
 const getAgent = `-- name: GetAgent :one
-SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version FROM agents WHERE id = $1
+SELECT a.id, a.name, a.remote_ip, a.last_seen_at, a.created_at, a.updated_at, a.project_id, a.agent_type, a.version, p.name AS project_name
+FROM agents a
+LEFT JOIN projects p ON p.id = a.project_id
+WHERE a.id = $1
 `
 
-func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error) {
+type GetAgentRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	RemoteIp    string             `json:"remote_ip"`
+	LastSeenAt  pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ProjectID   pgtype.UUID        `json:"project_id"`
+	AgentType   pgtype.Text        `json:"agent_type"`
+	Version     pgtype.Text        `json:"version"`
+	ProjectName pgtype.Text        `json:"project_name"`
+}
+
+func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (GetAgentRow, error) {
 	row := q.db.QueryRow(ctx, getAgent, id)
-	var i Agent
+	var i GetAgentRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
@@ -82,6 +98,7 @@ func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (Agent, error) {
 		&i.ProjectID,
 		&i.AgentType,
 		&i.Version,
+		&i.ProjectName,
 	)
 	return i, err
 }
@@ -108,18 +125,34 @@ func (q *Queries) GetAgentByName(ctx context.Context, name string) (Agent, error
 }
 
 const listAgents = `-- name: ListAgents :many
-SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version FROM agents ORDER BY name ASC
+SELECT a.id, a.name, a.remote_ip, a.last_seen_at, a.created_at, a.updated_at, a.project_id, a.agent_type, a.version, p.name AS project_name
+FROM agents a
+LEFT JOIN projects p ON p.id = a.project_id
+ORDER BY a.name ASC
 `
 
-func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
+type ListAgentsRow struct {
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	RemoteIp    string             `json:"remote_ip"`
+	LastSeenAt  pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ProjectID   pgtype.UUID        `json:"project_id"`
+	AgentType   pgtype.Text        `json:"agent_type"`
+	Version     pgtype.Text        `json:"version"`
+	ProjectName pgtype.Text        `json:"project_name"`
+}
+
+func (q *Queries) ListAgents(ctx context.Context) ([]ListAgentsRow, error) {
 	rows, err := q.db.Query(ctx, listAgents)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Agent{}
+	items := []ListAgentsRow{}
 	for rows.Next() {
-		var i Agent
+		var i ListAgentsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -130,6 +163,7 @@ func (q *Queries) ListAgents(ctx context.Context) ([]Agent, error) {
 			&i.ProjectID,
 			&i.AgentType,
 			&i.Version,
+			&i.ProjectName,
 		); err != nil {
 			return nil, err
 		}

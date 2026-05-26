@@ -55,14 +55,15 @@ func (h *AgentHandler) List(c *gin.Context) {
 	}
 	for i, a := range agents {
 		resp.Agents[i] = dto.AgentStatusResponse{
-			ID:        a.ID,
-			Name:      a.Name,
-			LastSeen:  a.LastSeen,
-			RemoteIP:  a.RemoteIP,
-			Status:    string(a.Status),
-			ProjectID: a.ProjectID,
-			Type:      a.Type,
-			Version:   a.Version,
+			ID:          a.ID,
+			Name:        a.Name,
+			LastSeen:    a.LastSeen,
+			RemoteIP:    a.RemoteIP,
+			Status:      string(a.Status),
+			ProjectID:   a.ProjectID,
+			ProjectName: a.ProjectName,
+			Type:        a.Type,
+			Version:     a.Version,
 		}
 	}
 	c.JSON(http.StatusOK, resp)
@@ -81,14 +82,15 @@ func (h *AgentHandler) Get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, dto.AgentStatusResponse{
-		ID:        a.ID,
-		Name:      a.Name,
-		LastSeen:  a.LastSeen,
-		RemoteIP:  a.RemoteIP,
-		Status:    string(a.Status),
-		ProjectID: a.ProjectID,
-		Type:      a.Type,
-		Version:   a.Version,
+		ID:          a.ID,
+		Name:        a.Name,
+		LastSeen:    a.LastSeen,
+		RemoteIP:    a.RemoteIP,
+		Status:      string(a.Status),
+		ProjectID:   a.ProjectID,
+		ProjectName: a.ProjectName,
+		Type:        a.Type,
+		Version:     a.Version,
 	})
 }
 
@@ -158,13 +160,14 @@ func (h *AgentHandler) BindProject(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, dto.AgentStatusResponse{
-		ID:        a.ID,
-		Name:      a.Name,
-		LastSeen:  a.LastSeen,
-		RemoteIP:  a.RemoteIP,
-		Status:    string(a.Status),
-		ProjectID: a.ProjectID,
-		Type:      a.Type,
-		Version:   a.Version,
+		ID:          a.ID,
+		Name:        a.Name,
+		LastSeen:    a.LastSeen,
+		RemoteIP:    a.RemoteIP,
+		Status:      string(a.Status),
+		ProjectID:   a.ProjectID,
+		ProjectName: a.ProjectName,
+		Type:        a.Type,
+		Version:     a.Version,
 	})
 }

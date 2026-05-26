@@ -9,6 +9,7 @@ export interface AgentStatus {
   remote_ip: string;
   status: ConnectionStatus;
   project_id?: string;
+  project_name?: string;
   type?: AgentType;
   version?: string;
 }
