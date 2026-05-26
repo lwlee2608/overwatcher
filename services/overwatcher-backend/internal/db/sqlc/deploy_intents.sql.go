@@ -299,7 +299,7 @@ WHERE (p.user_id = $1 OR pm.user_id = $1)
   AND ($3::uuid IS NULL OR di.project_id = $3)
   AND ($4::text IS NULL OR di.repo ILIKE '%' || $4 || '%')
   AND ($5::text IS NULL OR di.environment = $5)
-ORDER BY di.created_at DESC
+ORDER BY di.created_at DESC, di.id DESC
 LIMIT $7 OFFSET $6
 `
 

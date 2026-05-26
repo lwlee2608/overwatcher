@@ -115,7 +115,7 @@ WHERE (p.user_id = @user_id OR pm.user_id = @user_id)
   AND (sqlc.narg('project_id')::uuid IS NULL OR di.project_id = sqlc.narg('project_id'))
   AND (sqlc.narg('repo')::text IS NULL OR di.repo ILIKE '%' || sqlc.narg('repo') || '%')
   AND (sqlc.narg('environment')::text IS NULL OR di.environment = sqlc.narg('environment'))
-ORDER BY di.created_at DESC
+ORDER BY di.created_at DESC, di.id DESC
 LIMIT @row_limit OFFSET @row_offset;
 
 -- name: CountDeployIntentsForUser :one

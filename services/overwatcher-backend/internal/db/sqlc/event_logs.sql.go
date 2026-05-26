@@ -122,7 +122,7 @@ SELECT id, delivery_id, event_type, repo, sender, summary, created_at FROM event
 WHERE ($1::text IS NULL OR event_type = $1)
   AND ($2::text IS NULL OR repo ILIKE '%' || $2 || '%')
   AND ($3::text IS NULL OR sender = $3)
-ORDER BY created_at DESC
+ORDER BY created_at DESC, id DESC
 LIMIT $5 OFFSET $4
 `
 

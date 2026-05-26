@@ -106,7 +106,7 @@ export function DeploymentDashboard() {
   };
 
   const environmentOptions = Array.from(
-    new Set(deployments.map((d) => d.environment).filter(Boolean)),
+    new Set(projects.map((p) => p.environment).filter(Boolean)),
   ).sort();
 
   if (loading) {
