@@ -1,10 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AgentStatus, ConnectionStatus } from "../types/agent";
 import { deleteAgent, fetchAgents } from "../api/agents";
 import { AgentCard } from "./AgentCard";
 import { InstallAgentCard } from "./InstallAgentCard";
-
-type StatusFilter = "all" | ConnectionStatus;
 
 const statusOptions: { value: ConnectionStatus; label: string }[] = [
   { value: "connected", label: "Connected" },
@@ -18,7 +16,29 @@ export function AgentDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showInstall, setShowInstall] = useState(false);
-  const [filter, setFilter] = useState<StatusFilter>("all");
+  const [selected, setSelected] = useState<Set<ConnectionStatus>>(
+    new Set(["connected", "stale", "disconnected"])
+  );
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!filterOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (!filterRef.current?.contains(e.target as Node)) setFilterOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [filterOpen]);
+
+  function toggleStatus(s: ConnectionStatus) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      return next;
+    });
+  }
 
   useEffect(() => {
     let active = true;
@@ -65,21 +85,34 @@ export function AgentDashboard() {
     lost: 3,
   };
   const filtered =
-    filter === "all" ? agents : agents.filter((a) => a.status === filter);
+    selected.size === 0
+      ? []
+      : agents.filter((a) => selected.has(a.status));
   const sorted = [...filtered].sort((a, b) => {
     const r = statusRank[a.status] - statusRank[b.status];
     if (r !== 0) return r;
     return a.name.localeCompare(b.name);
   });
 
-  const counts: Record<StatusFilter, number> = {
-    all: agents.length,
+  const counts: Record<ConnectionStatus, number> = {
     connected: 0,
     stale: 0,
     disconnected: 0,
     lost: 0,
   };
   for (const a of agents) counts[a.status]++;
+
+  const filterLabel =
+    selected.size === 0
+      ? "None"
+      : selected.size === statusOptions.length
+        ? "All"
+        : selected.size === statusOptions.length - 1 && !selected.has("lost")
+          ? "All except Lost"
+          : statusOptions
+              .filter((s) => selected.has(s.value))
+              .map((s) => s.label)
+              .join(", ");
 
   if (loading) {
     return (
@@ -98,41 +131,72 @@ export function AgentDashboard() {
       )}
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white pl-2 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700">
-          <svg
-            className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
-          </svg>
-          <select
+        <div ref={filterRef} className="relative">
+          <button
+            type="button"
             aria-label="Filter agents by status"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as StatusFilter)}
-            className="cursor-pointer border-0 bg-transparent py-0.5 pr-1 text-xs text-gray-900 focus:outline-none focus:ring-0 dark:text-gray-100"
+            aria-haspopup="true"
+            aria-expanded={filterOpen}
+            onClick={() => setFilterOpen((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white pl-2 pr-2 py-1 text-xs text-gray-900 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
           >
-            <option
-              value="all"
-              className="bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100"
+            <svg
+              className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
             >
-              All ({agents.length})
-            </option>
-            {statusOptions.map((s) => (
-              <option
-                key={s.value}
-                value={s.value}
-                className="bg-white text-gray-900 dark:bg-gray-800 dark:text-gray-100"
-              >
-                {s.label} ({counts[s.value]})
-              </option>
-            ))}
-          </select>
+              <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
+            </svg>
+            <span className="max-w-[14rem] truncate">
+              {filterLabel} ({sorted.length})
+            </span>
+            <svg
+              className="h-3 w-3 text-gray-500 dark:text-gray-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {filterOpen && (
+            <div
+              role="menu"
+              className="absolute left-0 z-10 mt-1 w-48 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            >
+              {statusOptions.map((s) => {
+                const checked = selected.has(s.value);
+                return (
+                  <label
+                    key={s.value}
+                    className="flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-xs text-gray-900 hover:bg-gray-50 dark:text-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <span className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleStatus(s.value)}
+                        className="h-3.5 w-3.5 cursor-pointer accent-blue-600"
+                      />
+                      {s.label}
+                    </span>
+                    <span className="text-gray-500 dark:text-gray-400">
+                      ({counts[s.value]})
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
         </div>
         {!showInstall && (
           <button
