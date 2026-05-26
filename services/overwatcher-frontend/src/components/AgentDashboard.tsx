@@ -107,7 +107,7 @@ export function AgentDashboard() {
       ? "None"
       : selected.size === statusOptions.length
         ? "All"
-        : selected.size === 3 && !selected.has("lost")
+        : selected.size === statusOptions.length - 1 && !selected.has("lost")
           ? "All except Lost"
           : statusOptions
               .filter((s) => selected.has(s.value))
