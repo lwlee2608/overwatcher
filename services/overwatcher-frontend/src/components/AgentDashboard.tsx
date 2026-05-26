@@ -16,7 +16,9 @@ export function AgentDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showInstall, setShowInstall] = useState(false);
-  const [selected, setSelected] = useState<Set<ConnectionStatus>>(new Set());
+  const [selected, setSelected] = useState<Set<ConnectionStatus>>(
+    new Set(["connected", "stale", "disconnected"])
+  );
   const [filterOpen, setFilterOpen] = useState(false);
   const filterRef = useRef<HTMLDivElement>(null);
 
@@ -84,7 +86,7 @@ export function AgentDashboard() {
   };
   const filtered =
     selected.size === 0
-      ? agents.filter((a) => a.status !== "lost")
+      ? []
       : agents.filter((a) => selected.has(a.status));
   const sorted = [...filtered].sort((a, b) => {
     const r = statusRank[a.status] - statusRank[b.status];
@@ -102,13 +104,15 @@ export function AgentDashboard() {
 
   const filterLabel =
     selected.size === 0
-      ? "All except Lost"
+      ? "None"
       : selected.size === statusOptions.length
         ? "All"
-        : statusOptions
-            .filter((s) => selected.has(s.value))
-            .map((s) => s.label)
-            .join(", ");
+        : selected.size === 3 && !selected.has("lost")
+          ? "All except Lost"
+          : statusOptions
+              .filter((s) => selected.has(s.value))
+              .map((s) => s.label)
+              .join(", ");
 
   if (loading) {
     return (
