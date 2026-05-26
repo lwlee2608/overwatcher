@@ -25,6 +25,7 @@ Snapshot of where Overwatcher and its currently-connected agents run in producti
    │                                          │                                           │
    └──────────────────────────────────────────┼───────────────────────────────────────────┘
                                               │ outbound long-poll (HTTPS)
+                                              │ GET /api/v1/deploy/next
                   ┌───────────────────────────┼───────────────────────────────────┐
                   ▲                           ▲                                   ▲
                   │                           │                                   │

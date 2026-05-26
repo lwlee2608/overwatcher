@@ -32,6 +32,16 @@ The agent's HTTP client timeout is 30s (`agent.poll_timeout`). The 5s gap is del
 
 Both endpoints authenticate with `Authorization: Bearer <AGENT_SHARED_SECRET>` and identify the agent with `X-Agent-Name: <name>`. Two optional headers report the agent's deployment surface: `X-Agent-Type` (`docker` or `systemd`, auto-detected from `/.dockerenv`) and `X-Agent-Version` (the agent's build version). The coordinator stores these on the agent row so the dashboard can render a badge per agent; empty values leave the stored value intact.
 
+### Request headers
+
+| Header | Required | Value |
+|---|---|---|
+| `Authorization` | yes | `Bearer <AGENT_SHARED_SECRET>` |
+| `X-Agent-Name` | yes | agent name, e.g. `medtutor` |
+| `X-Agent-Type` | optional | `docker` or `systemd` (auto-detected from `/.dockerenv`) |
+| `X-Agent-Version` | optional | agent build version |
+| `Content-Type` | on `/result` | `application/json` |
+
 `/deploy/next` additionally requires the agent to be **bound to a project**. An unbound agent gets `412 Precondition Failed` — the binding is the project↔agent 1:1 row, set from the project's Agent panel in the UI. A `X-Agent-Name` that's never been seen returns `404` ("agent not registered"); the agent registers itself implicitly on its first authenticated poll via the heartbeat middleware.
 
 ## A full poll cycle
