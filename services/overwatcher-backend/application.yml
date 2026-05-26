@@ -30,4 +30,4 @@ dispatch:
 agent_registry:
   stale_after: 30s             # connected → stale
   disconnected_after: 1h       # stale → disconnected
-  lost_after: 12h              # disconnected → lost
+  lost_after: 6h               # disconnected → lost
