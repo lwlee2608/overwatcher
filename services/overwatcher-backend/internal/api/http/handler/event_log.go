@@ -2,7 +2,6 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
@@ -18,21 +17,30 @@ func NewEventLogHandler(svc *eventlog.Service) *EventLogHandler {
 }
 
 func (h *EventLogHandler) List(c *gin.Context) {
-	limit := int32(50)
-	if v := c.Query("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
-			limit = int32(n)
-		}
+	page, pageSize := parsePagination(c)
+	filter := eventlog.Filter{
+		EventType: c.Query("event_type"),
+		Repo:      c.Query("repo"),
+		Sender:    c.Query("sender"),
 	}
 
-	events, err := h.eventLogService.List(c.Request.Context(), limit)
+	ctx := c.Request.Context()
+	total, err := h.eventLogService.Count(ctx, filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	events, err := h.eventLogService.ListPaged(ctx, filter, int32(pageSize), int32((page-1)*pageSize))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	resp := dto.EventLogListResponse{
-		Events: make([]dto.EventLogResponse, len(events)),
+		Events:   make([]dto.EventLogResponse, len(events)),
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
 	}
 	for i, e := range events {
 		resp.Events[i] = dto.EventLogResponse{

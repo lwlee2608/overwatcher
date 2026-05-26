@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EventLog } from "../types/event_log";
-import { fetchEvents } from "../api/events";
+import { fetchEvents, type EventFilter } from "../api/events";
 import { timeAgo } from "../utils/time";
+import { Pagination } from "./Pagination";
 
 const eventTypeColors: Record<string, string> = {
   push: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -15,37 +16,63 @@ const eventTypeColors: Record<string, string> = {
 const defaultColor =
   "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
 
+const inputClass =
+  "rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2 py-1 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
 export function EventLogDashboard() {
   const [events, setEvents] = useState<EventLog[]>([]);
+  const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let active = true;
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [filter, setFilter] = useState<EventFilter>({});
+  const [repoInput, setRepoInput] = useState("");
+  const [senderInput, setSenderInput] = useState("");
 
-    async function poll() {
-      try {
-        const data = await fetchEvents(100);
-        if (active) {
-          setEvents(data.events ?? []);
-          setError(null);
-          setLoading(false);
-        }
-      } catch (err) {
-        if (active) {
-          setError(err instanceof Error ? err.message : "Failed to fetch");
-          setLoading(false);
-        }
-      }
+  const refresh = useCallback(async () => {
+    try {
+      const data = await fetchEvents(page, pageSize, filter);
+      setEvents(data.events ?? []);
+      setTotal(data.total ?? 0);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch");
+    } finally {
+      setLoading(false);
     }
+  }, [page, pageSize, filter]);
 
-    poll();
-    const id = setInterval(poll, 10_000);
-    return () => {
-      active = false;
-      clearInterval(id);
-    };
-  }, []);
+  useEffect(() => {
+    refresh();
+    const id = setInterval(refresh, 10_000);
+    return () => clearInterval(id);
+  }, [refresh]);
+
+  // Debounce repo + sender text inputs so typing doesn't fire a request per
+  // keystroke.
+  const debounceRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => {
+      setFilter((f) => ({
+        ...f,
+        repo: repoInput || undefined,
+        sender: senderInput || undefined,
+      }));
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(debounceRef.current);
+  }, [repoInput, senderInput]);
+
+  // Surface event types we've actually seen on this page so the dropdown
+  // stays helpful even if a deployment introduces a new type.
+  const eventTypeOptions = Array.from(
+    new Set([...Object.keys(eventTypeColors), ...events.map((e) => e.event_type)]),
+  )
+    .filter(Boolean)
+    .sort();
 
   if (loading) {
     return (
@@ -63,21 +90,60 @@ export function EventLogDashboard() {
         </div>
       )}
 
-      <div className="mb-6 text-sm text-gray-600 dark:text-gray-400">
-        Latest{" "}
-        <span className="font-semibold text-gray-900 dark:text-gray-100">
-          {events.length}
-        </span>{" "}
-        event{events.length !== 1 && "s"}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <select
+          value={filter.event_type ?? ""}
+          onChange={(e) => {
+            setFilter((f) => ({
+              ...f,
+              event_type: e.target.value || undefined,
+            }));
+            setPage(1);
+          }}
+          className={inputClass}
+        >
+          <option value="">All event types</option>
+          {eventTypeOptions.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
+        <input
+          type="text"
+          value={repoInput}
+          onChange={(e) => setRepoInput(e.target.value)}
+          placeholder="repo contains…"
+          className={inputClass}
+        />
+        <input
+          type="text"
+          value={senderInput}
+          onChange={(e) => setSenderInput(e.target.value)}
+          placeholder="sender"
+          className={inputClass}
+        />
+        {(filter.event_type || filter.repo || filter.sender) && (
+          <button
+            type="button"
+            onClick={() => {
+              setFilter({});
+              setRepoInput("");
+              setSenderInput("");
+              setPage(1);
+            }}
+            className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
-      {events.length === 0 && !error && (
+      {events.length === 0 && !error ? (
         <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-          No events received yet
+          {total === 0 ? "No events received yet" : "No events match"}
         </div>
-      )}
-
-      {events.length > 0 && (
+      ) : (
         <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-800">
@@ -117,6 +183,17 @@ export function EventLogDashboard() {
           </table>
         </div>
       )}
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        onPageSizeChange={(s) => {
+          setPageSize(s);
+          setPage(1);
+        }}
+      />
     </div>
   );
 }

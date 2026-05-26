@@ -21,4 +21,7 @@ export interface Deployment {
 
 export interface DeploymentListResponse {
   deployments: Deployment[];
+  total: number;
+  page: number;
+  page_size: number;
 }

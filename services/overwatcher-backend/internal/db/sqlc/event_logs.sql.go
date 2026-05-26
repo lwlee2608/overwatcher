@@ -7,7 +7,29 @@ package sqlc
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const countEventLogs = `-- name: CountEventLogs :one
+SELECT count(*) FROM event_logs
+WHERE ($1::text IS NULL OR event_type = $1)
+  AND ($2::text IS NULL OR repo ILIKE '%' || $2 || '%')
+  AND ($3::text IS NULL OR sender = $3)
+`
+
+type CountEventLogsParams struct {
+	EventType pgtype.Text `json:"event_type"`
+	Repo      pgtype.Text `json:"repo"`
+	Sender    pgtype.Text `json:"sender"`
+}
+
+func (q *Queries) CountEventLogs(ctx context.Context, arg CountEventLogsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countEventLogs, arg.EventType, arg.Repo, arg.Sender)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
 
 const createEventLog = `-- name: CreateEventLog :one
 INSERT INTO event_logs (delivery_id, event_type, repo, sender, summary)
@@ -69,6 +91,58 @@ LIMIT $1
 
 func (q *Queries) ListEventLogs(ctx context.Context, limit int32) ([]EventLog, error) {
 	rows, err := q.db.Query(ctx, listEventLogs, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EventLog{}
+	for rows.Next() {
+		var i EventLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.DeliveryID,
+			&i.EventType,
+			&i.Repo,
+			&i.Sender,
+			&i.Summary,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEventLogsPaged = `-- name: ListEventLogsPaged :many
+SELECT id, delivery_id, event_type, repo, sender, summary, created_at FROM event_logs
+WHERE ($1::text IS NULL OR event_type = $1)
+  AND ($2::text IS NULL OR repo ILIKE '%' || $2 || '%')
+  AND ($3::text IS NULL OR sender = $3)
+ORDER BY created_at DESC
+LIMIT $5 OFFSET $4
+`
+
+type ListEventLogsPagedParams struct {
+	EventType pgtype.Text `json:"event_type"`
+	Repo      pgtype.Text `json:"repo"`
+	Sender    pgtype.Text `json:"sender"`
+	RowOffset int32       `json:"row_offset"`
+	RowLimit  int32       `json:"row_limit"`
+}
+
+// Paged + filtered listing. Each filter is nullable; NULL means "no filter".
+func (q *Queries) ListEventLogsPaged(ctx context.Context, arg ListEventLogsPagedParams) ([]EventLog, error) {
+	rows, err := q.db.Query(ctx, listEventLogsPaged,
+		arg.EventType,
+		arg.Repo,
+		arg.Sender,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
