@@ -17,6 +17,8 @@ One secret guards the whole fleet.
 - **No scope.** Any agent could (in principle) accept a deploy intent for any project — nothing at the auth layer ties a token to a project binding.
 - **Install UX is bad.** The operator copies a secret from a config file into a shell command. Mistakes are silent until first poll fails.
 
+There is also a parallel gap on the **user→coordinator** path: `GET /api/v1/agents` returns every agent — and every agent's bound `project_id` / `project_name` — to any signed-in user. That gap predates this plan but is tightly coupled to it, because per-agent tokens need an "owner" concept to be revoked/managed by the right humans. Both are fixed together below.
+
 ## Solution
 
 Mint one long-lived token per agent at registration time. Bind the token to the agent row.
@@ -27,6 +29,7 @@ admin clicks "Install agent" in UI
         ▼
 POST /api/v1/agents               coordinator
   { name: "demo-1" }              ──────────►  agent row created
+                                               installed_by_user_id = caller
                                                install_token minted (single-use, 1h TTL)
         ◄──────────────────────────────────
   { agent_id, install_token, install_command }
@@ -50,6 +53,27 @@ agent uses it for all subsequent /deploy/* calls
 
 Middleware changes from "compare to global" to "look up token → resolve agent → attach agent context". The existing `AgentHeartbeat` middleware already runs after auth; it can now trust the resolved agent identity instead of trusting the `X-Agent-Name` header.
 
+### Access control on agent endpoints
+
+A new column `agents.installed_by_user_id` is added at registration time. It is **not** a permanent owner — it exists so a freshly installed, unbound agent has a single human who can see and manage it before it gets linked to a team project.
+
+Visibility follows the agent's lifecycle:
+
+```
+agent state          who can see / manage it
+──────────           ───────────────────────
+unbound              installed_by_user_id (+ admins)
+bound to project P   members of project P (uses existing project ACL)
+```
+
+This is layered on top of the existing project membership model rather than replacing it. A separate flat `agent.owner_user_id` was considered and rejected: if alice installs an agent and binds it to a team project, then leaves the team, bob (still on the project) needs to manage it. Tying visibility to the installer forever would block that — project membership handles the handover automatically once binding happens.
+
+Applied to the HTTP layer:
+
+- `GET /api/v1/agents` — `WHERE (project_id IS NULL AND installed_by_user_id = caller) OR project_id IN (caller's project memberships)`. Admins bypass.
+- `GET /api/v1/agents/:id`, `DELETE /api/v1/agents/:id`, `PUT /api/v1/agents/:id/project` — same gate.
+- Per-agent **tokens** still belong to the *agent*, not the user. Who is permitted to mint or revoke a token is governed by the rules above; the token itself carries no user identity.
+
 ### Migration
 
 Existing agents in the field still hold the global secret. Two-step:
@@ -64,6 +88,7 @@ Existing agents in the field still hold the global secret. Two-step:
 - **Sets up project-scoped auth.** Once tokens resolve to agents, and agents are already bound to projects (`agents.project_id` exists today), gating "this token may only accept intents for project X" is a one-line check.
 - **Better install UX as a side effect.** The install card no longer needs to display a shared secret at all — it provisions an agent and shows a command containing a one-time token. Mistypes get a clean "token expired or already used" instead of "401 forever".
 - **Removes the current global-secret-in-UI question** entirely. (The stopgap of fetching the global secret into the install card becomes moot — there is no global secret to fetch.)
+- **Closes the dashboard info-leak.** `installed_by_user_id` plus the existing project ACL means `/api/v1/agents` stops returning every team's agents — and their project bindings — to every signed-in user.
 
 ## Non-goals
 
@@ -77,3 +102,5 @@ Existing agents in the field still hold the global secret. Two-step:
 - **Install token transport.** Embed in the curl command as an env var (matches the current shape), or pass as a `?token=` query string to the install script (lets the script fetch agent-specific config without env-var sprawl)?
 - **Token storage on the agent.** Reuse `/etc/overwatcher-agent.env` (systemd) and a bind-mounted env file (Docker), or introduce a dedicated token file with stricter perms?
 - **Token format.** Random opaque string (simplest, requires DB lookup per request) vs. signed token carrying agent ID (no lookup, but rotation/revocation needs a denylist or short TTL + refresh)? Opaque + indexed lookup is fine at this scale; revisit only if `/deploy/next` latency matters.
+- **Installer leaves the system.** If `installed_by_user_id` references a user that gets deleted, what happens to an agent that is still unbound? Options: cascade-delete the agent, reassign to an admin, or leave it visible only to admins. Project-bound agents are unaffected (ACL flips to project membership).
+- **Admin role.** The access rules above assume an "admin bypass." That role isn't formalized today; either piggy-back on a future admin flag or scope this plan to non-admin rules only and revisit when admin is introduced.
