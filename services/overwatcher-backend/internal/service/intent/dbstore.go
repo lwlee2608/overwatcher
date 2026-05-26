@@ -258,6 +258,79 @@ func (s *DBStore) ListRecentForUser(ctx context.Context, userID string, limit in
 	return out, nil
 }
 
+// DeployFilter narrows ListForUserPaged / CountForUser. Empty string on any
+// field means "no filter on this column".
+type DeployFilter struct {
+	Status      string
+	ProjectID   string
+	Repo        string
+	Environment string
+}
+
+func (s *DBStore) ListForUserPaged(ctx context.Context, userID string, filter DeployFilter, limit, offset int32) ([]*DeployIntent, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, err
+	}
+	projectID, err := optionalUUID(filter.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.q.ListDeployIntentsForUserPaged(ctx, sqlc.ListDeployIntentsForUserPagedParams{
+		UserID:      uid,
+		Status:      optionalText(filter.Status),
+		ProjectID:   projectID,
+		Repo:        optionalText(filter.Repo),
+		Environment: optionalText(filter.Environment),
+		RowLimit:    limit,
+		RowOffset:   offset,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*DeployIntent, len(rows))
+	for i, row := range rows {
+		out[i] = fromRow(row)
+	}
+	return out, nil
+}
+
+func (s *DBStore) CountForUser(ctx context.Context, userID string, filter DeployFilter) (int64, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return 0, err
+	}
+	projectID, err := optionalUUID(filter.ProjectID)
+	if err != nil {
+		return 0, err
+	}
+	return s.q.CountDeployIntentsForUser(ctx, sqlc.CountDeployIntentsForUserParams{
+		UserID:      uid,
+		Status:      optionalText(filter.Status),
+		ProjectID:   projectID,
+		Repo:        optionalText(filter.Repo),
+		Environment: optionalText(filter.Environment),
+	})
+}
+
+func optionalText(s string) pgtype.Text {
+	if s == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: s, Valid: true}
+}
+
+func optionalUUID(s string) (pgtype.UUID, error) {
+	if s == "" {
+		return pgtype.UUID{}, nil
+	}
+	u := pgtype.UUID{}
+	if err := u.Scan(s); err != nil {
+		return pgtype.UUID{}, err
+	}
+	return u, nil
+}
+
 func (s *DBStore) Len() int {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

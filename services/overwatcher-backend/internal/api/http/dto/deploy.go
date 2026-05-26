@@ -24,4 +24,7 @@ type DeploymentResponse struct {
 
 type DeploymentListResponse struct {
 	Deployments []DeploymentResponse `json:"deployments"`
+	Total       int64                `json:"total"`
+	Page        int                  `json:"page"`
+	PageSize    int                  `json:"page_size"`
 }

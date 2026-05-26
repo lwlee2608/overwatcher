@@ -60,6 +60,40 @@ func (q *Queries) CountDeployIntentsByStatus(ctx context.Context, status string)
 	return count, err
 }
 
+const countDeployIntentsForUser = `-- name: CountDeployIntentsForUser :one
+SELECT count(*)
+FROM deploy_intents di
+JOIN projects p ON p.id = di.project_id
+LEFT JOIN project_members pm
+  ON pm.project_id = p.id AND pm.user_id = $1
+WHERE (p.user_id = $1 OR pm.user_id = $1)
+  AND ($2::text IS NULL OR di.status = $2)
+  AND ($3::uuid IS NULL OR di.project_id = $3)
+  AND ($4::text IS NULL OR di.repo ILIKE '%' || $4 || '%')
+  AND ($5::text IS NULL OR di.environment = $5)
+`
+
+type CountDeployIntentsForUserParams struct {
+	UserID      pgtype.UUID `json:"user_id"`
+	Status      pgtype.Text `json:"status"`
+	ProjectID   pgtype.UUID `json:"project_id"`
+	Repo        pgtype.Text `json:"repo"`
+	Environment pgtype.Text `json:"environment"`
+}
+
+func (q *Queries) CountDeployIntentsForUser(ctx context.Context, arg CountDeployIntentsForUserParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDeployIntentsForUser,
+		arg.UserID,
+		arg.Status,
+		arg.ProjectID,
+		arg.Repo,
+		arg.Environment,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createDeployIntent = `-- name: CreateDeployIntent :one
 INSERT INTO deploy_intents (
     delivery_id, project_id, repo, git_ref, sha,
@@ -218,6 +252,79 @@ ORDER BY created_at ASC
 
 func (q *Queries) ListDeployIntentsByStatus(ctx context.Context, status string) ([]DeployIntent, error) {
 	rows, err := q.db.Query(ctx, listDeployIntentsByStatus, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DeployIntent{}
+	for rows.Next() {
+		var i DeployIntent
+		if err := rows.Scan(
+			&i.ID,
+			&i.DeliveryID,
+			&i.Repo,
+			&i.GitRef,
+			&i.Sha,
+			&i.Stack,
+			&i.Environment,
+			&i.DeploymentID,
+			&i.InstallationID,
+			&i.Status,
+			&i.Attempts,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DispatchedAt,
+			&i.ServicesSpec,
+			&i.ProjectID,
+			&i.ComposeFile,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDeployIntentsForUserPaged = `-- name: ListDeployIntentsForUserPaged :many
+SELECT di.id, di.delivery_id, di.repo, di.git_ref, di.sha, di.stack, di.environment, di.deployment_id, di.installation_id, di.status, di.attempts, di.created_at, di.updated_at, di.dispatched_at, di.services_spec, di.project_id, di.compose_file
+FROM deploy_intents di
+JOIN projects p ON p.id = di.project_id
+LEFT JOIN project_members pm
+  ON pm.project_id = p.id AND pm.user_id = $1
+WHERE (p.user_id = $1 OR pm.user_id = $1)
+  AND ($2::text IS NULL OR di.status = $2)
+  AND ($3::uuid IS NULL OR di.project_id = $3)
+  AND ($4::text IS NULL OR di.repo ILIKE '%' || $4 || '%')
+  AND ($5::text IS NULL OR di.environment = $5)
+ORDER BY di.created_at DESC, di.id DESC
+LIMIT $7 OFFSET $6
+`
+
+type ListDeployIntentsForUserPagedParams struct {
+	UserID      pgtype.UUID `json:"user_id"`
+	Status      pgtype.Text `json:"status"`
+	ProjectID   pgtype.UUID `json:"project_id"`
+	Repo        pgtype.Text `json:"repo"`
+	Environment pgtype.Text `json:"environment"`
+	RowOffset   int32       `json:"row_offset"`
+	RowLimit    int32       `json:"row_limit"`
+}
+
+// Paged + filtered variant of ListRecentDeployIntentsForUser. Each filter
+// param is nullable; NULL means "no filter on this column".
+func (q *Queries) ListDeployIntentsForUserPaged(ctx context.Context, arg ListDeployIntentsForUserPagedParams) ([]DeployIntent, error) {
+	rows, err := q.db.Query(ctx, listDeployIntentsForUserPaged,
+		arg.UserID,
+		arg.Status,
+		arg.ProjectID,
+		arg.Repo,
+		arg.Environment,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

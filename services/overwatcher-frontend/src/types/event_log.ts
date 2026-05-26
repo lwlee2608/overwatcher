@@ -10,4 +10,7 @@ export interface EventLog {
 
 export interface EventLogListResponse {
   events: EventLog[];
+  total: number;
+  page: number;
+  page_size: number;
 }

@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 	"github.com/lwlee2608/overwatcher/internal/util"
 )
@@ -73,4 +75,52 @@ func (s *Service) List(ctx context.Context, limit int32) ([]Event, error) {
 		}
 	}
 	return events, nil
+}
+
+// Filter narrows ListPaged / Count. Empty string means "no filter".
+type Filter struct {
+	EventType string
+	Repo      string
+	Sender    string
+}
+
+func (s *Service) ListPaged(ctx context.Context, filter Filter, limit, offset int32) ([]Event, error) {
+	rows, err := s.queries.ListEventLogsPaged(ctx, sqlc.ListEventLogsPagedParams{
+		EventType: optionalText(filter.EventType),
+		Repo:      optionalText(filter.Repo),
+		Sender:    optionalText(filter.Sender),
+		RowLimit:  limit,
+		RowOffset: offset,
+	})
+	if err != nil {
+		return nil, err
+	}
+	events := make([]Event, len(rows))
+	for i, r := range rows {
+		events[i] = Event{
+			ID:         util.UUIDToString(r.ID),
+			DeliveryID: r.DeliveryID,
+			EventType:  r.EventType,
+			Repo:       r.Repo,
+			Sender:     r.Sender,
+			Summary:    r.Summary,
+			CreatedAt:  r.CreatedAt.Time,
+		}
+	}
+	return events, nil
+}
+
+func (s *Service) Count(ctx context.Context, filter Filter) (int64, error) {
+	return s.queries.CountEventLogs(ctx, sqlc.CountEventLogsParams{
+		EventType: optionalText(filter.EventType),
+		Repo:      optionalText(filter.Repo),
+		Sender:    optionalText(filter.Sender),
+	})
+}
+
+func optionalText(s string) pgtype.Text {
+	if s == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: s, Valid: true}
 }

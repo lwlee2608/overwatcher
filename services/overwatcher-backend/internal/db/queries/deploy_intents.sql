@@ -101,3 +101,31 @@ LEFT JOIN project_members pm
 WHERE p.user_id = $1 OR pm.user_id = $1
 ORDER BY di.created_at DESC
 LIMIT $2;
+
+-- name: ListDeployIntentsForUserPaged :many
+-- Paged + filtered variant of ListRecentDeployIntentsForUser. Each filter
+-- param is nullable; NULL means "no filter on this column".
+SELECT di.*
+FROM deploy_intents di
+JOIN projects p ON p.id = di.project_id
+LEFT JOIN project_members pm
+  ON pm.project_id = p.id AND pm.user_id = @user_id
+WHERE (p.user_id = @user_id OR pm.user_id = @user_id)
+  AND (sqlc.narg('status')::text IS NULL OR di.status = sqlc.narg('status'))
+  AND (sqlc.narg('project_id')::uuid IS NULL OR di.project_id = sqlc.narg('project_id'))
+  AND (sqlc.narg('repo')::text IS NULL OR di.repo ILIKE '%' || sqlc.narg('repo') || '%')
+  AND (sqlc.narg('environment')::text IS NULL OR di.environment = sqlc.narg('environment'))
+ORDER BY di.created_at DESC, di.id DESC
+LIMIT @row_limit OFFSET @row_offset;
+
+-- name: CountDeployIntentsForUser :one
+SELECT count(*)
+FROM deploy_intents di
+JOIN projects p ON p.id = di.project_id
+LEFT JOIN project_members pm
+  ON pm.project_id = p.id AND pm.user_id = @user_id
+WHERE (p.user_id = @user_id OR pm.user_id = @user_id)
+  AND (sqlc.narg('status')::text IS NULL OR di.status = sqlc.narg('status'))
+  AND (sqlc.narg('project_id')::uuid IS NULL OR di.project_id = sqlc.narg('project_id'))
+  AND (sqlc.narg('repo')::text IS NULL OR di.repo ILIKE '%' || sqlc.narg('repo') || '%')
+  AND (sqlc.narg('environment')::text IS NULL OR di.environment = sqlc.narg('environment'));

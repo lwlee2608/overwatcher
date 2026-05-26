@@ -16,6 +16,8 @@ type Querier interface {
 	ClearAgentProjectBinding(ctx context.Context, projectID pgtype.UUID) error
 	CompleteDeployIntent(ctx context.Context, arg CompleteDeployIntentParams) (DeployIntent, error)
 	CountDeployIntentsByStatus(ctx context.Context, status string) (int64, error)
+	CountDeployIntentsForUser(ctx context.Context, arg CountDeployIntentsForUserParams) (int64, error)
+	CountEventLogs(ctx context.Context, arg CountEventLogsParams) (int64, error)
 	// Webhook redeliveries dedup on (delivery_id, project_id) via the partial
 	// unique index idx_deploy_intents_delivery_project. On conflict sqlc returns
 	// pgx.ErrNoRows, which callers treat as "already enqueued, do nothing".
@@ -48,6 +50,9 @@ type Querier interface {
 	GetUserPasswordHashByEmail(ctx context.Context, lower string) (GetUserPasswordHashByEmailRow, error)
 	ListAgents(ctx context.Context) ([]ListAgentsRow, error)
 	ListDeployIntentsByStatus(ctx context.Context, status string) ([]DeployIntent, error)
+	// Paged + filtered variant of ListRecentDeployIntentsForUser. Each filter
+	// param is nullable; NULL means "no filter on this column".
+	ListDeployIntentsForUserPaged(ctx context.Context, arg ListDeployIntentsForUserPagedParams) ([]DeployIntent, error)
 	// Webhook matching: returns every service in an enabled project whose repo
 	// matches (case-insensitive). The webhook handler still has to filter by
 	// root_directory against the pushed file paths before enqueueing intents.
@@ -57,6 +62,8 @@ type Querier interface {
 	// finishes successfully and we want to deploy the matching services.
 	ListEnabledServicesByRepoAndWorkflow(ctx context.Context, arg ListEnabledServicesByRepoAndWorkflowParams) ([]ListEnabledServicesByRepoAndWorkflowRow, error)
 	ListEventLogs(ctx context.Context, limit int32) ([]EventLog, error)
+	// Paged + filtered listing. Each filter is nullable; NULL means "no filter".
+	ListEventLogsPaged(ctx context.Context, arg ListEventLogsPagedParams) ([]EventLog, error)
 	ListProjectMembers(ctx context.Context, projectID pgtype.UUID) ([]ListProjectMembersRow, error)
 	ListProjectsForUser(ctx context.Context, userID pgtype.UUID) ([]ListProjectsForUserRow, error)
 	ListRecentDeployIntents(ctx context.Context, limit int32) ([]DeployIntent, error)

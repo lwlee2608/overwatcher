@@ -135,6 +135,14 @@ func (d *Service) ListRecentForUser(ctx context.Context, userID string, limit in
 	return d.store.ListRecentForUser(ctx, userID, limit)
 }
 
+func (d *Service) ListForUserPaged(ctx context.Context, userID string, filter intent.DeployFilter, limit, offset int32) ([]*intent.DeployIntent, error) {
+	return d.store.ListForUserPaged(ctx, userID, filter, limit, offset)
+}
+
+func (d *Service) CountForUser(ctx context.Context, userID string, filter intent.DeployFilter) (int64, error) {
+	return d.store.CountForUser(ctx, userID, filter)
+}
+
 func (d *Service) GetByID(ctx context.Context, id string) (*intent.DeployIntent, error) {
 	return d.store.GetByID(ctx, id)
 }

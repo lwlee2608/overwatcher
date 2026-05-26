@@ -100,14 +100,22 @@ func (h *DeployHandler) ListDeployments(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	limit := int32(50)
-	if v := c.Query("limit"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
-			limit = int32(n)
-		}
+
+	page, pageSize := parsePagination(c)
+	filter := intent.DeployFilter{
+		Status:      c.Query("status"),
+		ProjectID:   c.Query("project_id"),
+		Repo:        c.Query("repo"),
+		Environment: c.Query("environment"),
 	}
 
-	intents, err := h.dispatchService.ListRecentForUser(c.Request.Context(), callerID, limit)
+	ctx := c.Request.Context()
+	total, err := h.dispatchService.CountForUser(ctx, callerID, filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	intents, err := h.dispatchService.ListForUserPaged(ctx, callerID, filter, int32(pageSize), int32((page-1)*pageSize))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -115,6 +123,9 @@ func (h *DeployHandler) ListDeployments(c *gin.Context) {
 
 	resp := dto.DeploymentListResponse{
 		Deployments: make([]dto.DeploymentResponse, len(intents)),
+		Total:       total,
+		Page:        page,
+		PageSize:    pageSize,
 	}
 	for i, d := range intents {
 		resp.Deployments[i] = dto.DeploymentResponse{
@@ -133,6 +144,29 @@ func (h *DeployHandler) ListDeployments(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// parsePagination reads page (1-based) + page_size from the query string.
+// Accepts the legacy `limit` param as an alias for page_size, page defaults
+// to 1; page_size is clamped to [1, 200].
+func parsePagination(c *gin.Context) (page, pageSize int) {
+	page = 1
+	pageSize = 25
+	if v := c.Query("page"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			page = n
+		}
+	}
+	if v := c.Query("page_size"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+			pageSize = n
+		}
+	} else if v := c.Query("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+			pageSize = n
+		}
+	}
+	return page, pageSize
 }
 
 // Redeploy clones an existing deploy intent into a new one so the agent
