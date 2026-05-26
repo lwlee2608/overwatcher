@@ -80,6 +80,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 			ui.GET("/agents", agentHandler.List)
 			ui.GET("/agents/:id", agentHandler.Get)
 			ui.PUT("/agents/:id/project", agentHandler.BindProject)
+			ui.DELETE("/agents/:id", agentHandler.Delete)
 
 			ui.GET("/install/config", installHandler.Config)
 

@@ -16,9 +16,11 @@ function timeAgo(isoString: string): string {
 
 interface AgentCardProps {
   agent: AgentStatus;
+  onDelete?: (agent: AgentStatus) => void;
 }
 
-export function AgentCard({ agent }: AgentCardProps) {
+export function AgentCard({ agent, onDelete }: AgentCardProps) {
+  const canDelete = onDelete && !agent.project_id;
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
       <div className="flex items-center justify-between mb-3">
@@ -28,7 +30,35 @@ export function AgentCard({ agent }: AgentCardProps) {
           </h3>
           {agent.type && <AgentTypeBadge type={agent.type} />}
         </div>
-        <StatusBadge status={agent.status} />
+        <div className="flex items-center gap-2">
+          <StatusBadge status={agent.status} />
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(agent)}
+              aria-label={`Delete agent ${agent.name}`}
+              title="Delete agent"
+              className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+            >
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 6h18" />
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">

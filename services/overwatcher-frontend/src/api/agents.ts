@@ -32,3 +32,18 @@ export async function bindAgentProject(
   }
   return res.json();
 }
+
+export async function deleteAgent(agentId: string): Promise<void> {
+  const res = await apiFetch(`/api/v1/agents/${agentId}`, { method: "DELETE" });
+  if (!res.ok) {
+    const body = await res.text();
+    let msg = body || `HTTP ${res.status}`;
+    try {
+      const parsed = JSON.parse(body) as { error?: string };
+      if (parsed.error) msg = parsed.error;
+    } catch {
+      // body is not JSON; use raw text
+    }
+    throw new Error(msg);
+  }
+}

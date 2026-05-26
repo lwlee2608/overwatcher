@@ -25,6 +25,7 @@ type Querier interface {
 	CreateService(ctx context.Context, arg CreateServiceParams) (Service, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteAgent(ctx context.Context, id pgtype.UUID) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) error
 	DeleteOldEventLogs(ctx context.Context, offset int32) (int64, error)
 	DeleteProject(ctx context.Context, id pgtype.UUID) (Project, error)
