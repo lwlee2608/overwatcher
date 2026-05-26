@@ -34,3 +34,6 @@ SET project_id = $2,
     updated_at = NOW()
 WHERE id = $1
 RETURNING *;
+
+-- name: DeleteAgent :execrows
+DELETE FROM agents WHERE id = $1;

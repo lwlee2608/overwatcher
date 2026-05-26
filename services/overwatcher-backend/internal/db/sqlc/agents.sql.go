@@ -53,6 +53,18 @@ func (q *Queries) ClearAgentProjectBinding(ctx context.Context, projectID pgtype
 	return err
 }
 
+const deleteAgent = `-- name: DeleteAgent :execrows
+DELETE FROM agents WHERE id = $1
+`
+
+func (q *Queries) DeleteAgent(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAgent, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getAgent = `-- name: GetAgent :one
 SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version FROM agents WHERE id = $1
 `

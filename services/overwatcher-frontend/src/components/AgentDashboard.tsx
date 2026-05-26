@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { AgentStatus, ConnectionStatus } from "../types/agent";
-import { fetchAgents } from "../api/agents";
+import { deleteAgent, fetchAgents } from "../api/agents";
 import { AgentCard } from "./AgentCard";
 import { InstallAgentCard } from "./InstallAgentCard";
 
@@ -46,6 +46,17 @@ export function AgentDashboard() {
       clearInterval(id);
     };
   }, []);
+
+  async function handleDelete(agent: AgentStatus) {
+    if (!window.confirm(`Delete agent ${agent.name}?`)) return;
+    try {
+      await deleteAgent(agent.id);
+      setAgents((prev) => prev.filter((a) => a.id !== agent.id));
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    }
+  }
 
   const statusRank: Record<AgentStatus["status"], number> = {
     connected: 0,
@@ -152,7 +163,7 @@ export function AgentDashboard() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {sorted.map((agent) => (
-          <AgentCard key={agent.name} agent={agent} />
+          <AgentCard key={agent.name} agent={agent} onDelete={handleDelete} />
         ))}
       </div>
     </div>

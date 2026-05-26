@@ -92,6 +92,25 @@ func (h *AgentHandler) Get(c *gin.Context) {
 	})
 }
 
+// Delete removes an agent record. The agent must be unbound; a live agent will
+// re-register on its next heartbeat.
+func (h *AgentHandler) Delete(c *gin.Context) {
+	id := c.Param("id")
+	err := h.agentService.Delete(c.Request.Context(), id)
+	if err != nil {
+		switch {
+		case errors.Is(err, agentregistry.ErrNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "agent not found"})
+		case errors.Is(err, agentregistry.ErrBound):
+			c.JSON(http.StatusConflict, gin.H{"error": "agent is bound to a project; unbind first"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // BindProject sets (or clears, when project_id is empty) the agent's project binding.
 //
 // Authorization: rebinding moves future deploys to a different compose file,
