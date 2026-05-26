@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { AgentStatus } from "../types/agent";
 import { AgentTypeBadge } from "./AgentTypeBadge";
 import { StatusBadge } from "./StatusBadge";
@@ -20,7 +21,8 @@ interface AgentCardProps {
 }
 
 export function AgentCard({ agent, onDelete }: AgentCardProps) {
-  const canDelete = onDelete && !agent.project_id;
+  const bound = Boolean(agent.project_id);
+  const canDelete = Boolean(onDelete) && !bound;
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
       <div className="flex items-center justify-between mb-3">
@@ -30,35 +32,7 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
           </h3>
           {agent.type && <AgentTypeBadge type={agent.type} />}
         </div>
-        <div className="flex items-center gap-2">
-          <StatusBadge status={agent.status} />
-          {canDelete && (
-            <button
-              type="button"
-              onClick={() => onDelete(agent)}
-              aria-label={`Delete agent ${agent.name}`}
-              title="Delete agent"
-              className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-            >
-              <svg
-                className="h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M3 6h18" />
-                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                <path d="M10 11v6" />
-                <path d="M14 11v6" />
-              </svg>
-            </button>
-          )}
-        </div>
+        <StatusBadge status={agent.status} />
       </div>
 
       <div className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
@@ -86,6 +60,50 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
             <span className="italic text-gray-400 dark:text-gray-600">
               unknown
             </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-gray-500 dark:text-gray-500">
+            Project
+          </span>
+          {bound ? (
+            <Link
+              to={`/projects/${agent.project_id}`}
+              className="text-blue-600 hover:underline dark:text-blue-400"
+            >
+              {agent.project_name || agent.project_id}
+            </Link>
+          ) : (
+            <span className="italic text-gray-400 dark:text-gray-600">
+              Unbound
+            </span>
+          )}
+          {canDelete && onDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(agent)}
+              aria-label={`Delete agent ${agent.name}`}
+              title="Delete agent"
+              className="ml-auto rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+            >
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 6h18" />
+                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+              </svg>
+            </button>
           )}
         </div>
       </div>

@@ -34,14 +34,15 @@ const (
 
 // AgentStatus is a point-in-time snapshot of a registered agent.
 type AgentStatus struct {
-	ID        string           `json:"id"`
-	Name      string           `json:"name"`
-	LastSeen  time.Time        `json:"last_seen"`
-	RemoteIP  string           `json:"remote_ip"`
-	Status    ConnectionStatus `json:"status"`
-	ProjectID string           `json:"project_id,omitempty"`
-	Type      string           `json:"type,omitempty"`
-	Version   string           `json:"version,omitempty"`
+	ID          string           `json:"id"`
+	Name        string           `json:"name"`
+	LastSeen    time.Time        `json:"last_seen"`
+	RemoteIP    string           `json:"remote_ip"`
+	Status      ConnectionStatus `json:"status"`
+	ProjectID   string           `json:"project_id,omitempty"`
+	ProjectName string           `json:"project_name,omitempty"`
+	Type        string           `json:"type,omitempty"`
+	Version     string           `json:"version,omitempty"`
 }
 
 // Thresholds defines the age cutoffs (now − last_seen) used to derive
@@ -82,21 +83,21 @@ func (s *Service) Record(ctx context.Context, name string, remoteIP string, agen
 
 // List returns a snapshot of all known agents, sorted by name.
 func (s *Service) List(ctx context.Context) ([]AgentStatus, error) {
-	agents, err := s.q.ListAgents(ctx)
+	rows, err := s.q.ListAgents(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	now := time.Now()
-	out := make([]AgentStatus, len(agents))
-	for i, a := range agents {
-		out[i] = s.toStatus(a, now)
+	out := make([]AgentStatus, len(rows))
+	for i, r := range rows {
+		out[i] = s.toStatus(agentFromListRow(r), r.ProjectName.String, now)
 	}
 	return out, nil
 }
 
 // GetByName returns a single agent by its name. Returns ErrNotFound when no
-// agent with that name exists.
+// agent with that name exists. project_name is not populated by this path.
 func (s *Service) GetByName(ctx context.Context, name string) (*AgentStatus, error) {
 	a, err := s.q.GetAgentByName(ctx, name)
 	if err != nil {
@@ -105,7 +106,7 @@ func (s *Service) GetByName(ctx context.Context, name string) (*AgentStatus, err
 		}
 		return nil, err
 	}
-	status := s.toStatus(a, time.Now())
+	status := s.toStatus(a, "", time.Now())
 	return &status, nil
 }
 
@@ -115,11 +116,11 @@ func (s *Service) GetByID(ctx context.Context, id string) (*AgentStatus, error) 
 	if err := uid.Scan(id); err != nil {
 		return nil, err
 	}
-	a, err := s.q.GetAgent(ctx, uid)
+	r, err := s.q.GetAgent(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
-	status := s.toStatus(a, time.Now())
+	status := s.toStatus(agentFromGetRow(r), r.ProjectName.String, time.Now())
 	return &status, nil
 }
 
@@ -140,15 +141,13 @@ func (s *Service) BindProject(ctx context.Context, agentID string, projectID str
 
 	// Unbinding does not need a transaction.
 	if projectID == "" {
-		a, err := s.q.BindAgentToProject(ctx, sqlc.BindAgentToProjectParams{
+		if _, err := s.q.BindAgentToProject(ctx, sqlc.BindAgentToProjectParams{
 			ID:        aid,
 			ProjectID: pid,
-		})
-		if err != nil {
+		}); err != nil {
 			return nil, err
 		}
-		status := s.toStatus(a, time.Now())
-		return &status, nil
+		return s.GetByID(ctx, agentID)
 	}
 
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
@@ -166,11 +165,10 @@ func (s *Service) BindProject(ctx context.Context, agentID string, projectID str
 		return nil, err
 	}
 
-	a, err := q.BindAgentToProject(ctx, sqlc.BindAgentToProjectParams{
+	if _, err = q.BindAgentToProject(ctx, sqlc.BindAgentToProjectParams{
 		ID:        aid,
 		ProjectID: pid,
-	})
-	if err != nil {
+	}); err != nil {
 		return nil, err
 	}
 
@@ -178,8 +176,7 @@ func (s *Service) BindProject(ctx context.Context, agentID string, projectID str
 		return nil, err
 	}
 
-	status := s.toStatus(a, time.Now())
-	return &status, nil
+	return s.GetByID(ctx, agentID)
 }
 
 // Delete removes an agent record. Returns ErrBound if the agent is currently
@@ -210,7 +207,7 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
+func (s *Service) toStatus(a sqlc.Agent, projectName string, now time.Time) AgentStatus {
 	lastSeen := a.LastSeenAt.Time
 	age := now.Sub(lastSeen)
 	var status ConnectionStatus
@@ -225,13 +222,42 @@ func (s *Service) toStatus(a sqlc.Agent, now time.Time) AgentStatus {
 		status = StatusLost
 	}
 	return AgentStatus{
-		ID:        util.UUIDToString(a.ID),
-		Name:      a.Name,
-		LastSeen:  lastSeen,
-		RemoteIP:  a.RemoteIp,
-		Status:    status,
-		ProjectID: util.UUIDToString(a.ProjectID),
-		Type:      a.AgentType.String,
-		Version:   a.Version.String,
+		ID:          util.UUIDToString(a.ID),
+		Name:        a.Name,
+		LastSeen:    lastSeen,
+		RemoteIP:    a.RemoteIp,
+		Status:      status,
+		ProjectID:   util.UUIDToString(a.ProjectID),
+		ProjectName: projectName,
+		Type:        a.AgentType.String,
+		Version:     a.Version.String,
+	}
+}
+
+func agentFromListRow(r sqlc.ListAgentsRow) sqlc.Agent {
+	return sqlc.Agent{
+		ID:         r.ID,
+		Name:       r.Name,
+		RemoteIp:   r.RemoteIp,
+		LastSeenAt: r.LastSeenAt,
+		CreatedAt:  r.CreatedAt,
+		UpdatedAt:  r.UpdatedAt,
+		ProjectID:  r.ProjectID,
+		AgentType:  r.AgentType,
+		Version:    r.Version,
+	}
+}
+
+func agentFromGetRow(r sqlc.GetAgentRow) sqlc.Agent {
+	return sqlc.Agent{
+		ID:         r.ID,
+		Name:       r.Name,
+		RemoteIp:   r.RemoteIp,
+		LastSeenAt: r.LastSeenAt,
+		CreatedAt:  r.CreatedAt,
+		UpdatedAt:  r.UpdatedAt,
+		ProjectID:  r.ProjectID,
+		AgentType:  r.AgentType,
+		Version:    r.Version,
 	}
 }
