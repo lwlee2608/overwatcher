@@ -89,7 +89,7 @@ This is layered on top of the existing project membership model rather than repl
 
 Applied to the HTTP layer:
 
-- `GET /api/v1/agents` — `WHERE (project_id IS NULL AND installed_by_user_id = caller) OR project_id IN (caller's project memberships)`. Admins bypass.
+- `GET /api/v1/agents` — `WHERE (project_id IS NULL AND installed_by_user_id = caller) OR project_id IN (caller's project memberships)`. (Admin bypass is a later addition — see [Decisions](#decisions).)
 - `GET /api/v1/agents/:id`, `DELETE /api/v1/agents/:id`, `PUT /api/v1/agents/:id/project` — same gate.
 - Per-agent **tokens** still belong to the *agent*, not the user. Who is permitted to mint or revoke a token is governed by the rules above; the token itself carries no user identity.
 
@@ -122,8 +122,8 @@ Keeping a fallback path was rejected: it doubles the auth surface, hides which a
 - Not implementing token rotation policies (expiry, forced re-issue). One token per agent, valid until revoked. Rotation can come later if needed.
 - No bootstrap/`claim` indirection. Long-lived token is handed out at registration and pasted directly (see [Why one token, not a bootstrap pair](#why-one-token-not-a-bootstrap-pair)).
 
-## Open questions
+## Decisions
 
-- **Token storage on the agent.** Reuse `/etc/overwatcher-agent.env` (systemd) and a bind-mounted env file (Docker), or introduce a dedicated token file with stricter perms?
-- **Installer leaves the system.** If `installed_by_user_id` references a user that gets deleted, what happens to an agent that is still unbound? Options: cascade-delete the agent, reassign to an admin, or leave it visible only to admins. Project-bound agents are unaffected (ACL flips to project membership).
-- **Admin role.** The access rules above assume an "admin bypass." That role isn't formalized today; either piggy-back on a future admin flag or scope this plan to non-admin rules only and revisit when admin is introduced.
+- **Token storage on the agent.** Reuse `/etc/overwatcher-agent.env` (systemd) and the bind-mounted env file (Docker), exactly as `AGENT_SHARED_SECRET` is stored today. No new file or perms plumbing — the token is just a different value in the same slot.
+- **Admin role.** Out of scope. This plan ships only the non-admin ACL (installer-for-unbound, project-membership-for-bound). There is no admin bypass yet; the "(+ admins)" in the diagram above is a forward reference, not part of this work. Revisit when an admin role is actually introduced.
+- **Installer leaves the system.** When a user is deleted, their still-unbound agents are **not** cascade-deleted (that would silently kill a live agent on a VM). The agent row persists with a dangling `installed_by_user_id`. Because there is no admin role yet (see above), such an agent is temporarily unmanageable via the UI until either (a) it gets bound to a project — at which point project membership takes over — or (b) the admin role lands and admins can see it. This is an accepted, rare edge case, not a blocker. Project-bound agents are unaffected.
