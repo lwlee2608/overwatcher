@@ -21,7 +21,7 @@ There is also a parallel gap on the **user→coordinator** path: `GET /api/v1/ag
 
 ## Solution
 
-Mint one long-lived token per agent at registration time. Bind the token to the agent row.
+Mint one random opaque token per agent at registration time. Bind the token to the agent row; embed it directly in the install command.
 
 ```
 admin clicks "Install agent" in UI
@@ -30,28 +30,34 @@ admin clicks "Install agent" in UI
 POST /api/v1/agents               coordinator
   { name: "demo-1" }              ──────────►  agent row created
                                                installed_by_user_id = caller
-                                               install_token minted (single-use, 1h TTL)
+                                               agent_token minted (random, long-lived)
         ◄──────────────────────────────────
-  { agent_id, install_token, install_command }
+  { agent_id, agent_token, install_command }
         │
         ▼
 operator pastes command on VM
         │
         ▼
-agent first contact:
-POST /api/v1/agents/{id}/claim    coordinator
-  Bearer <install_token>          ──────────►  verify token + TTL + unused
-                                               mint agent_token (long-lived)
-                                               mark install_token consumed
-        ◄──────────────────────────────────
-  { agent_token }
-        │
-        ▼
 agent writes agent_token to /etc/overwatcher-agent.env
-agent uses it for all subsequent /deploy/* calls
+agent uses it for all subsequent /deploy/* calls:
+GET /api/v1/deploy/next           coordinator
+  Bearer <agent_token>            ──────────►  look up token → resolve agent
+                                               → attach agent context
 ```
 
 Middleware changes from "compare to global" to "look up token → resolve agent → attach agent context". The existing `AgentHeartbeat` middleware already runs after auth; it can now trust the resolved agent identity instead of trusting the `X-Agent-Name` header.
+
+### Why one token, not a bootstrap pair
+
+An earlier draft used the two-token "bootstrap" pattern (a single-use, short-TTL *install token* that the agent exchanges via `POST /agents/{id}/claim` for a long-lived *agent token*). Its only real benefit: the long-lived credential never appears in shell history / chat / install logs — only the throwaway install token does.
+
+That benefit doesn't pay for itself here:
+
+- The token is **opaque and DB-indexed, so revocation is instant** (delete row → token dead). The bootstrap dance mostly earns its keep when revocation is *hard* (signed/stateless tokens needing a denylist). Paying for both is redundant.
+- It doesn't fully close the paste-leak hole anyway — it just narrows it to a trust-on-first-use race (if the command leaks before the real agent claims, an attacker claims first).
+- It costs a `/claim` endpoint, a consumed-state flag, TTL logic, and an extra column — for an operator-controlled VM fleet of modest size.
+
+So: one token, embedded in the command, revocable by deleting the agent. The trade-off accepted is that the long-lived token lands in shell history / install logs. If audit hygiene or fleet size later justifies it, the bootstrap pair is a clean additive follow-up — shipping one token now doesn't block adding `/claim` later.
 
 ### Access control on agent endpoints
 
@@ -86,7 +92,7 @@ Existing agents in the field still hold the global secret. Two-step:
 - **Real revocation.** Delete an agent row → its token stops working. No fleet-wide impact.
 - **Identity in audit.** Every `/deploy/*` request carries a resolved agent ID. Logs, metrics, and event history all become per-agent.
 - **Sets up project-scoped auth.** Once tokens resolve to agents, and agents are already bound to projects (`agents.project_id` exists today), gating "this token may only accept intents for project X" is a one-line check.
-- **Better install UX as a side effect.** The install card no longer needs to display a shared secret at all — it provisions an agent and shows a command containing a one-time token. Mistypes get a clean "token expired or already used" instead of "401 forever".
+- **Better install UX as a side effect.** The install card no longer needs to display a shared secret at all — it provisions an agent and shows a ready-to-paste command containing that agent's token. No out-of-band secret lookup.
 - **Removes the current global-secret-in-UI question** entirely. (The stopgap of fetching the global secret into the install card becomes moot — there is no global secret to fetch.)
 - **Closes the dashboard info-leak.** `installed_by_user_id` plus the existing project ACL means `/api/v1/agents` stops returning every team's agents — and their project bindings — to every signed-in user.
 
@@ -96,11 +102,10 @@ Existing agents in the field still hold the global secret. Two-step:
 - No change to how the coordinator gets *its* secrets (webhook signing, GitHub App key, DB creds).
 - Not introducing user-scoped tokens. Tokens belong to agents; humans authenticate via session cookies as today.
 - Not implementing token rotation policies (expiry, forced re-issue). One token per agent, valid until revoked. Rotation can come later if needed.
+- No bootstrap/`claim` indirection. Long-lived token is handed out at registration and pasted directly (see [Why one token, not a bootstrap pair](#why-one-token-not-a-bootstrap-pair)).
 
 ## Open questions
 
-- **Install token transport.** Embed in the curl command as an env var (matches the current shape), or pass as a `?token=` query string to the install script (lets the script fetch agent-specific config without env-var sprawl)?
 - **Token storage on the agent.** Reuse `/etc/overwatcher-agent.env` (systemd) and a bind-mounted env file (Docker), or introduce a dedicated token file with stricter perms?
-- **Token format.** Random opaque string (simplest, requires DB lookup per request) vs. signed token carrying agent ID (no lookup, but rotation/revocation needs a denylist or short TTL + refresh)? Opaque + indexed lookup is fine at this scale; revisit only if `/deploy/next` latency matters.
 - **Installer leaves the system.** If `installed_by_user_id` references a user that gets deleted, what happens to an agent that is still unbound? Options: cascade-delete the agent, reassign to an admin, or leave it visible only to admins. Project-bound agents are unaffected (ACL flips to project membership).
 - **Admin role.** The access rules above assume an "admin bypass." That role isn't formalized today; either piggy-back on a future admin flag or scope this plan to non-admin rules only and revisit when admin is introduced.
