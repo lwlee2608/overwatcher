@@ -18,13 +18,11 @@ type AgentListResponse struct {
 	Agents []AgentStatusResponse `json:"agents"`
 }
 
-// BindAgentProjectRequest sets the project binding on an agent.
-// An empty project_id clears the binding.
+// BindAgentProjectRequest binds an agent; an empty project_id clears the binding.
 type BindAgentProjectRequest struct {
 	ProjectID string `json:"project_id"`
 }
 
-// CreateAgentRequest pre-provisions an agent. The name must be unique.
 type CreateAgentRequest struct {
 	Name string `json:"name" binding:"required"`
 }

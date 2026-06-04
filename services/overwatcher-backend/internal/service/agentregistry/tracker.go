@@ -77,7 +77,6 @@ type Service struct {
 	thresholds Thresholds
 }
 
-// NewService constructs the registry.
 func NewService(pool *pgxpool.Pool, q *sqlc.Queries, thresholds Thresholds) *Service {
 	return &Service{
 		pool:       pool,
@@ -185,7 +184,6 @@ func (s *Service) ListForUser(ctx context.Context, userID string) ([]AgentStatus
 	return out, nil
 }
 
-// GetByID returns a single agent by its UUID.
 func (s *Service) GetByID(ctx context.Context, id string) (*AgentStatus, error) {
 	uid := pgtype.UUID{}
 	if err := uid.Scan(id); err != nil {

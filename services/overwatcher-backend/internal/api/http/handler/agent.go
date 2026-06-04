@@ -62,8 +62,8 @@ func (h *AgentHandler) requireOwner(c *gin.Context, callerID, projectID string) 
 	return true
 }
 
-// Create pre-provisions an agent and mints its token. The raw token is in the
-// response body once only — the dashboard renders it into the install command.
+// Create mints the agent's token. The raw token is in the response body once
+// only — never retrievable again.
 func (h *AgentHandler) Create(c *gin.Context) {
 	var req dto.CreateAgentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -87,8 +87,8 @@ func (h *AgentHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, dto.AgentTokenResponse{AgentID: agentID, Name: req.Name, Token: token})
 }
 
-// ReissueToken mints a fresh token for an existing agent, replacing the old
-// one. Used to migrate pre-token agents and to recover a lost token.
+// ReissueToken replaces the agent's token — for migrating pre-token agents and
+// recovering a lost token.
 func (h *AgentHandler) ReissueToken(c *gin.Context) {
 	id := c.Param("id")
 	callerID, ok := middleware.UserID(c)
@@ -116,7 +116,6 @@ func (h *AgentHandler) ReissueToken(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.AgentTokenResponse{AgentID: a.ID, Name: a.Name, Token: token})
 }
 
-// List returns the agents visible to the caller and their connection status.
 func (h *AgentHandler) List(c *gin.Context) {
 	callerID, ok := middleware.UserID(c)
 	if !ok {
@@ -137,7 +136,6 @@ func (h *AgentHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// Get returns a single agent by ID.
 func (h *AgentHandler) Get(c *gin.Context) {
 	id := c.Param("id")
 	callerID, ok := middleware.UserID(c)
@@ -160,7 +158,6 @@ func (h *AgentHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, toAgentResponse(a))
 }
 
-// Delete removes an agent record. The agent must be unbound.
 func (h *AgentHandler) Delete(c *gin.Context) {
 	id := c.Param("id")
 	callerID, ok := middleware.UserID(c)

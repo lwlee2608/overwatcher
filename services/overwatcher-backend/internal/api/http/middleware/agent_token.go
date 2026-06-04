@@ -38,7 +38,6 @@ func AgentTokenAuth(svc *agentregistry.Service) gin.HandlerFunc {
 	}
 }
 
-// Agent pulls the agent resolved by AgentTokenAuth from the context.
 func Agent(c *gin.Context) (*agentregistry.AgentStatus, bool) {
 	v, ok := c.Get(ContextAgentKey)
 	if !ok {
