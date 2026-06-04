@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agentregistry.Service, sessionToken string) {
+func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agentregistry.Service, sessionUserID, sessionToken string) {
 	t.Run("ListEmpty", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/api/v1/agents", nil)
@@ -29,11 +29,13 @@ func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agentregistry.Servic
 		assert.Empty(t, resp.Agents)
 	})
 
-	// Seed an agent via the service so we can query it
-	err := agentSvc.Record(context.Background(), "test-agent", "10.0.0.1", "", "")
+	// Pre-provision an agent installed by the session user so it's visible.
+	agentID, token, err := agentSvc.Create(context.Background(), "test-agent", sessionUserID)
 	require.NoError(t, err)
+	require.NotEmpty(t, agentID)
+	assert.Contains(t, token, agentregistry.TokenPrefix)
 
-	t.Run("ListAfterRecord", func(t *testing.T) {
+	t.Run("ListAfterCreate", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/api/v1/agents", nil)
 		setSession(req, sessionToken)
@@ -46,17 +48,9 @@ func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agentregistry.Servic
 		require.NoError(t, err)
 		require.Len(t, resp.Agents, 1)
 		assert.Equal(t, "test-agent", resp.Agents[0].Name)
-		assert.Equal(t, "10.0.0.1", resp.Agents[0].RemoteIP)
-		assert.Equal(t, string(agentregistry.StatusConnected), resp.Agents[0].Status)
 	})
 
 	t.Run("GetByID", func(t *testing.T) {
-		// First get the agent ID from the list
-		agents, err := agentSvc.List(context.Background())
-		require.NoError(t, err)
-		require.Len(t, agents, 1)
-		agentID := agents[0].ID
-
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest("GET", "/api/v1/agents/"+agentID, nil)
 		setSession(req, sessionToken)

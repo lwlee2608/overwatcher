@@ -1,17 +1,31 @@
--- name: UpsertAgent :one
--- agent_type and version are passed in (empty string treated as NULL). On
--- conflict we preserve the existing value when the caller didn't send one,
--- so an old agent reconnecting without the header doesn't wipe known data.
-INSERT INTO agents (name, remote_ip, agent_type, version, last_seen_at)
-VALUES ($1, $2, NULLIF(sqlc.arg(agent_type)::text, ''), NULLIF(sqlc.arg(version)::text, ''), NOW())
-ON CONFLICT (name)
-DO UPDATE SET
-    remote_ip     = EXCLUDED.remote_ip,
-    agent_type    = COALESCE(EXCLUDED.agent_type, agents.agent_type),
-    version       = COALESCE(EXCLUDED.version, agents.version),
-    last_seen_at  = NOW(),
-    updated_at    = NOW()
+-- name: CreateAgent :one
+-- Pre-provision an agent. token_hash is sha256(raw token); the raw token is
+-- returned to the caller once and never stored. Fails on duplicate name.
+INSERT INTO agents (name, installed_by_user_id, token_hash, remote_ip)
+VALUES ($1, $2, $3, '')
 RETURNING *;
+
+-- name: SetAgentToken :one
+-- Re-issue: replace the stored digest with a fresh one (migration / loss recovery).
+UPDATE agents
+SET token_hash = $2,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
+-- name: TouchAgent :exec
+-- Heartbeat on the agent already resolved from its token. Empty agent_type or
+-- version preserves the existing value so a poll without the header can't wipe it.
+UPDATE agents
+SET remote_ip    = $2,
+    agent_type   = COALESCE(NULLIF(sqlc.arg(agent_type)::text, ''), agent_type),
+    version      = COALESCE(NULLIF(sqlc.arg(version)::text, ''), version),
+    last_seen_at = NOW(),
+    updated_at   = NOW()
+WHERE id = $1;
+
+-- name: GetAgentByTokenHash :one
+SELECT * FROM agents WHERE token_hash = $1;
 
 -- name: GetAgent :one
 SELECT a.*, p.name AS project_name
@@ -19,14 +33,20 @@ FROM agents a
 LEFT JOIN projects p ON p.id = a.project_id
 WHERE a.id = $1;
 
--- name: ListAgents :many
+-- name: ListAgentsForUser :many
+-- Visibility: an unbound agent is seen only by its installer; once bound, by
+-- members of its project (owner or project_members row).
 SELECT a.*, p.name AS project_name
 FROM agents a
 LEFT JOIN projects p ON p.id = a.project_id
+WHERE (a.project_id IS NULL AND a.installed_by_user_id = $1)
+   OR a.project_id IN (
+        SELECT pr.id
+        FROM projects pr
+        LEFT JOIN project_members pm ON pm.project_id = pr.id AND pm.user_id = $1
+        WHERE pr.user_id = $1 OR pm.user_id = $1
+   )
 ORDER BY a.name ASC;
-
--- name: GetAgentByName :one
-SELECT * FROM agents WHERE name = $1;
 
 -- name: ClearAgentProjectBinding :exec
 UPDATE agents

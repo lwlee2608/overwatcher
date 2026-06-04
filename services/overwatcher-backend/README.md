@@ -102,7 +102,8 @@ deployments:
       image: "ghcr.io/owner/app" # optional; default ghcr.io/<repo>
       tag: "latest" # optional; default commit SHA
 agent:
-  shared_secret: "" # env: AGENT_SHARED_SECRET
+  release_tag: "latest" # env: AGENT_RELEASE_TAG; pin for reproducible installs
+  public_url: "" # env: AGENT_PUBLIC_URL; empty falls back to install.sh request Host
 database:
   url: "" # required; env: DATABASE_URL
   schema: "" # optional; defaults to "public"
@@ -117,7 +118,7 @@ dispatch:
 
 Defaults live in `internal/agent/application-agent.yml` and are embedded
 into the binary via `//go:embed`. Production deployments override them via
-env vars (`AGENT_NAME`, `AGENT_SHARED_SECRET`, `AGENT_COORDINATOR_URL`,
+env vars (`AGENT_TOKEN`, `AGENT_COORDINATOR_URL`, `AGENT_NAME`,
 `AGENT_POLL_TIMEOUT`, `LOG_LEVEL`); for local dev, place an
 `application-agent.yml` next to the binary to override the embedded copy.
 
@@ -125,9 +126,9 @@ env vars (`AGENT_NAME`, `AGENT_SHARED_SECRET`, `AGENT_COORDINATOR_URL`,
 log:
   level: info
 agent:
-  name: ""                  # env: AGENT_NAME
+  name: ""                  # optional, descriptive only; env: AGENT_NAME
   coordinator_url: "http://localhost:8080"
-  shared_secret: ""         # env: AGENT_SHARED_SECRET
+  token: ""                 # required; env: AGENT_TOKEN
   poll_timeout: 30s         # must exceed coordinator's 25s long-poll
 ```
 

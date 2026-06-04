@@ -91,8 +91,7 @@ func (p *Poller) fetchNext(ctx context.Context) (*protocol.DeployIntentResponse,
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+p.cfg.SharedSecret)
-	req.Header.Set("X-Agent-Name", p.cfg.Name)
+	req.Header.Set("Authorization", "Bearer "+p.cfg.Token)
 	req.Header.Set("X-Agent-Type", p.agentType)
 	req.Header.Set("X-Agent-Version", p.version)
 
@@ -160,9 +159,8 @@ func (p *Poller) postResult(ctx context.Context, intentID string, success bool, 
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+p.cfg.SharedSecret)
+	req.Header.Set("Authorization", "Bearer "+p.cfg.Token)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Agent-Name", p.cfg.Name)
 	req.Header.Set("X-Agent-Type", p.agentType)
 	req.Header.Set("X-Agent-Version", p.version)
 

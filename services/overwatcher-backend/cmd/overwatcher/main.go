@@ -80,7 +80,6 @@ func main() {
 		ProjectService:    projectSvc,
 		AuthService:       authSvc,
 		WebhookSecret:     config.GitHub.WebhookSecret,
-		AgentSharedSecret: config.Agent.SharedSecret,
 		AgentReleaseTag:   config.Agent.ReleaseTag,
 		AgentPublicURL:    config.Agent.PublicURL,
 		CookieConfig:      config.Auth.Cookie,

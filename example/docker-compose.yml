@@ -11,16 +11,15 @@
 #   1. Mount the deployment directory so the agent can access the compose file.
 #   2. Mount ~/.docker/config.json if your stacks pull from a private registry.
 #
-# Usage:
-#   AGENT_SHARED_SECRET=<secret> docker compose up -d
+# Usage (provision the agent in the dashboard to get its token):
+#   AGENT_TOKEN=<token> docker compose up -d
 #
 services:
   agent:
     image: lwlee2608/agent:latest
     environment:
-      - AGENT_SHARED_SECRET=${AGENT_SHARED_SECRET}
+      - AGENT_TOKEN=${AGENT_TOKEN}
       - AGENT_COORDINATOR_URL=https://your-coordinator.example.com
-      - AGENT_NAME=${AGENT_NAME:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /path/to/your/deployment:/opt/stacks/my-stack

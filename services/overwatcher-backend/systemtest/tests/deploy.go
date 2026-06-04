@@ -17,9 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func authReq(req *http.Request, secret string) {
-	req.Header.Set("Authorization", "Bearer "+secret)
-	req.Header.Set("X-Agent-Name", TestAgentName)
+func authReq(req *http.Request, token string) {
+	req.Header.Set("Authorization", "Bearer "+token)
 }
 
 func webSvc(tag string) []intent.ServiceSpec {

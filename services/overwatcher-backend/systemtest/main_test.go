@@ -70,9 +70,8 @@ func TestSystemIntegration(t *testing.T) {
 		EventLogService:   eventLogSvc,
 		UserService:       userSvc,
 		ProjectService:    projectSvc,
-		AuthService:       authSvc,
-		WebhookSecret:     "test-webhook-secret",
-		AgentSharedSecret: "test-agent-secret",
+		AuthService:   authSvc,
+		WebhookSecret: "test-webhook-secret",
 	}
 
 	require.NoError(t, authSvc.EnsureUserPassword(context.Background(), auth.BootstrapConfig{
@@ -90,12 +89,12 @@ func TestSystemIntegration(t *testing.T) {
 	internalhttp.SetupRoute(engine, services)
 
 	t.Run("HealthCheck", func(t *testing.T) { tests.TestHealthCheck(t, engine) })
-	t.Run("Agents", func(t *testing.T) { tests.TestAgents(t, engine, agentSvc, sessionToken) })
+	t.Run("Agents", func(t *testing.T) { tests.TestAgents(t, engine, agentSvc, sessionUserID, sessionToken) })
 	t.Run("Users", func(t *testing.T) { tests.TestUsers(t, engine, sessionToken) })
 	t.Run("Projects", func(t *testing.T) { tests.TestProjects(t, engine, sessionUserID, sessionToken) })
 	t.Run("Deploy", func(t *testing.T) {
 		tests.SeedTestAgent(t, pool)
-		tests.TestDeploy(t, engine, intentStore, services.AgentSharedSecret)
+		tests.TestDeploy(t, engine, intentStore, tests.TestAgentToken)
 	})
 	t.Run("Intent", func(t *testing.T) { tests.TestIntent(t, pool) })
 	t.Run("Dispatch", func(t *testing.T) { tests.TestDispatch(t, pool) })

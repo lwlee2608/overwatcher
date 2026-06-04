@@ -30,19 +30,18 @@ The agent's HTTP client timeout is 30s (`agent.poll_timeout`). The 5s gap is del
 
 **`POST /api/v1/deploy/{id}/result`** — report the outcome after running `docker compose`. Body is `{"state": "success" | "failure", "error": "..."}`. The coordinator responds `204`. Unknown intent IDs return `404`; failed deploys don't auto-retry automatically. A new git push, workflow rerun, or manual redeploy creates a new intent.
 
-Both endpoints authenticate with `Authorization: Bearer <AGENT_SHARED_SECRET>` and identify the agent with `X-Agent-Name: <name>`. Two optional headers report the agent's deployment surface: `X-Agent-Type` (`docker` or `systemd`, auto-detected from `/.dockerenv`) and `X-Agent-Version` (the agent's build version). The coordinator stores these on the agent row so the dashboard can render a badge per agent; empty values leave the stored value intact.
+Both endpoints authenticate with `Authorization: Bearer <agent_token>` — a per-agent, opaque token (prefixed `owa_`) minted at registration. The coordinator hashes the token and looks it up to resolve **which** agent is calling; identity comes from the token, not a header. Two optional headers report the agent's deployment surface: `X-Agent-Type` (`docker` or `systemd`, auto-detected from `/.dockerenv`) and `X-Agent-Version` (the agent's build version). The coordinator stores these on the agent row so the dashboard can render a badge per agent; empty values leave the stored value intact.
 
 ### Request headers
 
 | Header | Required | Value |
 |---|---|---|
-| `Authorization` | yes | `Bearer <AGENT_SHARED_SECRET>` |
-| `X-Agent-Name` | yes | agent name, e.g. `medtutor` |
+| `Authorization` | yes | `Bearer owa_<token>` |
 | `X-Agent-Type` | optional | `docker` or `systemd` (auto-detected from `/.dockerenv`) |
 | `X-Agent-Version` | optional | agent build version |
 | `Content-Type` | on `/result` | `application/json` |
 
-`/deploy/next` additionally requires the agent to be **bound to a project**. An unbound agent gets `412 Precondition Failed` — the binding is the project↔agent 1:1 row, set from the project's Agent panel in the UI. The heartbeat middleware runs before the handler, so a new authenticated `X-Agent-Name` registers itself on its first poll and usually reaches this `412` path until an operator binds it.
+`/deploy/next` additionally requires the agent to be **bound to a project**. An unbound agent gets `412 Precondition Failed` — the binding is the project↔agent 1:1 row, set from the project's Agent panel in the UI. A token that matches no agent is `401`; agents are pre-provisioned via `POST /api/v1/agents`, not auto-created on first poll. The heartbeat middleware runs after auth and records "last seen" on the resolved agent, so the act of polling *is* the heartbeat until an operator binds it.
 
 ## A full poll cycle
 
@@ -115,9 +114,9 @@ Trade-off: the coordinator now "knows" filesystem paths on agent VMs, which is a
 
 ## Auth and heartbeat
 
-Two separate auth paths: agent transport uses `AGENT_SHARED_SECRET` (a single global value today — per-agent tokens are future work), while the UI and management APIs use session cookies from the login flow.
+Two separate auth paths: agent transport uses a per-agent opaque token (stored as `sha256(token)` on the agent row; the raw value is returned once at registration and never persisted), while the UI and management APIs use session cookies from the login flow. Deleting an agent row revokes its token instantly, with no fleet-wide impact.
 
-There is no explicit heartbeat endpoint. Middleware records "last seen" on every request carrying `X-Agent-Name`, so the act of polling *is* the heartbeat — that's what drives the green/red dot in the agent dashboard.
+There is no explicit heartbeat endpoint. Middleware resolves the token to an agent and records its "last seen" on every request, so the act of polling *is* the heartbeat — that's what drives the green/red dot in the agent dashboard.
 
 ## Wire stability
 

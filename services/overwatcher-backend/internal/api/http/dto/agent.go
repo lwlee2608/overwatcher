@@ -23,3 +23,16 @@ type AgentListResponse struct {
 type BindAgentProjectRequest struct {
 	ProjectID string `json:"project_id"`
 }
+
+// CreateAgentRequest pre-provisions an agent. The name must be unique.
+type CreateAgentRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+// AgentTokenResponse carries a freshly minted token. The raw token is returned
+// exactly once (create or re-issue) and is never retrievable again.
+type AgentTokenResponse struct {
+	AgentID string `json:"agent_id"`
+	Name    string `json:"name,omitempty"`
+	Token   string `json:"agent_token"`
+}

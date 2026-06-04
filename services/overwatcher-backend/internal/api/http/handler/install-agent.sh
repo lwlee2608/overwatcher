@@ -2,11 +2,11 @@
 # Overwatcher agent installer (systemd).
 #
 # Usage (typically served by the coordinator at /install.sh with placeholders
-# already substituted):
+# already substituted; the dashboard provisions the agent and hands you a
+# command with AGENT_TOKEN already filled in):
 #
 #   curl -fsSL https://<coordinator>/install.sh | \
-#   sudo AGENT_NAME=my-agent \
-#   AGENT_SHARED_SECRET=<secret> \
+#   sudo AGENT_TOKEN=<token> \
 #   bash
 #
 # (The env vars must be passed to `sudo`, not to `curl` — a `VAR=val cmd1 |
@@ -36,9 +36,8 @@ USER_NAME="overwatcher"
 log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
-[[ $EUID -eq 0 ]] || err "must run as root (try: curl ... | sudo AGENT_NAME=... AGENT_SHARED_SECRET=... bash)"
-[[ -n "${AGENT_NAME:-}" ]] || err "AGENT_NAME must be set (pass it to sudo: curl ... | sudo AGENT_NAME=foo AGENT_SHARED_SECRET=bar bash)"
-[[ -n "${AGENT_SHARED_SECRET:-}" ]] || err "AGENT_SHARED_SECRET must be set (pass it to sudo: curl ... | sudo AGENT_NAME=foo AGENT_SHARED_SECRET=bar bash)"
+[[ $EUID -eq 0 ]] || err "must run as root (try: curl ... | sudo AGENT_TOKEN=... bash)"
+[[ -n "${AGENT_TOKEN:-}" ]] || err "AGENT_TOKEN must be set (pass it to sudo: curl ... | sudo AGENT_TOKEN=owa_... bash)"
 
 # Detect docker compose plugin upfront — failing here is much friendlier
 # than the agent erroring on every deploy attempt later.
@@ -93,8 +92,7 @@ else
   log "writing ${ENV_FILE}"
   umask 077
   cat > "$ENV_FILE" <<EOF
-AGENT_NAME=${AGENT_NAME}
-AGENT_SHARED_SECRET=${AGENT_SHARED_SECRET}
+AGENT_TOKEN=${AGENT_TOKEN}
 AGENT_COORDINATOR_URL=${COORDINATOR_URL}
 EOF
   chown "${USER_NAME}:${USER_NAME}" "$ENV_FILE"

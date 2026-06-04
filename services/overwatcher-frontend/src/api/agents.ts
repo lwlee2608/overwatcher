@@ -9,12 +9,32 @@ export async function fetchAgents(): Promise<AgentListResponse> {
   return apiJSON<AgentListResponse>("/api/v1/agents");
 }
 
-export interface InstallConfig {
-  shared_secret: string;
+export interface AgentTokenResponse {
+  agent_id: string;
+  name: string;
+  agent_token: string;
 }
 
-export async function fetchInstallConfig(): Promise<InstallConfig> {
-  return apiJSON<InstallConfig>("/api/v1/install/config");
+// createAgent provisions a new agent and returns its token. The raw token is
+// returned exactly once — there's no way to fetch it again later.
+export async function createAgent(name: string): Promise<AgentTokenResponse> {
+  const res = await apiFetch("/api/v1/agents", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    let msg = body || `HTTP ${res.status}`;
+    try {
+      const parsed = JSON.parse(body) as { error?: string };
+      if (parsed.error) msg = parsed.error;
+    } catch {
+      // body is not JSON; use raw text
+    }
+    throw new Error(msg);
+  }
+  return res.json();
 }
 
 export async function bindAgentProject(

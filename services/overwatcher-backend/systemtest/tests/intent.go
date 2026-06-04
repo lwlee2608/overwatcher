@@ -2,6 +2,8 @@ package tests
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync"
@@ -399,11 +401,15 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 const (
 	TestAgentName = "test-agent"
 	TestProjectID = "11111111-1111-1111-1111-111111111111"
+	// TestAgentToken is the raw bearer the HTTP deploy tests present; its
+	// digest is seeded onto the agent row by SeedTestAgent.
+	TestAgentToken = "owa_test-agent-token"
 )
 
 // SeedTestAgent creates (or refreshes) a user, project, and agent bound to
 // that project so TakeNextDeployIntent has an agents row matching the
-// (agent_name, project_id) filter.
+// (agent_name, project_id) filter. It also seeds the agent's token digest so
+// the agent can authenticate over HTTP with TestAgentToken.
 func SeedTestAgent(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -425,11 +431,15 @@ func SeedTestAgent(t *testing.T, pool *pgxpool.Pool) {
 		t.Fatalf("seed project: %v", err)
 	}
 
+	sum := sha256.Sum256([]byte(TestAgentToken))
+	tokenHash := hex.EncodeToString(sum[:])
 	if _, err := pool.Exec(ctx, `
-        INSERT INTO agents (name, project_id)
-        VALUES ($1, $2::uuid)
-        ON CONFLICT (name) DO UPDATE SET project_id = EXCLUDED.project_id`,
-		TestAgentName, TestProjectID); err != nil {
+        INSERT INTO agents (name, project_id, token_hash)
+        VALUES ($1, $2::uuid, $3)
+        ON CONFLICT (name) DO UPDATE SET
+            project_id = EXCLUDED.project_id,
+            token_hash = EXCLUDED.token_hash`,
+		TestAgentName, TestProjectID, tokenHash); err != nil {
 		t.Fatalf("seed agent: %v", err)
 	}
 }

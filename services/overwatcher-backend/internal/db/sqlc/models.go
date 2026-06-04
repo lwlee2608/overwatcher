@@ -9,15 +9,17 @@ import (
 )
 
 type Agent struct {
-	ID         pgtype.UUID        `json:"id"`
-	Name       string             `json:"name"`
-	RemoteIp   string             `json:"remote_ip"`
-	LastSeenAt pgtype.Timestamptz `json:"last_seen_at"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-	ProjectID  pgtype.UUID        `json:"project_id"`
-	AgentType  pgtype.Text        `json:"agent_type"`
-	Version    pgtype.Text        `json:"version"`
+	ID                pgtype.UUID        `json:"id"`
+	Name              string             `json:"name"`
+	RemoteIp          string             `json:"remote_ip"`
+	LastSeenAt        pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	ProjectID         pgtype.UUID        `json:"project_id"`
+	AgentType         pgtype.Text        `json:"agent_type"`
+	Version           pgtype.Text        `json:"version"`
+	TokenHash         pgtype.Text        `json:"token_hash"`
+	InstalledByUserID pgtype.UUID        `json:"installed_by_user_id"`
 }
 
 type DeployIntent struct {

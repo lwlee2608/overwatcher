@@ -23,9 +23,8 @@ type GitHubConfig struct {
 }
 
 type AgentConfig struct {
-	SharedSecret string `mapstructure:"shared_secret" mask:"true"`
-	ReleaseTag   string `mapstructure:"release_tag"`
-	PublicURL    string `mapstructure:"public_url"`
+	ReleaseTag string `mapstructure:"release_tag"`
+	PublicURL  string `mapstructure:"public_url"`
 }
 
 type DispatchConfig struct {
@@ -98,9 +97,6 @@ func InitConfig() error {
 func validate() error {
 	if config.GitHub.WebhookSecret == "" {
 		return errors.New("GITHUB_WEBHOOK_SECRET must be set")
-	}
-	if config.Agent.SharedSecret == "" {
-		return errors.New("AGENT_SHARED_SECRET must be set")
 	}
 	if config.Database.URL == "" {
 		return errors.New("database.url must be set")

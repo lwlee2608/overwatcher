@@ -210,7 +210,14 @@ export function AgentDashboard() {
       </div>
 
       {showInstall && (
-        <InstallAgentCard onClose={() => setShowInstall(false)} />
+        <InstallAgentCard
+          onClose={() => setShowInstall(false)}
+          onCreated={() => {
+            fetchAgents()
+              .then((data) => setAgents(data.agents ?? []))
+              .catch(() => {});
+          }}
+        />
       )}
 
       {agents.length === 0 && !error && (

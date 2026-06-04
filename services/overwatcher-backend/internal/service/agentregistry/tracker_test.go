@@ -55,28 +55,23 @@ func TestBindProject_OneToOneConstraint(t *testing.T) {
 		LostAfter:         12 * time.Hour,
 	})
 
-	// Seed two agents.
-	require.NoError(t, svc.Record(ctx, "agent-a", "10.0.0.1", "", ""))
-	require.NoError(t, svc.Record(ctx, "agent-b", "10.0.0.2", "", ""))
-
-	agents, err := svc.List(ctx)
-	require.NoError(t, err)
-	require.Len(t, agents, 2)
-	byName := map[string]string{}
-	for _, a := range agents {
-		byName[a.Name] = a.ID
-	}
-	agentA := byName["agent-a"]
-	agentB := byName["agent-b"]
-	require.NotEmpty(t, agentA)
-	require.NotEmpty(t, agentB)
-
-	// Create a project to satisfy the FK constraint.
+	// Installer user, needed both as agent owner and to satisfy the project FK.
 	user, err := queries.CreateUser(ctx, sqlc.CreateUserParams{
 		Email: "test@example.com",
 		Name:  "Test User",
 	})
 	require.NoError(t, err)
+	userID := util.UUIDToString(user.ID)
+
+	// Seed two agents.
+	agentA, _, err := svc.Create(ctx, "agent-a", userID)
+	require.NoError(t, err)
+	agentB, _, err := svc.Create(ctx, "agent-b", userID)
+	require.NoError(t, err)
+	require.NotEmpty(t, agentA)
+	require.NotEmpty(t, agentB)
+
+	// Create a project to satisfy the FK constraint.
 	project, err := queries.CreateProject(ctx, sqlc.CreateProjectParams{
 		UserID:       user.ID,
 		Name:         "test-project",
@@ -124,18 +119,16 @@ func TestBindProject_Unbind(t *testing.T) {
 		LostAfter:         12 * time.Hour,
 	})
 
-	require.NoError(t, svc.Record(ctx, "agent-a", "10.0.0.1", "", ""))
-
-	agents, err := svc.List(ctx)
-	require.NoError(t, err)
-	require.Len(t, agents, 1)
-	agentID := agents[0].ID
-
 	user, err := queries.CreateUser(ctx, sqlc.CreateUserParams{
 		Email: "test@example.com",
 		Name:  "Test User",
 	})
 	require.NoError(t, err)
+	userID := util.UUIDToString(user.ID)
+
+	agentID, _, err := svc.Create(ctx, "agent-a", userID)
+	require.NoError(t, err)
+
 	project, err := queries.CreateProject(ctx, sqlc.CreateProjectParams{
 		UserID:       user.ID,
 		Name:         "test-project",
