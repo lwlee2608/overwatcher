@@ -42,13 +42,12 @@ The agent has two deployment modes. Pick one.
 ### systemd (recommended)
 
 Run the agent as a native binary under systemd. One copy-paste from the
-agent dashboard sets it up — the UI shows the install command, you paste
-it onto the VM.
+agent dashboard sets it up — you name the agent in the UI, it mints a
+token and shows a ready-to-paste install command, you run it on the VM.
 
 ```bash
 curl -fsSL https://<coordinator>/install.sh | \
-sudo AGENT_NAME=my-agent \
-AGENT_SHARED_SECRET=<paste-secret> \
+sudo AGENT_TOKEN=owa_<token> \
 bash
 ```
 
@@ -69,9 +68,8 @@ mounted socket and reads private-registry credentials from a mounted
 overwatcher-agent:
   image: lwlee2608/agent:latest
   environment:
-    - AGENT_SHARED_SECRET=${AGENT_SHARED_SECRET}
+    - AGENT_TOKEN=${AGENT_TOKEN}
     - AGENT_COORDINATOR_URL=https://your-coordinator.example.com
-    - AGENT_NAME=my-agent
   volumes:
     - /var/run/docker.sock:/var/run/docker.sock
     - /path/to/your/deployment:/opt/stacks/my-stack

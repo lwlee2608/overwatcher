@@ -26,7 +26,7 @@ RUN VERSION=$(cat VERSION) && \
 #   -v /var/run/docker.sock:/var/run/docker.sock
 #   -v /opt/stacks:/opt/stacks   (or wherever the configured compose files live)
 #
-# Required env: AGENT_SHARED_SECRET
+# Required env: AGENT_TOKEN
 # Defaults are embedded in the binary via //go:embed application-agent.yml;
 # bind-mount /go/bin/application-agent.yml only if you need to override
 # defaults beyond what env vars can do.

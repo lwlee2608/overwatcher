@@ -25,11 +25,10 @@ type Services struct {
 	UserService       *user.Service
 	ProjectService    *project.Service
 	AuthService       *auth.Service
-	WebhookSecret     string
-	AgentSharedSecret string
-	AgentReleaseTag   string
-	AgentPublicURL    string
-	CookieConfig      middleware.CookieConfig
+	WebhookSecret   string
+	AgentReleaseTag string
+	AgentPublicURL  string
+	CookieConfig    middleware.CookieConfig
 }
 
 func SetupRoute(engine *gin.Engine, srvs *Services) {
@@ -37,9 +36,9 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	engine.Use(middleware.ErrorHandler())
 
 	healthHandler := handler.NewHealthHandler()
-	installHandler := handler.NewInstallHandler(srvs.AgentReleaseTag, srvs.AgentPublicURL, srvs.AgentSharedSecret)
+	installHandler := handler.NewInstallHandler(srvs.AgentReleaseTag, srvs.AgentPublicURL)
 	webhookHandler := handler.NewWebhookHandler(srvs.WebhookService)
-	deployHandler := handler.NewDeployHandler(srvs.DispatchService, srvs.WebhookService, srvs.ProjectService, srvs.AgentService)
+	deployHandler := handler.NewDeployHandler(srvs.DispatchService, srvs.WebhookService, srvs.ProjectService)
 	agentHandler := handler.NewAgentHandler(srvs.AgentService, srvs.ProjectService)
 	eventLogHandler := handler.NewEventLogHandler(srvs.EventLogService)
 	userHandler := handler.NewUserHandler(srvs.UserService)
@@ -59,7 +58,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 		}
 
 		deployGroup := apis.Group("/deploy")
-		deployGroup.Use(middleware.BearerTokenAuth(srvs.AgentSharedSecret))
+		deployGroup.Use(middleware.AgentTokenAuth(srvs.AgentService))
 		deployGroup.Use(middleware.AgentHeartbeat(srvs.AgentService))
 		{
 			deployGroup.GET("/next", deployHandler.Next)
@@ -77,12 +76,12 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 			ui.GET("/auth/me", authHandler.Me)
 			ui.PUT("/auth/password", authHandler.ChangePassword)
 
+			ui.POST("/agents", agentHandler.Create)
 			ui.GET("/agents", agentHandler.List)
 			ui.GET("/agents/:id", agentHandler.Get)
+			ui.POST("/agents/:id/token", agentHandler.ReissueToken)
 			ui.PUT("/agents/:id/project", agentHandler.BindProject)
 			ui.DELETE("/agents/:id", agentHandler.Delete)
-
-			ui.GET("/install/config", installHandler.Config)
 
 			ui.GET("/users", userHandler.List)
 			ui.POST("/users", userHandler.Create)

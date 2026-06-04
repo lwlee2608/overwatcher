@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
@@ -13,8 +14,9 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("agent not found")
-	ErrBound    = errors.New("agent is bound to a project")
+	ErrNotFound  = errors.New("agent not found")
+	ErrBound     = errors.New("agent is bound to a project")
+	ErrNameTaken = errors.New("agent name already in use")
 )
 
 // ConnectionStatus describes how recently an agent has heartbeated.
@@ -43,6 +45,9 @@ type AgentStatus struct {
 	ProjectName string           `json:"project_name,omitempty"`
 	Type        string           `json:"type,omitempty"`
 	Version     string           `json:"version,omitempty"`
+	// InstalledBy is the user who provisioned the agent. Used for visibility of
+	// an unbound agent; not surfaced to the dashboard.
+	InstalledBy string `json:"-"`
 }
 
 // Thresholds defines the age cutoffs (now − last_seen) used to derive
@@ -72,7 +77,6 @@ type Service struct {
 	thresholds Thresholds
 }
 
-// NewService constructs the registry.
 func NewService(pool *pgxpool.Pool, q *sqlc.Queries, thresholds Thresholds) *Service {
 	return &Service{
 		pool:       pool,
@@ -81,21 +85,93 @@ func NewService(pool *pgxpool.Pool, q *sqlc.Queries, thresholds Thresholds) *Ser
 	}
 }
 
-// Record upserts an agent entry with the current time. Empty agentType or
-// version leaves any existing stored value intact (see UpsertAgent SQL).
-func (s *Service) Record(ctx context.Context, name string, remoteIP string, agentType string, version string) error {
-	_, err := s.q.UpsertAgent(ctx, sqlc.UpsertAgentParams{
-		Name:      name,
+// Create pre-provisions an agent owned (for visibility) by installedByUserID
+// and mints its token. The raw token is returned once and never stored — only
+// its digest persists. Returns ErrNameTaken on duplicate name.
+func (s *Service) Create(ctx context.Context, name, installedByUserID string) (agentID, rawToken string, err error) {
+	uid := pgtype.UUID{}
+	if err = uid.Scan(installedByUserID); err != nil {
+		return "", "", err
+	}
+	raw, hash, err := generateToken()
+	if err != nil {
+		return "", "", err
+	}
+	a, err := s.q.CreateAgent(ctx, sqlc.CreateAgentParams{
+		Name:              name,
+		InstalledByUserID: uid,
+		TokenHash:         pgtype.Text{String: hash, Valid: true},
+	})
+	if err != nil {
+		if isUniqueViolation(err) {
+			return "", "", ErrNameTaken
+		}
+		return "", "", err
+	}
+	return util.UUIDToString(a.ID), raw, nil
+}
+
+// ReissueToken mints a fresh token for an existing agent, replacing any prior
+// digest. Used for migration of pre-token agents and token-loss recovery.
+func (s *Service) ReissueToken(ctx context.Context, agentID string) (rawToken string, err error) {
+	aid := pgtype.UUID{}
+	if err = aid.Scan(agentID); err != nil {
+		return "", err
+	}
+	raw, hash, err := generateToken()
+	if err != nil {
+		return "", err
+	}
+	if _, err = s.q.SetAgentToken(ctx, sqlc.SetAgentTokenParams{
+		ID:        aid,
+		TokenHash: pgtype.Text{String: hash, Valid: true},
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
+	return raw, nil
+}
+
+// ResolveByToken hashes the presented token and resolves the owning agent.
+// Returns ErrNotFound when no agent carries that digest. project_name is not
+// populated by this path.
+func (s *Service) ResolveByToken(ctx context.Context, rawToken string) (*AgentStatus, error) {
+	a, err := s.q.GetAgentByTokenHash(ctx, pgtype.Text{String: hashToken(rawToken), Valid: true})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	status := s.toStatus(a, "", time.Now())
+	return &status, nil
+}
+
+// Touch records a heartbeat on an already-resolved agent. Empty agentType or
+// version leaves any existing stored value intact (see TouchAgent SQL).
+func (s *Service) Touch(ctx context.Context, agentID, remoteIP, agentType, version string) error {
+	aid := pgtype.UUID{}
+	if err := aid.Scan(agentID); err != nil {
+		return err
+	}
+	return s.q.TouchAgent(ctx, sqlc.TouchAgentParams{
+		ID:        aid,
 		RemoteIp:  remoteIP,
 		AgentType: agentType,
 		Version:   version,
 	})
-	return err
 }
 
-// List returns a snapshot of all known agents, sorted by name.
-func (s *Service) List(ctx context.Context) ([]AgentStatus, error) {
-	rows, err := s.q.ListAgents(ctx)
+// ListForUser returns the agents visible to userID: unbound agents they
+// installed, plus agents bound to projects they're a member of.
+func (s *Service) ListForUser(ctx context.Context, userID string) ([]AgentStatus, error) {
+	uid := pgtype.UUID{}
+	if err := uid.Scan(userID); err != nil {
+		return nil, err
+	}
+	rows, err := s.q.ListAgentsForUser(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -108,21 +184,6 @@ func (s *Service) List(ctx context.Context) ([]AgentStatus, error) {
 	return out, nil
 }
 
-// GetByName returns a single agent by its name. Returns ErrNotFound when no
-// agent with that name exists. project_name is not populated by this path.
-func (s *Service) GetByName(ctx context.Context, name string) (*AgentStatus, error) {
-	a, err := s.q.GetAgentByName(ctx, name)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, ErrNotFound
-		}
-		return nil, err
-	}
-	status := s.toStatus(a, "", time.Now())
-	return &status, nil
-}
-
-// GetByID returns a single agent by its UUID.
 func (s *Service) GetByID(ctx context.Context, id string) (*AgentStatus, error) {
 	uid := pgtype.UUID{}
 	if err := uid.Scan(id); err != nil {
@@ -243,33 +304,43 @@ func (s *Service) toStatus(a sqlc.Agent, projectName string, now time.Time) Agen
 		ProjectName: projectName,
 		Type:        a.AgentType.String,
 		Version:     a.Version.String,
+		InstalledBy: util.UUIDToString(a.InstalledByUserID),
 	}
 }
 
-func agentFromListRow(r sqlc.ListAgentsRow) sqlc.Agent {
+func agentFromListRow(r sqlc.ListAgentsForUserRow) sqlc.Agent {
 	return sqlc.Agent{
-		ID:         r.ID,
-		Name:       r.Name,
-		RemoteIp:   r.RemoteIp,
-		LastSeenAt: r.LastSeenAt,
-		CreatedAt:  r.CreatedAt,
-		UpdatedAt:  r.UpdatedAt,
-		ProjectID:  r.ProjectID,
-		AgentType:  r.AgentType,
-		Version:    r.Version,
+		ID:                r.ID,
+		Name:              r.Name,
+		RemoteIp:          r.RemoteIp,
+		LastSeenAt:        r.LastSeenAt,
+		CreatedAt:         r.CreatedAt,
+		UpdatedAt:         r.UpdatedAt,
+		ProjectID:         r.ProjectID,
+		AgentType:         r.AgentType,
+		Version:           r.Version,
+		InstalledByUserID: r.InstalledByUserID,
 	}
 }
 
 func agentFromGetRow(r sqlc.GetAgentRow) sqlc.Agent {
 	return sqlc.Agent{
-		ID:         r.ID,
-		Name:       r.Name,
-		RemoteIp:   r.RemoteIp,
-		LastSeenAt: r.LastSeenAt,
-		CreatedAt:  r.CreatedAt,
-		UpdatedAt:  r.UpdatedAt,
-		ProjectID:  r.ProjectID,
-		AgentType:  r.AgentType,
-		Version:    r.Version,
+		ID:                r.ID,
+		Name:              r.Name,
+		RemoteIp:          r.RemoteIp,
+		LastSeenAt:        r.LastSeenAt,
+		CreatedAt:         r.CreatedAt,
+		UpdatedAt:         r.UpdatedAt,
+		ProjectID:         r.ProjectID,
+		AgentType:         r.AgentType,
+		Version:           r.Version,
+		InstalledByUserID: r.InstalledByUserID,
 	}
+}
+
+// isUniqueViolation reports whether err is a Postgres unique-constraint error
+// (SQLSTATE 23505), e.g. a duplicate agent name.
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }

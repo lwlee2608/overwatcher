@@ -7,7 +7,6 @@ github:
   webhook_secret: ""
   private_key: ""
 agent:
-  shared_secret: ""            # override with AGENT_SHARED_SECRET; required for /api/v1/deploy/* endpoints
   release_tag: "latest"        # pin (e.g. "agent-v0.3.0") for reproducible installs
   public_url: ""               # AGENT_PUBLIC_URL; empty falls back to install.sh request Host
 auth:

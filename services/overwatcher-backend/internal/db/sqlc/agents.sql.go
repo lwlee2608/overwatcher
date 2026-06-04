@@ -16,7 +16,7 @@ UPDATE agents
 SET project_id = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version
+RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version, token_hash, installed_by_user_id
 `
 
 type BindAgentToProjectParams struct {
@@ -37,6 +37,8 @@ func (q *Queries) BindAgentToProject(ctx context.Context, arg BindAgentToProject
 		&i.ProjectID,
 		&i.AgentType,
 		&i.Version,
+		&i.TokenHash,
+		&i.InstalledByUserID,
 	)
 	return i, err
 }
@@ -53,6 +55,39 @@ func (q *Queries) ClearAgentProjectBinding(ctx context.Context, projectID pgtype
 	return err
 }
 
+const createAgent = `-- name: CreateAgent :one
+INSERT INTO agents (name, installed_by_user_id, token_hash, remote_ip)
+VALUES ($1, $2, $3, '')
+RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version, token_hash, installed_by_user_id
+`
+
+type CreateAgentParams struct {
+	Name              string      `json:"name"`
+	InstalledByUserID pgtype.UUID `json:"installed_by_user_id"`
+	TokenHash         pgtype.Text `json:"token_hash"`
+}
+
+// Pre-provision an agent. token_hash is sha256(raw token); the raw token is
+// returned to the caller once and never stored. Fails on duplicate name.
+func (q *Queries) CreateAgent(ctx context.Context, arg CreateAgentParams) (Agent, error) {
+	row := q.db.QueryRow(ctx, createAgent, arg.Name, arg.InstalledByUserID, arg.TokenHash)
+	var i Agent
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.RemoteIp,
+		&i.LastSeenAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProjectID,
+		&i.AgentType,
+		&i.Version,
+		&i.TokenHash,
+		&i.InstalledByUserID,
+	)
+	return i, err
+}
+
 const deleteAgent = `-- name: DeleteAgent :execrows
 DELETE FROM agents WHERE id = $1
 `
@@ -66,23 +101,25 @@ func (q *Queries) DeleteAgent(ctx context.Context, id pgtype.UUID) (int64, error
 }
 
 const getAgent = `-- name: GetAgent :one
-SELECT a.id, a.name, a.remote_ip, a.last_seen_at, a.created_at, a.updated_at, a.project_id, a.agent_type, a.version, p.name AS project_name
+SELECT a.id, a.name, a.remote_ip, a.last_seen_at, a.created_at, a.updated_at, a.project_id, a.agent_type, a.version, a.token_hash, a.installed_by_user_id, p.name AS project_name
 FROM agents a
 LEFT JOIN projects p ON p.id = a.project_id
 WHERE a.id = $1
 `
 
 type GetAgentRow struct {
-	ID          pgtype.UUID        `json:"id"`
-	Name        string             `json:"name"`
-	RemoteIp    string             `json:"remote_ip"`
-	LastSeenAt  pgtype.Timestamptz `json:"last_seen_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	ProjectID   pgtype.UUID        `json:"project_id"`
-	AgentType   pgtype.Text        `json:"agent_type"`
-	Version     pgtype.Text        `json:"version"`
-	ProjectName pgtype.Text        `json:"project_name"`
+	ID                pgtype.UUID        `json:"id"`
+	Name              string             `json:"name"`
+	RemoteIp          string             `json:"remote_ip"`
+	LastSeenAt        pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	ProjectID         pgtype.UUID        `json:"project_id"`
+	AgentType         pgtype.Text        `json:"agent_type"`
+	Version           pgtype.Text        `json:"version"`
+	TokenHash         pgtype.Text        `json:"token_hash"`
+	InstalledByUserID pgtype.UUID        `json:"installed_by_user_id"`
+	ProjectName       pgtype.Text        `json:"project_name"`
 }
 
 func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (GetAgentRow, error) {
@@ -98,17 +135,19 @@ func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (GetAgentRow, er
 		&i.ProjectID,
 		&i.AgentType,
 		&i.Version,
+		&i.TokenHash,
+		&i.InstalledByUserID,
 		&i.ProjectName,
 	)
 	return i, err
 }
 
-const getAgentByName = `-- name: GetAgentByName :one
-SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version FROM agents WHERE name = $1
+const getAgentByTokenHash = `-- name: GetAgentByTokenHash :one
+SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version, token_hash, installed_by_user_id FROM agents WHERE token_hash = $1
 `
 
-func (q *Queries) GetAgentByName(ctx context.Context, name string) (Agent, error) {
-	row := q.db.QueryRow(ctx, getAgentByName, name)
+func (q *Queries) GetAgentByTokenHash(ctx context.Context, tokenHash pgtype.Text) (Agent, error) {
+	row := q.db.QueryRow(ctx, getAgentByTokenHash, tokenHash)
 	var i Agent
 	err := row.Scan(
 		&i.ID,
@@ -120,39 +159,52 @@ func (q *Queries) GetAgentByName(ctx context.Context, name string) (Agent, error
 		&i.ProjectID,
 		&i.AgentType,
 		&i.Version,
+		&i.TokenHash,
+		&i.InstalledByUserID,
 	)
 	return i, err
 }
 
-const listAgents = `-- name: ListAgents :many
-SELECT a.id, a.name, a.remote_ip, a.last_seen_at, a.created_at, a.updated_at, a.project_id, a.agent_type, a.version, p.name AS project_name
+const listAgentsForUser = `-- name: ListAgentsForUser :many
+SELECT a.id, a.name, a.remote_ip, a.last_seen_at, a.created_at, a.updated_at, a.project_id, a.agent_type, a.version, a.token_hash, a.installed_by_user_id, p.name AS project_name
 FROM agents a
 LEFT JOIN projects p ON p.id = a.project_id
+WHERE (a.project_id IS NULL AND a.installed_by_user_id = $1)
+   OR a.project_id IN (
+        SELECT pr.id
+        FROM projects pr
+        LEFT JOIN project_members pm ON pm.project_id = pr.id AND pm.user_id = $1
+        WHERE pr.user_id = $1 OR pm.user_id = $1
+   )
 ORDER BY a.name ASC
 `
 
-type ListAgentsRow struct {
-	ID          pgtype.UUID        `json:"id"`
-	Name        string             `json:"name"`
-	RemoteIp    string             `json:"remote_ip"`
-	LastSeenAt  pgtype.Timestamptz `json:"last_seen_at"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	ProjectID   pgtype.UUID        `json:"project_id"`
-	AgentType   pgtype.Text        `json:"agent_type"`
-	Version     pgtype.Text        `json:"version"`
-	ProjectName pgtype.Text        `json:"project_name"`
+type ListAgentsForUserRow struct {
+	ID                pgtype.UUID        `json:"id"`
+	Name              string             `json:"name"`
+	RemoteIp          string             `json:"remote_ip"`
+	LastSeenAt        pgtype.Timestamptz `json:"last_seen_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	ProjectID         pgtype.UUID        `json:"project_id"`
+	AgentType         pgtype.Text        `json:"agent_type"`
+	Version           pgtype.Text        `json:"version"`
+	TokenHash         pgtype.Text        `json:"token_hash"`
+	InstalledByUserID pgtype.UUID        `json:"installed_by_user_id"`
+	ProjectName       pgtype.Text        `json:"project_name"`
 }
 
-func (q *Queries) ListAgents(ctx context.Context) ([]ListAgentsRow, error) {
-	rows, err := q.db.Query(ctx, listAgents)
+// Visibility: an unbound agent is seen only by its installer; once bound, by
+// members of its project (owner or project_members row).
+func (q *Queries) ListAgentsForUser(ctx context.Context, installedByUserID pgtype.UUID) ([]ListAgentsForUserRow, error) {
+	rows, err := q.db.Query(ctx, listAgentsForUser, installedByUserID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListAgentsRow{}
+	items := []ListAgentsForUserRow{}
 	for rows.Next() {
-		var i ListAgentsRow
+		var i ListAgentsForUserRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -163,6 +215,8 @@ func (q *Queries) ListAgents(ctx context.Context) ([]ListAgentsRow, error) {
 			&i.ProjectID,
 			&i.AgentType,
 			&i.Version,
+			&i.TokenHash,
+			&i.InstalledByUserID,
 			&i.ProjectName,
 		); err != nil {
 			return nil, err
@@ -175,36 +229,22 @@ func (q *Queries) ListAgents(ctx context.Context) ([]ListAgentsRow, error) {
 	return items, nil
 }
 
-const upsertAgent = `-- name: UpsertAgent :one
-INSERT INTO agents (name, remote_ip, agent_type, version, last_seen_at)
-VALUES ($1, $2, NULLIF($3::text, ''), NULLIF($4::text, ''), NOW())
-ON CONFLICT (name)
-DO UPDATE SET
-    remote_ip     = EXCLUDED.remote_ip,
-    agent_type    = COALESCE(EXCLUDED.agent_type, agents.agent_type),
-    version       = COALESCE(EXCLUDED.version, agents.version),
-    last_seen_at  = NOW(),
-    updated_at    = NOW()
-RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version
+const setAgentToken = `-- name: SetAgentToken :one
+UPDATE agents
+SET token_hash = $2,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version, token_hash, installed_by_user_id
 `
 
-type UpsertAgentParams struct {
-	Name      string `json:"name"`
-	RemoteIp  string `json:"remote_ip"`
-	AgentType string `json:"agent_type"`
-	Version   string `json:"version"`
+type SetAgentTokenParams struct {
+	ID        pgtype.UUID `json:"id"`
+	TokenHash pgtype.Text `json:"token_hash"`
 }
 
-// agent_type and version are passed in (empty string treated as NULL). On
-// conflict we preserve the existing value when the caller didn't send one,
-// so an old agent reconnecting without the header doesn't wipe known data.
-func (q *Queries) UpsertAgent(ctx context.Context, arg UpsertAgentParams) (Agent, error) {
-	row := q.db.QueryRow(ctx, upsertAgent,
-		arg.Name,
-		arg.RemoteIp,
-		arg.AgentType,
-		arg.Version,
-	)
+// Re-issue: replace the stored digest with a fresh one (migration / loss recovery).
+func (q *Queries) SetAgentToken(ctx context.Context, arg SetAgentTokenParams) (Agent, error) {
+	row := q.db.QueryRow(ctx, setAgentToken, arg.ID, arg.TokenHash)
 	var i Agent
 	err := row.Scan(
 		&i.ID,
@@ -216,6 +256,37 @@ func (q *Queries) UpsertAgent(ctx context.Context, arg UpsertAgentParams) (Agent
 		&i.ProjectID,
 		&i.AgentType,
 		&i.Version,
+		&i.TokenHash,
+		&i.InstalledByUserID,
 	)
 	return i, err
+}
+
+const touchAgent = `-- name: TouchAgent :exec
+UPDATE agents
+SET remote_ip    = $2,
+    agent_type   = COALESCE(NULLIF($3::text, ''), agent_type),
+    version      = COALESCE(NULLIF($4::text, ''), version),
+    last_seen_at = NOW(),
+    updated_at   = NOW()
+WHERE id = $1
+`
+
+type TouchAgentParams struct {
+	ID        pgtype.UUID `json:"id"`
+	RemoteIp  string      `json:"remote_ip"`
+	AgentType string      `json:"agent_type"`
+	Version   string      `json:"version"`
+}
+
+// Heartbeat on the agent already resolved from its token. Empty agent_type or
+// version preserves the existing value so a poll without the header can't wipe it.
+func (q *Queries) TouchAgent(ctx context.Context, arg TouchAgentParams) error {
+	_, err := q.db.Exec(ctx, touchAgent,
+		arg.ID,
+		arg.RemoteIp,
+		arg.AgentType,
+		arg.Version,
+	)
+	return err
 }

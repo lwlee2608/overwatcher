@@ -2,6 +2,8 @@ package tests
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync"
@@ -141,7 +143,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 		}
 
 		t.Run("success transitions to StatusSucceeded", func(t *testing.T) {
-			i, ok := s.Complete(taken.ID, true)
+			i, ok := s.Complete(taken.ID, TestAgentID, true)
 			if !ok {
 				t.Fatal("Complete returned not found")
 			}
@@ -154,8 +156,40 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 		})
 
 		t.Run("unknown id returns false", func(t *testing.T) {
-			if _, ok := s.Complete("00000000-0000-0000-0000-000000000000", true); ok {
+			if _, ok := s.Complete("00000000-0000-0000-0000-000000000000", TestAgentID, true); ok {
 				t.Error("Complete returned true for unknown id")
+			}
+		})
+
+		t.Run("agent from another project cannot complete", func(t *testing.T) {
+			s.Enqueue(newIntent("d-foreign", "s-foreign"))
+			b, err := s.TakeNext(context.Background(), TestAgentName)
+			if err != nil {
+				t.Fatalf("TakeNext: %v", err)
+			}
+
+			// A valid but unrelated agent (unbound, so its project never matches).
+			const foreignAgentID = "33333333-3333-3333-3333-333333333333"
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if _, err := pool.Exec(ctx, `
+                INSERT INTO agents (id, name, token_hash)
+                VALUES ($1::uuid, 'foreign-agent', 'foreign-hash')
+                ON CONFLICT (name) DO NOTHING`, foreignAgentID); err != nil {
+				t.Fatalf("seed foreign agent: %v", err)
+			}
+
+			if _, ok := s.Complete(b.ID, foreignAgentID, true); ok {
+				t.Error("Complete succeeded for an agent outside the intent's project")
+			}
+			// The intent must still be claimable — it was never completed.
+			if got := len(s.InFlight()); got != 1 {
+				t.Errorf("InFlight = %d, want 1 (intent should remain dispatched)", got)
+			}
+
+			// The real agent can still complete it.
+			if _, ok := s.Complete(b.ID, TestAgentID, true); !ok {
+				t.Error("Complete failed for the intent's own agent")
 			}
 		})
 
@@ -165,7 +199,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 			if err != nil {
 				t.Fatalf("TakeNext: %v", err)
 			}
-			i, ok := s.Complete(b.ID, false)
+			i, ok := s.Complete(b.ID, TestAgentID, false)
 			if !ok {
 				t.Fatal("Complete returned not found")
 			}
@@ -209,7 +243,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 			t.Fatalf("expected DeadlineExceeded, got %v", err)
 		}
 
-		s.Complete(first.ID, true)
+		s.Complete(first.ID, TestAgentID, true)
 		second, err := s.TakeNext(context.Background(), TestAgentName)
 		if err != nil {
 			t.Fatalf("TakeNext after Complete: %v", err)
@@ -251,7 +285,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 		}()
 
 		time.Sleep(50 * time.Millisecond)
-		s.Complete(first.ID, true)
+		s.Complete(first.ID, TestAgentID, true)
 
 		select {
 		case i := <-done:
@@ -369,7 +403,7 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 					if err != nil {
 						return
 					}
-					if _, ok := s.Complete(i.ID, true); !ok {
+					if _, ok := s.Complete(i.ID, TestAgentID, true); !ok {
 						t.Errorf("Complete returned not found for %s", i.ID)
 						return
 					}
@@ -398,12 +432,17 @@ func TestIntent(t *testing.T, pool *pgxpool.Pool) {
 // tests via ON CONFLICT.
 const (
 	TestAgentName = "test-agent"
+	TestAgentID   = "22222222-2222-2222-2222-222222222222"
 	TestProjectID = "11111111-1111-1111-1111-111111111111"
+	// TestAgentToken is the raw bearer the HTTP deploy tests present; its
+	// digest is seeded onto the agent row by SeedTestAgent.
+	TestAgentToken = "owa_test-agent-token"
 )
 
 // SeedTestAgent creates (or refreshes) a user, project, and agent bound to
 // that project so TakeNextDeployIntent has an agents row matching the
-// (agent_name, project_id) filter.
+// (agent_name, project_id) filter. It also seeds the agent's token digest so
+// the agent can authenticate over HTTP with TestAgentToken.
 func SeedTestAgent(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -425,11 +464,20 @@ func SeedTestAgent(t *testing.T, pool *pgxpool.Pool) {
 		t.Fatalf("seed project: %v", err)
 	}
 
+	sum := sha256.Sum256([]byte(TestAgentToken))
+	tokenHash := hex.EncodeToString(sum[:])
+	// Force id = TestAgentID even on conflict: the Agents HTTP test pre-creates
+	// an agent of the same name with a random UUID, and the deploy/intent tests
+	// pass TestAgentID to scope CompleteDeployIntent. Nothing references
+	// agents.id in these tests, so overwriting the PK is safe.
 	if _, err := pool.Exec(ctx, `
-        INSERT INTO agents (name, project_id)
-        VALUES ($1, $2::uuid)
-        ON CONFLICT (name) DO UPDATE SET project_id = EXCLUDED.project_id`,
-		TestAgentName, TestProjectID); err != nil {
+        INSERT INTO agents (id, name, project_id, token_hash)
+        VALUES ($1::uuid, $2, $3::uuid, $4)
+        ON CONFLICT (name) DO UPDATE SET
+            id         = EXCLUDED.id,
+            project_id = EXCLUDED.project_id,
+            token_hash = EXCLUDED.token_hash`,
+		TestAgentID, TestAgentName, TestProjectID, tokenHash); err != nil {
 		t.Fatalf("seed agent: %v", err)
 	}
 }

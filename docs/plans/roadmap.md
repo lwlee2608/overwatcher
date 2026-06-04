@@ -44,7 +44,7 @@ Builds on 4a's persistent in-flight state.
 
 ### Phase 4c — Per-agent auth + observability *(partial)*
 
-- ❌ Per-agent tokens — still uses single global `AGENT_SHARED_SECRET`.
+- ✅ Per-agent tokens — each agent authenticates with its own opaque token (stored hashed); revoke by deleting the agent. Visibility scoped by installer/project membership.
 - ❌ Deploy log capture — agent captures `docker compose` output but only logs it locally; not streamed to GitHub.
 - ❌ Prometheus metrics — not implemented.
 - ✅ Structured logging — slog used throughout with context fields and status-based log levels.

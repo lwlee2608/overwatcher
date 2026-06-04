@@ -12,20 +12,29 @@ import (
 )
 
 const completeDeployIntent = `-- name: CompleteDeployIntent :one
-UPDATE deploy_intents
+UPDATE deploy_intents di
 SET status = $1,
     updated_at = NOW()
-WHERE id = $2 AND status = 'dispatched'
-RETURNING id, delivery_id, repo, git_ref, sha, stack, environment, deployment_id, installation_id, status, attempts, created_at, updated_at, dispatched_at, services_spec, project_id, compose_file
+FROM agents a
+WHERE di.id = $2
+  AND di.status = 'dispatched'
+  AND a.id = $3
+  AND a.project_id = di.project_id
+RETURNING di.id, di.delivery_id, di.repo, di.git_ref, di.sha, di.stack, di.environment, di.deployment_id, di.installation_id, di.status, di.attempts, di.created_at, di.updated_at, di.dispatched_at, di.services_spec, di.project_id, di.compose_file
 `
 
 type CompleteDeployIntentParams struct {
-	Status string      `json:"status"`
-	ID     pgtype.UUID `json:"id"`
+	Status  string      `json:"status"`
+	ID      pgtype.UUID `json:"id"`
+	AgentID pgtype.UUID `json:"agent_id"`
 }
 
+// Scoped to the reporting agent: the row only completes if @agent_id is bound
+// to the intent's project. A token for another project resolves to an agent
+// whose project_id won't match, so completion no-ops (pgx.ErrNoRows -> 404),
+// without leaking that the intent exists.
 func (q *Queries) CompleteDeployIntent(ctx context.Context, arg CompleteDeployIntentParams) (DeployIntent, error) {
-	row := q.db.QueryRow(ctx, completeDeployIntent, arg.Status, arg.ID)
+	row := q.db.QueryRow(ctx, completeDeployIntent, arg.Status, arg.ID, arg.AgentID)
 	var i DeployIntent
 	err := row.Scan(
 		&i.ID,

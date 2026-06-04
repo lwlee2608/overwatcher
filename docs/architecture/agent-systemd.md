@@ -11,8 +11,7 @@ On the target VM:
 
 ```bash
 curl -fsSL https://<coordinator-host>/install.sh | \
-sudo AGENT_NAME=my-agent \
-AGENT_SHARED_SECRET=<paste-your-shared-secret> \
+sudo AGENT_TOKEN=owa_<token> \
 bash
 ```
 
@@ -22,14 +21,15 @@ What this does:
 2. Downloads `overwatcher-agent_linux_<arch>` from the configured GitHub
    release, verifies it against `SHA256SUMS`, installs it to
    `/usr/local/bin/overwatcher-agent`.
-3. Writes `/etc/overwatcher-agent.env` (mode 0600) with `AGENT_NAME`,
-   `AGENT_SHARED_SECRET`, `AGENT_COORDINATOR_URL`.
+3. Writes `/etc/overwatcher-agent.env` (mode 0600) with `AGENT_TOKEN`,
+   `AGENT_COORDINATOR_URL`.
 4. Writes `/etc/systemd/system/overwatcher-agent.service`.
 5. Enables and starts the unit, prints the first ~20 log lines.
 
-The UI's agent dashboard has an "Install a new agent" card that fills in the
-URL and the agent name for you — paste your shared secret into the
-placeholder and copy.
+The UI's agent dashboard has an "Install a new agent" card: name the agent,
+and it provisions the agent, mints its token, and shows the full command
+ready to paste — the token is part of the command. The token is shown once;
+if you lose it, re-issue a new one from the agent's menu.
 
 ### Prerequisites
 
@@ -43,7 +43,7 @@ placeholder and copy.
 
 Re-run the same install one-liner. The binary is swapped in place and the
 unit restarted. The env file at `/etc/overwatcher-agent.env` is left
-untouched — only edit it by hand if you need to change `AGENT_NAME` or the
+untouched — only edit it by hand if you need to change the token or the
 coordinator URL.
 
 ## Logs
@@ -61,8 +61,8 @@ Configuration lives in `/etc/overwatcher-agent.env`. Edit it, then
 
 | Variable                  | Required | Default                       |
 |---------------------------|----------|-------------------------------|
-| `AGENT_NAME`              | yes      | —                             |
-| `AGENT_SHARED_SECRET`     | yes      | —                             |
+| `AGENT_TOKEN`             | yes      | —                             |
+| `AGENT_NAME`              | no       | — (descriptive label only)    |
 | `AGENT_COORDINATOR_URL`   | no       | (filled by installer)         |
 | `AGENT_POLL_TIMEOUT`      | no       | `30s`                         |
 | `LOG_LEVEL`               | no       | `info`                        |
@@ -99,10 +99,10 @@ LAN address rather than the public URL), or the coordinator isn't reachable
 from this VM. Set `AGENT_PUBLIC_URL` on the coordinator to fix it for
 future installs; edit the env file on this host to fix it now.
 
-**`unauthorized` from coordinator** — `AGENT_SHARED_SECRET` in the env file
-doesn't match what the coordinator was started with. The shared secret is a
-single global value on the coordinator side today; check
-`AGENT_SHARED_SECRET` in the coordinator's environment.
+**`unauthorized` (401) from coordinator** — `AGENT_TOKEN` in the env file
+doesn't match any agent on the coordinator (revoked, mistyped, or the agent
+row was deleted). Re-issue a token from the agent's menu in the dashboard and
+update the env file, or provision a fresh agent.
 
 **`permission denied` on the Docker socket** — the `overwatcher` user
 isn't in the `docker` group. The installer adds it, but if Docker was

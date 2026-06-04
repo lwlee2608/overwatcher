@@ -14,10 +14,17 @@ type Querier interface {
 	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) (ProjectMember, error)
 	BindAgentToProject(ctx context.Context, arg BindAgentToProjectParams) (Agent, error)
 	ClearAgentProjectBinding(ctx context.Context, projectID pgtype.UUID) error
+	// Scoped to the reporting agent: the row only completes if @agent_id is bound
+	// to the intent's project. A token for another project resolves to an agent
+	// whose project_id won't match, so completion no-ops (pgx.ErrNoRows -> 404),
+	// without leaking that the intent exists.
 	CompleteDeployIntent(ctx context.Context, arg CompleteDeployIntentParams) (DeployIntent, error)
 	CountDeployIntentsByStatus(ctx context.Context, status string) (int64, error)
 	CountDeployIntentsForUser(ctx context.Context, arg CountDeployIntentsForUserParams) (int64, error)
 	CountEventLogs(ctx context.Context, arg CountEventLogsParams) (int64, error)
+	// Pre-provision an agent. token_hash is sha256(raw token); the raw token is
+	// returned to the caller once and never stored. Fails on duplicate name.
+	CreateAgent(ctx context.Context, arg CreateAgentParams) (Agent, error)
 	// Webhook redeliveries dedup on (delivery_id, project_id) via the partial
 	// unique index idx_deploy_intents_delivery_project. On conflict sqlc returns
 	// pgx.ErrNoRows, which callers treat as "already enqueued, do nothing".
@@ -38,7 +45,7 @@ type Querier interface {
 	DeleteUser(ctx context.Context, id pgtype.UUID) (User, error)
 	FailTimedOutIntents(ctx context.Context, arg FailTimedOutIntentsParams) ([]DeployIntent, error)
 	GetAgent(ctx context.Context, id pgtype.UUID) (GetAgentRow, error)
-	GetAgentByName(ctx context.Context, name string) (Agent, error)
+	GetAgentByTokenHash(ctx context.Context, tokenHash pgtype.Text) (Agent, error)
 	GetDeployIntentByID(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	GetProject(ctx context.Context, id pgtype.UUID) (Project, error)
 	GetProjectByUserAndName(ctx context.Context, arg GetProjectByUserAndNameParams) (Project, error)
@@ -48,7 +55,9 @@ type Querier interface {
 	GetUser(ctx context.Context, id pgtype.UUID) (User, error)
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
 	GetUserPasswordHashByEmail(ctx context.Context, lower string) (GetUserPasswordHashByEmailRow, error)
-	ListAgents(ctx context.Context) ([]ListAgentsRow, error)
+	// Visibility: an unbound agent is seen only by its installer; once bound, by
+	// members of its project (owner or project_members row).
+	ListAgentsForUser(ctx context.Context, installedByUserID pgtype.UUID) ([]ListAgentsForUserRow, error)
 	ListDeployIntentsByStatus(ctx context.Context, status string) ([]DeployIntent, error)
 	// Paged + filtered variant of ListRecentDeployIntentsForUser. Each filter
 	// param is nullable; NULL means "no filter on this column".
@@ -76,17 +85,18 @@ type Querier interface {
 	RemoveProjectMember(ctx context.Context, arg RemoveProjectMemberParams) (ProjectMember, error)
 	RequeueDeployIntent(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
 	RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOutIntentsParams) ([]DeployIntent, error)
+	// Re-issue: replace the stored digest with a fresh one (migration / loss recovery).
+	SetAgentToken(ctx context.Context, arg SetAgentTokenParams) (Agent, error)
 	SetUserPasswordHash(ctx context.Context, arg SetUserPasswordHashParams) error
 	// Claim the oldest dispatchable intent for @agent_name's bound project.
 	// FOR UPDATE SKIP LOCKED + the dispatched-stack guard keep concurrent
 	// pollers from blocking each other or double-claiming a stack.
 	TakeNextDeployIntent(ctx context.Context, agentName string) (DeployIntent, error)
+	// Heartbeat on the agent already resolved from its token. Empty agent_type or
+	// version preserves the existing value so a poll without the header can't wipe it.
+	TouchAgent(ctx context.Context, arg TouchAgentParams) error
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
-	// agent_type and version are passed in (empty string treated as NULL). On
-	// conflict we preserve the existing value when the caller didn't send one,
-	// so an old agent reconnecting without the header doesn't wipe known data.
-	UpsertAgent(ctx context.Context, arg UpsertAgentParams) (Agent, error)
 }
 
 var _ Querier = (*Queries)(nil)

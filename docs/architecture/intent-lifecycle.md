@@ -126,7 +126,7 @@ If the agent stays down (process crashed, host offline, network partitioned), th
 
 Per `internal/agent/poll.go`: the agent's poller is single-threaded by design — fetch one, run it, report, loop. Multiple intents queued for the same agent serialize naturally; the next `TakeNext` happens only after `/result` lands. The single-threaded poller is also why the reaper exists at all: if the agent process dies between `TakeNext` and `/result`, nothing else on that agent will ever finish the row.
 
-Across projects there is no contention: `TakeNext` filters by the agent's bound project (`X-Agent-Name` → `agents.project_id`), so agent A polling never returns project B's intent.
+Across projects there is no contention: `TakeNext` filters by the agent's bound project (token → resolved agent → `agents.project_id`), so agent A polling never returns project B's intent.
 
 ### Per-stack serialization
 

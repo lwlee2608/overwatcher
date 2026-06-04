@@ -2,11 +2,11 @@
 # Overwatcher agent installer (systemd).
 #
 # Usage (typically served by the coordinator at /install.sh with placeholders
-# already substituted):
+# already substituted; the dashboard provisions the agent and hands you a
+# command with AGENT_TOKEN already filled in):
 #
 #   curl -fsSL https://<coordinator>/install.sh | \
-#   sudo AGENT_NAME=my-agent \
-#   AGENT_SHARED_SECRET=<secret> \
+#   sudo AGENT_TOKEN=<token> \
 #   bash
 #
 # (The env vars must be passed to `sudo`, not to `curl` — a `VAR=val cmd1 |
@@ -15,7 +15,10 @@
 # sets them in the child process regardless of env_reset.)
 #
 # Re-running upgrades the binary in place: the file is swapped and the unit
-# is restarted; the env file is left untouched if it already exists.
+# is restarted; the env file is left untouched if it already exists. The
+# exception is the token — if the supplied AGENT_TOKEN differs from the one in
+# the existing env file (e.g. after a re-issue), the installer fails with
+# manual remediation steps rather than restarting with the stale token.
 #
 # Template variables (substituted by the coordinator before serving):
 #   {{COORDINATOR_URL}} — the URL agents should poll
@@ -36,9 +39,8 @@ USER_NAME="overwatcher"
 log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
-[[ $EUID -eq 0 ]] || err "must run as root (try: curl ... | sudo AGENT_NAME=... AGENT_SHARED_SECRET=... bash)"
-[[ -n "${AGENT_NAME:-}" ]] || err "AGENT_NAME must be set (pass it to sudo: curl ... | sudo AGENT_NAME=foo AGENT_SHARED_SECRET=bar bash)"
-[[ -n "${AGENT_SHARED_SECRET:-}" ]] || err "AGENT_SHARED_SECRET must be set (pass it to sudo: curl ... | sudo AGENT_NAME=foo AGENT_SHARED_SECRET=bar bash)"
+[[ $EUID -eq 0 ]] || err "must run as root (try: curl ... | sudo AGENT_TOKEN=... bash)"
+[[ -n "${AGENT_TOKEN:-}" ]] || err "AGENT_TOKEN must be set (pass it to sudo: curl ... | sudo AGENT_TOKEN=owa_... bash)"
 
 # Detect docker compose plugin upfront — failing here is much friendlier
 # than the agent erroring on every deploy attempt later.
@@ -88,13 +90,23 @@ log "installing binary to ${BINARY_PATH}"
 install -m 0755 -o root -g root "${TMP}/${ASSET}" "${BINARY_PATH}"
 
 if [[ -f "$ENV_FILE" ]]; then
+  # Re-runs upgrade the binary but leave config untouched. The one exception
+  # is the token: if it was re-issued/revoked, restarting with the stale token
+  # in the existing env file causes silent, persistent 401s. Catch that here.
+  EXISTING_TOKEN=$(sed -n 's/^AGENT_TOKEN=//p' "$ENV_FILE")
+  if [[ "$EXISTING_TOKEN" != "$AGENT_TOKEN" ]]; then
+    err "AGENT_TOKEN differs from the one in ${ENV_FILE}. If you re-issued the token, update it manually:
+    sudo sed -i 's|^AGENT_TOKEN=.*|AGENT_TOKEN=${AGENT_TOKEN}|' ${ENV_FILE}
+    sudo systemctl restart ${SERVICE_NAME}
+  Or remove the file to reprovision from scratch:
+    sudo rm ${ENV_FILE} && rerun this installer"
+  fi
   log "env file already exists at ${ENV_FILE}; leaving untouched"
 else
   log "writing ${ENV_FILE}"
   umask 077
   cat > "$ENV_FILE" <<EOF
-AGENT_NAME=${AGENT_NAME}
-AGENT_SHARED_SECRET=${AGENT_SHARED_SECRET}
+AGENT_TOKEN=${AGENT_TOKEN}
 AGENT_COORDINATOR_URL=${COORDINATOR_URL}
 EOF
   chown "${USER_NAME}:${USER_NAME}" "$ENV_FILE"

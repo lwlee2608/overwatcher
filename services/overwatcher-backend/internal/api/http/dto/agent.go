@@ -18,8 +18,19 @@ type AgentListResponse struct {
 	Agents []AgentStatusResponse `json:"agents"`
 }
 
-// BindAgentProjectRequest sets the project binding on an agent.
-// An empty project_id clears the binding.
+// BindAgentProjectRequest binds an agent; an empty project_id clears the binding.
 type BindAgentProjectRequest struct {
 	ProjectID string `json:"project_id"`
+}
+
+type CreateAgentRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+// AgentTokenResponse carries a freshly minted token. The raw token is returned
+// exactly once (create or re-issue) and is never retrievable again.
+type AgentTokenResponse struct {
+	AgentID string `json:"agent_id"`
+	Name    string `json:"name,omitempty"`
+	Token   string `json:"agent_token"`
 }

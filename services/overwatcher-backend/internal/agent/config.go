@@ -17,9 +17,11 @@ import (
 )
 
 type AgentConfig struct {
+	// Name is descriptive only (logging). Identity on the wire is the token;
+	// the coordinator resolves which agent this is from Token alone.
 	Name           string        `mapstructure:"name"`
 	CoordinatorURL string        `mapstructure:"coordinator_url"`
-	SharedSecret   string        `mapstructure:"shared_secret" mask:"true"`
+	Token          string        `mapstructure:"token" mask:"true"`
 	PollTimeout    time.Duration `mapstructure:"poll_timeout"`
 }
 
@@ -107,17 +109,14 @@ func resolveConfigPath() (string, func(), error) {
 }
 
 func validate(cfg *Config) error {
-	if cfg.Agent.Name == "" {
-		return errors.New("agent.name must be set")
-	}
 	if cfg.Agent.CoordinatorURL == "" {
 		return errors.New("agent.coordinator_url must be set")
 	}
 	if err := validateCoordinatorURL(cfg.Agent.CoordinatorURL); err != nil {
 		return err
 	}
-	if cfg.Agent.SharedSecret == "" {
-		return errors.New("AGENT_SHARED_SECRET must be set")
+	if cfg.Agent.Token == "" {
+		return errors.New("AGENT_TOKEN must be set")
 	}
 	return nil
 }

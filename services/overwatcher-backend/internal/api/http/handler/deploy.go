@@ -12,7 +12,6 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/protocol"
-	"github.com/lwlee2608/overwatcher/internal/service/agentregistry"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
 	"github.com/lwlee2608/overwatcher/internal/service/project"
@@ -29,34 +28,22 @@ type DeployHandler struct {
 	dispatchService *dispatch.Service
 	webhookService  *webhook.Service
 	projectService  *project.Service
-	agentService    *agentregistry.Service
 }
 
-func NewDeployHandler(dispatchService *dispatch.Service, webhookService *webhook.Service, projectService *project.Service, agentService *agentregistry.Service) *DeployHandler {
-	return &DeployHandler{dispatchService: dispatchService, webhookService: webhookService, projectService: projectService, agentService: agentService}
+func NewDeployHandler(dispatchService *dispatch.Service, webhookService *webhook.Service, projectService *project.Service) *DeployHandler {
+	return &DeployHandler{dispatchService: dispatchService, webhookService: webhookService, projectService: projectService}
 }
 
 // Next is a long-poll. It blocks inside DispatchService.Next for up to
 // longPollTimeout, or until the request context is cancelled (agent
 // disconnect). On either, it returns 204 so the agent can re-poll cleanly
-// without treating it as a transport error. X-Agent-Name scopes the claim to
-// the project bound to that agent; a missing binding returns 412 instead of
-// silently long-polling forever.
+// without treating it as a transport error. The agent is resolved from its
+// token by AgentTokenAuth; its project binding scopes the claim, and a missing
+// binding returns 412 instead of silently long-polling forever.
 func (h *DeployHandler) Next(c *gin.Context) {
-	agentName := c.GetHeader("X-Agent-Name")
-	if agentName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing X-Agent-Name header"})
-		return
-	}
-
-	agent, err := h.agentService.GetByName(c.Request.Context(), agentName)
-	if err != nil {
-		if errors.Is(err, agentregistry.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "agent not registered"})
-			return
-		}
-		slog.Error("agent lookup failed", "agent", agentName, "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "agent lookup failed"})
+	agent, ok := middleware.Agent(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "agent not resolved"})
 		return
 	}
 	if agent.ProjectID == "" {
@@ -67,7 +54,7 @@ func (h *DeployHandler) Next(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), LongPollTimeout)
 	defer cancel()
 
-	intentRow, err := h.dispatchService.Next(ctx, agentName)
+	intentRow, err := h.dispatchService.Next(ctx, agent.Name)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			c.Status(http.StatusNoContent)
@@ -256,7 +243,13 @@ func (h *DeployHandler) Result(c *gin.Context) {
 		return
 	}
 
-	if !h.dispatchService.Report(c.Request.Context(), id, req.State == "success", req.Error) {
+	agent, ok := middleware.Agent(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "agent not resolved"})
+		return
+	}
+
+	if !h.dispatchService.Report(c.Request.Context(), id, agent.ID, req.State == "success", req.Error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "unknown intent id"})
 		return
 	}

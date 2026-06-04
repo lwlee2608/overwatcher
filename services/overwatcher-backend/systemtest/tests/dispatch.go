@@ -150,7 +150,7 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 			t.Fatalf("Next: %v", err)
 		}
 
-		if !d.Report(context.Background(), taken.ID, true, "") {
+		if !d.Report(context.Background(), taken.ID, TestAgentID, true, "") {
 			t.Fatal("Report returned false for known id")
 		}
 
@@ -189,7 +189,7 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 			t.Fatalf("Next: %v", err)
 		}
 
-		if !d.Report(context.Background(), taken.ID, false, "compose pull exit 1") {
+		if !d.Report(context.Background(), taken.ID, TestAgentID, false, "compose pull exit 1") {
 			t.Fatal("Report returned false")
 		}
 
@@ -206,7 +206,7 @@ func TestDispatch(t *testing.T, pool *pgxpool.Pool) {
 	t.Run("Report_UnknownID", func(t *testing.T) {
 		d, _, _ := newSvc(t)
 
-		if d.Report(context.Background(), "00000000-0000-0000-0000-000000000000", true, "") {
+		if d.Report(context.Background(), "00000000-0000-0000-0000-000000000000", TestAgentID, true, "") {
 			t.Error("Report returned true for unknown id")
 		}
 	})

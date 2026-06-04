@@ -49,11 +49,19 @@ WHERE di.id = c.id
 RETURNING di.*;
 
 -- name: CompleteDeployIntent :one
-UPDATE deploy_intents
+-- Scoped to the reporting agent: the row only completes if @agent_id is bound
+-- to the intent's project. A token for another project resolves to an agent
+-- whose project_id won't match, so completion no-ops (pgx.ErrNoRows -> 404),
+-- without leaking that the intent exists.
+UPDATE deploy_intents di
 SET status = @status,
     updated_at = NOW()
-WHERE id = @id AND status = 'dispatched'
-RETURNING *;
+FROM agents a
+WHERE di.id = @id
+  AND di.status = 'dispatched'
+  AND a.id = @agent_id
+  AND a.project_id = di.project_id
+RETURNING di.*;
 
 -- name: RequeueDeployIntent :one
 UPDATE deploy_intents
