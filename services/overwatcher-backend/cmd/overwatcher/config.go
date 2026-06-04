@@ -23,8 +23,7 @@ type GitHubConfig struct {
 }
 
 type AgentConfig struct {
-	ReleaseTag string `mapstructure:"release_tag"`
-	PublicURL  string `mapstructure:"public_url"`
+	PublicURL string `mapstructure:"public_url"`
 }
 
 type DispatchConfig struct {

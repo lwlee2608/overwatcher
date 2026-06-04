@@ -7,7 +7,8 @@ github:
   webhook_secret: ""
   private_key: ""
 agent:
-  release_tag: ""              # AGENT_RELEASE_TAG; empty = match coordinator version. Set "latest" or pin (e.g. "v0.4.0") to override
+  # The install script installs the agent release matching the coordinator's
+  # own version (they ship in lockstep), so there is no release_tag knob.
   public_url: ""               # AGENT_PUBLIC_URL; empty falls back to install.sh request Host
 auth:
   session_ttl: 720h            # sliding 30d

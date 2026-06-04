@@ -78,7 +78,7 @@ func main() {
 		ProjectService:  projectSvc,
 		AuthService:     authSvc,
 		WebhookSecret:   config.GitHub.WebhookSecret,
-		AgentReleaseTag: resolveAgentReleaseTag(config.Agent.ReleaseTag, AppVersion),
+		AgentReleaseTag: resolveAgentReleaseTag(AppVersion),
 		AgentPublicURL:  config.Agent.PublicURL,
 		CookieConfig:    config.Auth.Cookie,
 	}
