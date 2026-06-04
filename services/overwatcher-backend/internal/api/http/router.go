@@ -26,6 +26,7 @@ type Services struct {
 	ProjectService    *project.Service
 	AuthService       *auth.Service
 	WebhookSecret   string
+	AppVersion      string
 	AgentReleaseTag string
 	AgentPublicURL  string
 	CookieConfig    middleware.CookieConfig
@@ -36,6 +37,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	engine.Use(middleware.ErrorHandler())
 
 	healthHandler := handler.NewHealthHandler()
+	versionHandler := handler.NewVersionHandler(srvs.AppVersion, srvs.AgentReleaseTag)
 	installHandler := handler.NewInstallHandler(srvs.AgentReleaseTag, srvs.AgentPublicURL)
 	webhookHandler := handler.NewWebhookHandler(srvs.WebhookService)
 	deployHandler := handler.NewDeployHandler(srvs.DispatchService, srvs.WebhookService, srvs.ProjectService)
@@ -75,6 +77,8 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 		{
 			ui.GET("/auth/me", authHandler.Me)
 			ui.PUT("/auth/password", authHandler.ChangePassword)
+
+			ui.GET("/version", versionHandler.Get)
 
 			ui.POST("/agents", agentHandler.Create)
 			ui.GET("/agents", agentHandler.List)

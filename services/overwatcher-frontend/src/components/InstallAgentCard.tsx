@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createAgent } from "../api/agents";
+import { fetchVersion } from "../api/version";
 
 type Mode = "systemd" | "docker";
 
@@ -16,9 +17,21 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
   const [token, setToken] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [releaseTag, setReleaseTag] = useState<string | null>(null);
 
   const coordinatorURL = useMemo(() => window.location.origin, []);
   const installURL = `${coordinatorURL}/install.sh`;
+
+  useEffect(() => {
+    fetchVersion()
+      .then((v) => setReleaseTag(v.release_tag))
+      .catch(() => setReleaseTag(null));
+  }, []);
+
+  // Pin the Docker image to the coordinator's agent release. Docker Hub
+  // publishes the bare semver (v0.4.0 → 0.4.0), so strip the "v"; dev builds
+  // and lookup failures fall back to the "latest" tag.
+  const imageTag = releaseTag ? releaseTag.replace(/^v/, "") : "latest";
 
   async function handleCreate() {
     const trimmed = name.trim();
@@ -52,7 +65,7 @@ bash`;
   -v /var/run/docker.sock:/var/run/docker.sock \\
   -v /path/to/your/deployment:/opt/stacks/my-stack \\
   -v ~/.docker/config.json:/root/.docker/config.json:ro \\
-  lwlee2608/agent:latest`;
+  lwlee2608/agent:${imageTag}`;
 
   const build = mode === "systemd" ? buildSystemd : buildDocker;
   const command = build(token);
@@ -78,9 +91,16 @@ bash`;
   return (
     <div className="mb-6 rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Install a new agent
-        </h3>
+        <div className="flex items-baseline gap-2">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Install a new agent
+          </h3>
+          {releaseTag && (
+            <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
+              Agent release: {releaseTag}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-4">
           <a
             className="text-xs text-blue-600 hover:underline dark:text-blue-400"
