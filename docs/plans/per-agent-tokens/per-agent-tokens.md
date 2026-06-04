@@ -24,25 +24,32 @@ There is also a parallel gap on the **user→coordinator** path: `GET /api/v1/ag
 Mint one random opaque token per agent at registration time. Bind the token to the agent row; embed it directly in the install command.
 
 ```
-admin clicks "Install agent" in UI
-        │
-        ▼
-POST /api/v1/agents               coordinator
-  { name: "demo-1" }              ──────────►  agent row created
-                                               installed_by_user_id = caller
-                                               agent_token minted (random, long-lived)
-        ◄──────────────────────────────────
-  { agent_id, agent_token, install_command }
-        │
-        ▼
-operator pastes command on VM
-        │
-        ▼
-agent writes agent_token to /etc/overwatcher-agent.env
-agent uses it for all subsequent /deploy/* calls:
-GET /api/v1/deploy/next           coordinator
-  Bearer <agent_token>            ──────────►  look up token → resolve agent
-                                               → attach agent context
+   Admin (dashboard)            Coordinator                  Agent (VM)
+        │                            │                            │
+        │  POST /api/v1/agents       │                            │
+        │  { name: "demo-1" }        │                            │
+        ├───────────────────────────►│                            │
+        │                            │ create agent row           │
+        │                            │ installed_by_user = caller │
+        │                            │ mint agent_token (random)  │
+        │  200 { agent_id,           │                            │
+        │        agent_token,        │                            │
+        │        install_command }   │                            │
+        │◄───────────────────────────┤                            │
+        │                            │                            │
+        │       operator pastes install_command on the VM         │
+        │ ───────────────────────────────────────────────────────►
+        │                            │     write agent_token to   │
+        │                            │ /etc/overwatcher-agent.env │
+        │                            │                            │
+        │                            │  GET /api/v1/deploy/next   │
+        │                            │  Bearer <agent_token>      │
+        │                            │◄───────────────────────────┤
+        │                            │ look up token → agent      │
+        │                            │ attach agent context       │
+        │                            │   200 { intent | empty }   │
+        │                            ├───────────────────────────►│
+        │                            │                            │
 ```
 
 Middleware changes from "compare to global" to "look up token → resolve agent → attach agent context". The existing `AgentHeartbeat` middleware already runs after auth; it can now trust the resolved agent identity instead of trusting the `X-Agent-Name` header.
@@ -66,10 +73,16 @@ A new column `agents.installed_by_user_id` is added at registration time. It is 
 Visibility follows the agent's lifecycle:
 
 ```
-agent state          who can see / manage it
-──────────           ───────────────────────
-unbound              installed_by_user_id (+ admins)
-bound to project P   members of project P (uses existing project ACL)
+   agent lifecycle                  who can see / manage it
+   ───────────────                  ───────────────────────
+   ┌───────────────┐
+   │    unbound    │  ───────────►  installed_by_user_id  (+ admins)
+   └───────┬───────┘
+           │ PUT /api/v1/agents/:id/project
+           ▼
+   ┌───────────────┐
+   │ bound to P    │  ───────────►  members of project P  (existing project ACL)
+   └───────────────┘
 ```
 
 This is layered on top of the existing project membership model rather than replacing it. A separate flat `agent.owner_user_id` was considered and rejected: if alice installs an agent and binds it to a team project, then leaves the team, bob (still on the project) needs to manage it. Tying visibility to the installer forever would block that — project membership handles the handover automatically once binding happens.
