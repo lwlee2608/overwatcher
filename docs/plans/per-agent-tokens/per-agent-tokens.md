@@ -38,7 +38,7 @@ Mint one random opaque token per agent at registration time. Bind the token to t
         │◄───────────────────────────┤                            │
         │                            │                            │
         │       operator pastes install_command on the VM         │
-        │ ───────────────────────────────────────────────────────►
+        ├────────────────────────────────────────────────────────►
         │                            │     write agent_token to   │
         │                            │ /etc/overwatcher-agent.env │
         │                            │                            │
@@ -53,6 +53,11 @@ Mint one random opaque token per agent at registration time. Bind the token to t
 ```
 
 Middleware changes from "compare to global" to "look up token → resolve agent → attach agent context". The existing `AgentHeartbeat` middleware already runs after auth; it can now trust the resolved agent identity instead of trusting the `X-Agent-Name` header.
+
+**This removes self-registration.** Today there is no create endpoint: `AgentHeartbeat` UPSERTs a row keyed on the `X-Agent-Name` header, so an agent springs into existence on its first heartbeat. Under this plan, agents are pre-provisioned by `POST /api/v1/agents` and resolved by token. Concretely:
+
+- The auto-create UPSERT in `AgentHeartbeat` is **removed**. The middleware now only updates `last_seen` (and type/version) on the agent already resolved from the token.
+- The `X-Agent-Name` header is **dropped entirely**, not just deprioritized. Identity comes from the token. Keeping the header live would allow a split-brain where the token resolves agent A while the header touches a row named B.
 
 ### Why one token, not a bootstrap pair
 
@@ -103,6 +108,10 @@ The fleet is small and operator-controlled, so a coordinated cutover beats carry
 2. Operator re-runs it on each VM. Until they do, that agent's `/deploy/*` calls 401 — a loud, expected signal, not a silent fallback.
 3. Once all agents are re-issued, drop `AGENT_SHARED_SECRET` from the coordinator config.
 
+This needs a way to mint a token for an agent row that *already exists* (the `POST /api/v1/agents` create path only covers brand-new agents). So the plan adds `POST /api/v1/agents/:id/token`, gated by the same ACL as the other agent endpoints. It returns a fresh token (replacing any prior one) plus the install command. Beyond migration, this endpoint also covers the recovery case where an operator loses the token before pasting it — without it, a dropped token forces delete-and-recreate.
+
+This is one-shot re-issue, not a rotation *policy* (no expiry, no scheduled forced re-issue) — see [Non-goals](#non-goals).
+
 Keeping a fallback path was rejected: it doubles the auth surface, hides which agents haven't migrated behind "it still works," and the global secret is exactly the thing this plan exists to delete — leaving it live defeats the point.
 
 ## Why this is worth doing
@@ -119,11 +128,13 @@ Keeping a fallback path was rejected: it doubles the auth surface, hides which a
 - No change to the deploy execution model or compose handling.
 - No change to how the coordinator gets *its* secrets (webhook signing, GitHub App key, DB creds).
 - Not introducing user-scoped tokens. Tokens belong to agents; humans authenticate via session cookies as today.
-- Not implementing token rotation policies (expiry, forced re-issue). One token per agent, valid until revoked. Rotation can come later if needed.
+- Not implementing token rotation *policies* (expiry, scheduled/forced re-issue, overlap windows). One token per agent, valid until revoked. A manual one-shot re-issue endpoint (`POST /agents/:id/token`) does exist — it's required for migration and token-loss recovery (see [Migration](#migration)) — but there is no automatic lifecycle around it. Policy can come later if needed.
 - No bootstrap/`claim` indirection. Long-lived token is handed out at registration and pasted directly (see [Why one token, not a bootstrap pair](#why-one-token-not-a-bootstrap-pair)).
 
 ## Decisions
 
 - **Token storage on the agent.** Reuse `/etc/overwatcher-agent.env` (systemd) and the bind-mounted env file (Docker), exactly as `AGENT_SHARED_SECRET` is stored today. No new file or perms plumbing — the token is just a different value in the same slot.
+- **Token storage at rest (coordinator).** Store only `sha256(token)`, indexed for lookup; the raw token is returned exactly once, in the create/re-issue response, and never persisted. Auth hashes the presented token and looks up the digest. This is a deliberate departure from the existing `sessions` table (plaintext): session tokens expire, but agent tokens are long-lived, so a DB-read leak (backup, log, dump, injection) would be a permanent fleet compromise with no expiry to bound it. Hashing costs nothing at lookup time and removes that blast radius.
+- **Token format.** A random, opaque, URL-safe string with ≥256 bits of entropy, carried with an `owa_` prefix (e.g. `owa_<base64url>`). The prefix makes the credential greppable in secret-scanners and log triage and unambiguous to the middleware. The prefix is part of the value the agent sends and the digest is computed over the whole string.
 - **Admin role.** Out of scope. This plan ships only the non-admin ACL (installer-for-unbound, project-membership-for-bound). There is no admin bypass yet; the "(+ admins)" in the diagram above is a forward reference, not part of this work. Revisit when an admin role is actually introduced.
 - **Installer leaves the system.** When a user is deleted, their still-unbound agents are **not** cascade-deleted (that would silently kill a live agent on a VM). The agent row persists with a dangling `installed_by_user_id`. Because there is no admin role yet (see above), such an agent is temporarily unmanageable via the UI until either (a) it gets bound to a project — at which point project membership takes over — or (b) the admin role lands and admins can see it. This is an accepted, rare edge case, not a blocker. Project-bound agents are unaffected.
