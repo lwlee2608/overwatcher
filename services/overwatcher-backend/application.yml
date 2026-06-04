@@ -7,7 +7,7 @@ github:
   webhook_secret: ""
   private_key: ""
 agent:
-  release_tag: "latest"        # pin (e.g. "agent-v0.3.0") for reproducible installs
+  release_tag: ""              # AGENT_RELEASE_TAG; empty = match coordinator version. Set "latest" or pin (e.g. "v0.4.0") to override
   public_url: ""               # AGENT_PUBLIC_URL; empty falls back to install.sh request Host
 auth:
   session_ttl: 720h            # sliding 30d

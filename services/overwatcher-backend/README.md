@@ -102,7 +102,7 @@ deployments:
       image: "ghcr.io/owner/app" # optional; default ghcr.io/<repo>
       tag: "latest" # optional; default commit SHA
 agent:
-  release_tag: "latest" # env: AGENT_RELEASE_TAG; pin for reproducible installs
+  release_tag: "" # env: AGENT_RELEASE_TAG; empty = match coordinator version. Set "latest" or pin (e.g. "v0.4.0") to override
   public_url: "" # env: AGENT_PUBLIC_URL; empty falls back to install.sh request Host
 database:
   url: "" # required; env: DATABASE_URL
