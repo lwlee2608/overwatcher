@@ -82,10 +82,15 @@ Applied to the HTTP layer:
 
 ### Migration
 
-Existing agents in the field still hold the global secret. Two-step:
+One pass — no global-secret fallback. The middleware switches to token-lookup-only; the `AGENT_SHARED_SECRET` compare is deleted in the same change.
 
-1. Ship per-agent tokens behind a fallback: middleware tries token lookup first, falls back to global-secret compare. Log a warning each time the fallback fires.
-2. Add an admin action ("rotate") that mints a fresh token for an existing agent and surfaces a one-liner to re-run on the VM. Once the warning logs go quiet, drop the global-secret path.
+The fleet is small and operator-controlled, so a coordinated cutover beats carrying a dual-auth path:
+
+1. For each existing agent, mint a token and surface a one-liner to re-run on the VM (the install command, pointed at the existing agent row).
+2. Operator re-runs it on each VM. Until they do, that agent's `/deploy/*` calls 401 — a loud, expected signal, not a silent fallback.
+3. Once all agents are re-issued, drop `AGENT_SHARED_SECRET` from the coordinator config.
+
+Keeping a fallback path was rejected: it doubles the auth surface, hides which agents haven't migrated behind "it still works," and the global secret is exactly the thing this plan exists to delete — leaving it live defeats the point.
 
 ## Why this is worth doing
 
