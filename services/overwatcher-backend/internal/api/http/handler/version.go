@@ -3,8 +3,8 @@ package handler
 import (
 	"net/http"
 
-	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 	"github.com/gin-gonic/gin"
+	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 )
 
 // VersionHandler reports the coordinator's build version and the agent release

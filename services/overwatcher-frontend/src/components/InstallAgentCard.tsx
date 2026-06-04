@@ -28,9 +28,10 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
       .catch(() => setReleaseTag(null));
   }, []);
 
-  // Pin the Docker image to the coordinator's agent release; fall back to
-  // latest until the tag loads (or if the lookup fails).
-  const imageTag = releaseTag ?? "latest";
+  // Pin the Docker image to the coordinator's agent release. Docker Hub
+  // publishes the bare semver (v0.4.0 → 0.4.0), so strip the "v"; dev builds
+  // and lookup failures fall back to the "latest" tag.
+  const imageTag = releaseTag ? releaseTag.replace(/^v/, "") : "latest";
 
   async function handleCreate() {
     const trimmed = name.trim();
