@@ -88,9 +88,9 @@ func (d *Service) Next(ctx context.Context, agentName string) (*intent.DeployInt
 }
 
 // Report records an agent's deploy result and updates the GitHub Deployment
-// status. Returns false if the id is unknown.
-func (d *Service) Report(ctx context.Context, id string, success bool, errMsg string) bool {
-	i, ok := d.store.Complete(id, success)
+// status. Returns false if the id is unknown or not owned by agentID's project.
+func (d *Service) Report(ctx context.Context, id, agentID string, success bool, errMsg string) bool {
+	i, ok := d.store.Complete(id, agentID, success)
 	if !ok {
 		return false
 	}

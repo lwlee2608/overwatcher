@@ -95,7 +95,10 @@ func (s *DBStore) TakeNext(ctx context.Context, agentName string) (*DeployIntent
 	}
 }
 
-func (s *DBStore) Complete(id string, success bool) (*DeployIntent, bool) {
+// Complete marks an intent succeeded/failed, but only when agentID is bound to
+// the intent's project — an agent can't report results for another project's
+// deploy. A mismatch returns (nil, false), same as an unknown id.
+func (s *DBStore) Complete(id, agentID string, success bool) (*DeployIntent, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -105,8 +108,9 @@ func (s *DBStore) Complete(id string, success bool) (*DeployIntent, bool) {
 	}
 
 	row, err := s.q.CompleteDeployIntent(ctx, sqlc.CompleteDeployIntentParams{
-		ID:     parseUUID(id),
-		Status: status,
+		ID:      parseUUID(id),
+		AgentID: parseUUID(agentID),
+		Status:  status,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

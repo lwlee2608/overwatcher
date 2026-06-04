@@ -83,7 +83,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 		assert.Equal(t, int64(100), resp.DeploymentID)
 
 		// Clean up: complete the intent so it doesn't block other tests.
-		store.Complete(resp.ID, true)
+		store.Complete(resp.ID, TestAgentID, true)
 	})
 
 	t.Run("ReportSuccess", func(t *testing.T) {
@@ -207,14 +207,14 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 
 		// Complete first — second should now be available.
-		store.Complete(first.ID, true)
+		store.Complete(first.ID, TestAgentID, true)
 		ctx3, cancel3 := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel3()
 		second, err := store.TakeNext(ctx3, TestAgentName)
 		require.NoError(t, err)
 		assert.Equal(t, "bbb222", second.SHA)
 
-		store.Complete(second.ID, true)
+		store.Complete(second.ID, TestAgentID, true)
 	})
 
 	t.Run("WebhookDedup", func(t *testing.T) {
@@ -259,7 +259,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 		defer cancel()
 		i, err := store.TakeNext(ctx, TestAgentName)
 		require.NoError(t, err)
-		store.Complete(i.ID, true)
+		store.Complete(i.ID, TestAgentID, true)
 	})
 
 	t.Run("SweepTimedOutRequeue", func(t *testing.T) {
@@ -293,7 +293,7 @@ func TestDeploy(t *testing.T, router *gin.Engine, store *intent.DBStore, bearerT
 		defer cancel2()
 		i, err := store.TakeNext(ctx2, TestAgentName)
 		require.NoError(t, err)
-		store.Complete(i.ID, true)
+		store.Complete(i.ID, TestAgentID, true)
 	})
 
 	t.Run("SweepTimedOutPermanentFailure", func(t *testing.T) {

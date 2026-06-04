@@ -243,7 +243,13 @@ func (h *DeployHandler) Result(c *gin.Context) {
 		return
 	}
 
-	if !h.dispatchService.Report(c.Request.Context(), id, req.State == "success", req.Error) {
+	agent, ok := middleware.Agent(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "agent not resolved"})
+		return
+	}
+
+	if !h.dispatchService.Report(c.Request.Context(), id, agent.ID, req.State == "success", req.Error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "unknown intent id"})
 		return
 	}

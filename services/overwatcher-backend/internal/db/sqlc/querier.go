@@ -14,6 +14,10 @@ type Querier interface {
 	AddProjectMember(ctx context.Context, arg AddProjectMemberParams) (ProjectMember, error)
 	BindAgentToProject(ctx context.Context, arg BindAgentToProjectParams) (Agent, error)
 	ClearAgentProjectBinding(ctx context.Context, projectID pgtype.UUID) error
+	// Scoped to the reporting agent: the row only completes if @agent_id is bound
+	// to the intent's project. A token for another project resolves to an agent
+	// whose project_id won't match, so completion no-ops (pgx.ErrNoRows -> 404),
+	// without leaking that the intent exists.
 	CompleteDeployIntent(ctx context.Context, arg CompleteDeployIntentParams) (DeployIntent, error)
 	CountDeployIntentsByStatus(ctx context.Context, status string) (int64, error)
 	CountDeployIntentsForUser(ctx context.Context, arg CountDeployIntentsForUserParams) (int64, error)
