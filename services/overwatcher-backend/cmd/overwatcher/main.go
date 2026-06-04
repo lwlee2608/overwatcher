@@ -26,8 +26,6 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/service/webhook"
 )
 
-var AppVersion = "dev"
-
 func main() {
 	if err := InitConfig(); err != nil {
 		slog.Error("config load failed", "error", err)
@@ -72,17 +70,17 @@ func main() {
 	}
 
 	services := &internalhttp.Services{
-		WebhookService:    webhookSvc,
-		DispatchService:   dispatchSvc,
-		AgentService:      agentSvc,
-		EventLogService:   eventLogSvc,
-		UserService:       userSvc,
-		ProjectService:    projectSvc,
-		AuthService:       authSvc,
-		WebhookSecret:     config.GitHub.WebhookSecret,
-		AgentReleaseTag:   config.Agent.ReleaseTag,
-		AgentPublicURL:    config.Agent.PublicURL,
-		CookieConfig:      config.Auth.Cookie,
+		WebhookService:  webhookSvc,
+		DispatchService: dispatchSvc,
+		AgentService:    agentSvc,
+		EventLogService: eventLogSvc,
+		UserService:     userSvc,
+		ProjectService:  projectSvc,
+		AuthService:     authSvc,
+		WebhookSecret:   config.GitHub.WebhookSecret,
+		AgentReleaseTag: resolveAgentReleaseTag(AppVersion),
+		AgentPublicURL:  config.Agent.PublicURL,
+		CookieConfig:    config.Auth.Cookie,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

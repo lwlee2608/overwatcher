@@ -7,7 +7,8 @@ github:
   webhook_secret: ""
   private_key: ""
 agent:
-  release_tag: "latest"        # pin (e.g. "agent-v0.3.0") for reproducible installs
+  # The install script installs the agent release matching the coordinator's
+  # own version (they ship in lockstep), so there is no release_tag knob.
   public_url: ""               # AGENT_PUBLIC_URL; empty falls back to install.sh request Host
 auth:
   session_ttl: 720h            # sliding 30d
