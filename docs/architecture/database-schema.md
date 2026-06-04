@@ -28,23 +28,26 @@ The schema is split along three axes:
  └────────────────┬─────────────────┘
                   │ 1:N
                   ▼
- ┌──────────────────────────────────┐         ┌──────────────────────────────────┐
- │           projects               │  1:1    │            agents                │
- ├──────────────────────────────────┤◀────────├──────────────────────────────────┤
- │ id           UUID PK             │         │ id            UUID PK            │
- │ user_id      UUID FK → users     │         │ name          VARCHAR UQ         │
- │ name         VARCHAR             │         │ project_id    UUID FK → projects │
- │ description  TEXT                │         │ remote_ip     VARCHAR(45)        │
- │ compose_file VARCHAR(512)        │         │ agent_type    TEXT               │
- │ environment  VARCHAR(64)         │         │ version       TEXT               │
- │ enabled      BOOLEAN             │         │ last_seen_at  TIMESTAMPTZ        │
- │ created_at   TIMESTAMPTZ         │         │ created_at    TIMESTAMPTZ        │
- │ updated_at   TIMESTAMPTZ         │         │ updated_at    TIMESTAMPTZ        │
- │                                  │         │                                  │
- │ UQ(user_id, name)                │         │ partial UQ(project_id)           │
- │                                  │         │   WHERE project_id IS NOT NULL   │
- └────────────────┬─────────────────┘         └──────────────────────────────────┘
-                  │ 1:N
+ ┌──────────────────────────────────┐         ┌────────────────────────────────────────┐
+ │             projects             │  1:1    │                 agents                 │
+ ├──────────────────────────────────┤◀────────├────────────────────────────────────────┤
+ │ id           UUID PK             │         │ id                   UUID PK           │
+ │ user_id      UUID FK → users     │         │ name                 VARCHAR UQ        │
+ │ name         VARCHAR             │         │ project_id           UUID FK → projects│
+ │ description  TEXT                │         │ remote_ip            VARCHAR(45)       │
+ │ compose_file VARCHAR(512)        │         │ agent_type           TEXT              │
+ │ environment  VARCHAR(64)         │         │ version              TEXT              │
+ │ enabled      BOOLEAN             │         │ token_hash           TEXT UQ           │
+ │ created_at   TIMESTAMPTZ         │         │ installed_by_user_id UUID FK → users   │
+ │ updated_at   TIMESTAMPTZ         │         │ last_seen_at         TIMESTAMPTZ       │
+ │                                  │         │ created_at           TIMESTAMPTZ       │
+ │ UQ(user_id, name)                │         │ updated_at           TIMESTAMPTZ       │
+ │                                  │         │                                        │
+ └────────────────┬─────────────────┘         │ partial UQ(project_id)                 │
+                  │ 1:N                       │   WHERE project_id IS NOT NULL         │
+                  │                           │ partial UQ(token_hash)                 │
+                  │                           │   WHERE token_hash IS NOT NULL         │
+                  │                           └────────────────────────────────────────┘
                   ▼
  ┌──────────────────────────────────┐         ┌──────────────────────────────────┐
  │           services               │         │        project_members           │
@@ -116,6 +119,8 @@ A compose service definition. For `push`, the webhook handler looks up enabled s
 
 Persistent agent registration. The agent upserts its row on first poll, binds itself to a project (1:1, enforced by partial unique `idx_agents_project_id WHERE project_id IS NOT NULL`), and `last_seen_at` updates on every poll. `compose_file` is **not** stored here — it lives on the project, since an agent serves exactly one project. `agent_type` (`docker` or `systemd`) and `version` are reported by the agent via `X-Agent-Type` / `X-Agent-Version` headers on every poll; empty values leave any existing stored value intact.
 
+`token_hash` holds `sha256(token)` for per-agent auth — the raw token is never stored. It is set when an agent is pre-provisioned and resolves the agent on each poll; the partial unique `idx_agents_token_hash WHERE token_hash IS NOT NULL` lets many rows stay NULL (not yet issued) while every issued digest maps to exactly one agent. `installed_by_user_id` (FK → `users`, `ON DELETE SET NULL`) records who provisioned the agent, used to scope visibility of an unbound agent before it is bound to a project.
+
 ### project_members
 
 Shares a project with users other than the owner. The owner (the user pointed to by `projects.user_id`) is implicit — no `project_members` row is needed for them. Membership is checked on read/write paths to gate access; `role` is currently always `member` but reserved for future role expansion. Adding the owner as a member is rejected at the service layer (`ErrCannotAddOwner`).
@@ -130,7 +135,7 @@ Every received GitHub webhook delivery, including ones that didn't match any ser
 
 ## Migration History
 
-Migrations are numbered 0001–0019 and applied in order. Notable points:
+Migrations are numbered 0001–0020 and applied in order. Notable points:
 
 - `0001` — `deploy_intents` (the original MVP table).
 - `0003` — original `agents` + `deploy_mappings` schema.
@@ -144,3 +149,4 @@ Migrations are numbered 0001–0019 and applied in order. Notable points:
 - `0017` — `project_members` for sharing a project with users other than its owner.
 - `0018` — `agents.agent_type` (`docker` / `systemd`), reported by the agent on each poll.
 - `0019` — `agents.version`, the agent's build version, reported on each poll.
+- `0020` — `agents.token_hash` (per-agent auth, partial unique on non-NULL digests) and `agents.installed_by_user_id` (FK → `users`, who provisioned the agent).
