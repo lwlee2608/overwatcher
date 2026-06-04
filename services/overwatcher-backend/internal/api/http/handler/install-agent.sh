@@ -15,7 +15,10 @@
 # sets them in the child process regardless of env_reset.)
 #
 # Re-running upgrades the binary in place: the file is swapped and the unit
-# is restarted; the env file is left untouched if it already exists.
+# is restarted; the env file is left untouched if it already exists. The
+# exception is the token — if the supplied AGENT_TOKEN differs from the one in
+# the existing env file (e.g. after a re-issue), the installer fails with
+# manual remediation steps rather than restarting with the stale token.
 #
 # Template variables (substituted by the coordinator before serving):
 #   {{COORDINATOR_URL}} — the URL agents should poll
@@ -87,6 +90,17 @@ log "installing binary to ${BINARY_PATH}"
 install -m 0755 -o root -g root "${TMP}/${ASSET}" "${BINARY_PATH}"
 
 if [[ -f "$ENV_FILE" ]]; then
+  # Re-runs upgrade the binary but leave config untouched. The one exception
+  # is the token: if it was re-issued/revoked, restarting with the stale token
+  # in the existing env file causes silent, persistent 401s. Catch that here.
+  EXISTING_TOKEN=$(sed -n 's/^AGENT_TOKEN=//p' "$ENV_FILE")
+  if [[ "$EXISTING_TOKEN" != "$AGENT_TOKEN" ]]; then
+    err "AGENT_TOKEN differs from the one in ${ENV_FILE}. If you re-issued the token, update it manually:
+    sudo sed -i 's|^AGENT_TOKEN=.*|AGENT_TOKEN=${AGENT_TOKEN}|' ${ENV_FILE}
+    sudo systemctl restart ${SERVICE_NAME}
+  Or remove the file to reprovision from scratch:
+    sudo rm ${ENV_FILE} && rerun this installer"
+  fi
   log "env file already exists at ${ENV_FILE}; leaving untouched"
 else
   log "writing ${ENV_FILE}"
