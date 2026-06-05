@@ -91,9 +91,8 @@ func (h *AgentHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, dto.AgentTokenResponse{AgentID: agentID, Name: req.Name, Token: token})
 }
 
-// MintToken issues a fresh agent token without persisting an agent. The install
-// flow shows the command up front; the agent row is created only when the user
-// confirms (Create), which is handed this same token so its digest is stored.
+// MintToken issues a fresh agent token without persisting an agent; the row is
+// created on Create, which is handed this same token. See Service.MintToken.
 func (h *AgentHandler) MintToken(c *gin.Context) {
 	if _, ok := middleware.UserID(c); !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})

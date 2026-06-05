@@ -86,20 +86,17 @@ func NewService(pool *pgxpool.Pool, q *sqlc.Queries, thresholds Thresholds) *Ser
 	}
 }
 
-// MintToken generates a fresh agent token without persisting any agent. The
-// install flow shows the command up front, then persists the agent only on
-// confirmation by passing this same raw token to Create, which stores its
-// digest. Returned exactly once — there's no way to recover it later.
+// MintToken returns a fresh token without persisting an agent. The install flow
+// shows the command first, then hands this same token to Create on confirmation.
 func (s *Service) MintToken() (rawToken string, err error) {
 	raw, _, err := generateToken()
 	return raw, err
 }
 
 // Create pre-provisions an agent owned (for visibility) by installedByUserID.
-// If presetToken is non-empty its digest is stored (the two-step install flow
-// hands back the token minted earlier); otherwise a fresh token is generated.
-// The raw token is returned once and never stored — only its digest persists.
-// Returns ErrNameTaken on duplicate name.
+// A non-empty presetToken (from the two-step install flow) has its digest
+// stored; otherwise a fresh token is generated. The raw token is returned once
+// and never stored. Returns ErrNameTaken on duplicate name.
 func (s *Service) Create(ctx context.Context, name, installedByUserID, presetToken string) (agentID, rawToken string, err error) {
 	uid := pgtype.UUID{}
 	if err = uid.Scan(installedByUserID); err != nil {

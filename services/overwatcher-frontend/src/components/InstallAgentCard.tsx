@@ -34,8 +34,7 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
   // and lookup failures fall back to the "latest" tag.
   const imageTag = releaseTag ? releaseTag.replace(/^v/, "") : "latest";
 
-  // Step 1: mint a token and show the install command. The agent is not
-  // persisted yet — it's created only when the user confirms with "Done".
+  // Step 1: mint a token and show the install command; nothing is persisted yet.
   async function handleGenerate() {
     if (!name.trim() || generating) return;
     setGenerating(true);
@@ -52,7 +51,7 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
   }
 
   // Step 2: persist the agent with the already-shown token. Closing with ✕
-  // before this skips creation entirely, leaving nothing behind.
+  // before this leaves nothing behind.
   async function handleDone() {
     if (finalizing) return;
     setFinalizing(true);

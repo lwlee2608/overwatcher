@@ -32,10 +32,8 @@ func hashToken(raw string) string {
 }
 
 // validToken reports whether raw has the exact shape generateToken produces:
-// the prefix followed by 32 bytes of URL-safe base64. The two-step install flow
-// lets the client hand a minted token back on Create, so the digest stored is
-// for a value the client supplied — we must reject anything that isn't a
-// genuine high-entropy token to keep weak, attacker-chosen credentials out.
+// prefix + 32 bytes of URL-safe base64. Create hashes a client-supplied token,
+// so this keeps weak, attacker-chosen credentials out.
 func validToken(raw string) bool {
 	body, ok := strings.CutPrefix(raw, TokenPrefix)
 	if !ok {
