@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"strings"
 )
 
 // TokenPrefix marks an agent credential so it's greppable in logs and secret
@@ -28,4 +29,18 @@ func generateToken() (raw, hash string, err error) {
 func hashToken(raw string) string {
 	sum := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(sum[:])
+}
+
+// validToken reports whether raw has the exact shape generateToken produces:
+// the prefix followed by 32 bytes of URL-safe base64. The two-step install flow
+// lets the client hand a minted token back on Create, so the digest stored is
+// for a value the client supplied — we must reject anything that isn't a
+// genuine high-entropy token to keep weak, attacker-chosen credentials out.
+func validToken(raw string) bool {
+	body, ok := strings.CutPrefix(raw, TokenPrefix)
+	if !ok {
+		return false
+	}
+	buf, err := base64.RawURLEncoding.DecodeString(body)
+	return err == nil && len(buf) == 32
 }

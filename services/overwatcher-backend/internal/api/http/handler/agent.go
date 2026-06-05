@@ -81,6 +81,10 @@ func (h *AgentHandler) Create(c *gin.Context) {
 			c.JSON(http.StatusConflict, gin.H{"error": "an agent with that name already exists"})
 			return
 		}
+		if errors.Is(err, agentregistry.ErrBadToken) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "malformed agent token"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

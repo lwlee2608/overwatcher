@@ -17,6 +17,7 @@ var (
 	ErrNotFound  = errors.New("agent not found")
 	ErrBound     = errors.New("agent is bound to a project")
 	ErrNameTaken = errors.New("agent name already in use")
+	ErrBadToken  = errors.New("malformed agent token")
 )
 
 // ConnectionStatus describes how recently an agent has heartbeated.
@@ -106,6 +107,9 @@ func (s *Service) Create(ctx context.Context, name, installedByUserID, presetTok
 	}
 	var hash string
 	if presetToken != "" {
+		if !validToken(presetToken) {
+			return "", "", ErrBadToken
+		}
 		rawToken, hash = presetToken, hashToken(presetToken)
 	} else {
 		rawToken, hash, err = generateToken()
