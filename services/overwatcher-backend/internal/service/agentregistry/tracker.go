@@ -17,6 +17,7 @@ var (
 	ErrNotFound  = errors.New("agent not found")
 	ErrBound     = errors.New("agent is bound to a project")
 	ErrNameTaken = errors.New("agent name already in use")
+	ErrBadToken  = errors.New("malformed agent token")
 )
 
 // ConnectionStatus describes how recently an agent has heartbeated.
@@ -85,17 +86,33 @@ func NewService(pool *pgxpool.Pool, q *sqlc.Queries, thresholds Thresholds) *Ser
 	}
 }
 
-// Create pre-provisions an agent owned (for visibility) by installedByUserID
-// and mints its token. The raw token is returned once and never stored — only
-// its digest persists. Returns ErrNameTaken on duplicate name.
-func (s *Service) Create(ctx context.Context, name, installedByUserID string) (agentID, rawToken string, err error) {
+// MintToken returns a fresh token without persisting an agent. The install flow
+// shows the command first, then hands this same token to Create on confirmation.
+func (s *Service) MintToken() (rawToken string, err error) {
+	raw, _, err := generateToken()
+	return raw, err
+}
+
+// Create pre-provisions an agent owned (for visibility) by installedByUserID.
+// A non-empty presetToken (from the two-step install flow) has its digest
+// stored; otherwise a fresh token is generated. The raw token is returned once
+// and never stored. Returns ErrNameTaken on duplicate name.
+func (s *Service) Create(ctx context.Context, name, installedByUserID, presetToken string) (agentID, rawToken string, err error) {
 	uid := pgtype.UUID{}
 	if err = uid.Scan(installedByUserID); err != nil {
 		return "", "", err
 	}
-	raw, hash, err := generateToken()
-	if err != nil {
-		return "", "", err
+	var hash string
+	if presetToken != "" {
+		if !validToken(presetToken) {
+			return "", "", ErrBadToken
+		}
+		rawToken, hash = presetToken, hashToken(presetToken)
+	} else {
+		rawToken, hash, err = generateToken()
+		if err != nil {
+			return "", "", err
+		}
 	}
 	a, err := s.q.CreateAgent(ctx, sqlc.CreateAgentParams{
 		Name:              name,
@@ -108,7 +125,7 @@ func (s *Service) Create(ctx context.Context, name, installedByUserID string) (a
 		}
 		return "", "", err
 	}
-	return util.UUIDToString(a.ID), raw, nil
+	return util.UUIDToString(a.ID), rawToken, nil
 }
 
 // ReissueToken mints a fresh token for an existing agent, replacing any prior

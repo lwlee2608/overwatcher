@@ -75,16 +75,35 @@ func (h *AgentHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	agentID, token, err := h.agentService.Create(c.Request.Context(), req.Name, callerID)
+	agentID, token, err := h.agentService.Create(c.Request.Context(), req.Name, callerID, req.Token)
 	if err != nil {
 		if errors.Is(err, agentregistry.ErrNameTaken) {
 			c.JSON(http.StatusConflict, gin.H{"error": "an agent with that name already exists"})
+			return
+		}
+		if errors.Is(err, agentregistry.ErrBadToken) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "malformed agent token"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusCreated, dto.AgentTokenResponse{AgentID: agentID, Name: req.Name, Token: token})
+}
+
+// MintToken issues a fresh agent token without persisting an agent; the row is
+// created on Create, which is handed this same token. See Service.MintToken.
+func (h *AgentHandler) MintToken(c *gin.Context) {
+	if _, ok := middleware.UserID(c); !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	token, err := h.agentService.MintToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, dto.AgentTokenResponse{Token: token})
 }
 
 // ReissueToken replaces the agent's token — for migrating pre-token agents and

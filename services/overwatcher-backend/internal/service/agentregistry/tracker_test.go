@@ -64,9 +64,9 @@ func TestBindProject_OneToOneConstraint(t *testing.T) {
 	userID := util.UUIDToString(user.ID)
 
 	// Seed two agents.
-	agentA, _, err := svc.Create(ctx, "agent-a", userID)
+	agentA, _, err := svc.Create(ctx, "agent-a", userID, "")
 	require.NoError(t, err)
-	agentB, _, err := svc.Create(ctx, "agent-b", userID)
+	agentB, _, err := svc.Create(ctx, "agent-b", userID, "")
 	require.NoError(t, err)
 	require.NotEmpty(t, agentA)
 	require.NotEmpty(t, agentB)
@@ -126,7 +126,7 @@ func TestBindProject_Unbind(t *testing.T) {
 	require.NoError(t, err)
 	userID := util.UUIDToString(user.ID)
 
-	agentID, _, err := svc.Create(ctx, "agent-a", userID)
+	agentID, _, err := svc.Create(ctx, "agent-a", userID, "")
 	require.NoError(t, err)
 
 	project, err := queries.CreateProject(ctx, sqlc.CreateProjectParams{

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { createAgent } from "../api/agents";
+import { createAgent, mintAgentToken } from "../api/agents";
 import { fetchVersion } from "../api/version";
 
 type Mode = "systemd" | "docker";
@@ -15,7 +15,8 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
   const [copied, setCopied] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [token, setToken] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [releaseTag, setReleaseTag] = useState<string | null>(null);
 
@@ -33,20 +34,35 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
   // and lookup failures fall back to the "latest" tag.
   const imageTag = releaseTag ? releaseTag.replace(/^v/, "") : "latest";
 
-  async function handleCreate() {
-    const trimmed = name.trim();
-    if (!trimmed || creating) return;
-    setCreating(true);
+  // Step 1: mint a token and show the install command; nothing is persisted yet.
+  async function handleGenerate() {
+    if (!name.trim() || generating) return;
+    setGenerating(true);
     setError(null);
     try {
-      const res = await createAgent(trimmed);
+      const res = await mintAgentToken();
       setToken(res.agent_token);
       setRevealed(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate token");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  // Step 2: persist the agent with the already-shown token. Closing with ✕
+  // before this leaves nothing behind.
+  async function handleDone() {
+    if (finalizing) return;
+    setFinalizing(true);
+    setError(null);
+    try {
+      await createAgent(name.trim(), token);
       onCreated?.();
+      onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create agent");
-    } finally {
-      setCreating(false);
+      setFinalizing(false);
     }
   }
 
@@ -136,7 +152,7 @@ bash`;
               value={name}
               onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreate();
+                if (e.key === "Enter") handleGenerate();
               }}
               placeholder="my-agent"
               className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
@@ -149,11 +165,11 @@ bash`;
           )}
           <button
             type="button"
-            onClick={handleCreate}
-            disabled={!name.trim() || creating}
+            onClick={handleGenerate}
+            disabled={!name.trim() || generating}
             className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-400"
           >
-            {creating ? "Generating…" : "Generate install command"}
+            {generating ? "Generating…" : "Generate install command"}
           </button>
         </>
       ) : (
@@ -302,13 +318,45 @@ docker restart overwatcher-agent`}</code>
             </details>
           )}
 
+          <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+            The agent won't connect until you click <strong>Done</strong> —
+            that's when it's registered with this token.
+          </p>
+
+          {error && (
+            <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+              {error}
+            </div>
+          )}
+
+          {/* On a name clash the row was never written, so let the user fix the
+              name and retry without re-minting the already-shown token. */}
+          {error && (
+            <label className="mt-3 block text-sm">
+              <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">
+                Agent name
+              </span>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleDone();
+                }}
+                placeholder="my-agent"
+                className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+              />
+            </label>
+          )}
+
           <div className="mt-4">
             <button
               type="button"
-              onClick={onClose}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400"
+              onClick={handleDone}
+              disabled={!name.trim() || finalizing}
+              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-400"
             >
-              Done
+              {finalizing ? "Creating…" : "Done"}
             </button>
           </div>
         </>
