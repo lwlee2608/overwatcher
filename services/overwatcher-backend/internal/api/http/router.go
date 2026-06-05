@@ -80,6 +80,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 
 			ui.GET("/version", versionHandler.Get)
 
+			ui.POST("/agents/token", agentHandler.MintToken)
 			ui.POST("/agents", agentHandler.Create)
 			ui.GET("/agents", agentHandler.List)
 			ui.GET("/agents/:id", agentHandler.Get)

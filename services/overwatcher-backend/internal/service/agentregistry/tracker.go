@@ -85,17 +85,33 @@ func NewService(pool *pgxpool.Pool, q *sqlc.Queries, thresholds Thresholds) *Ser
 	}
 }
 
-// Create pre-provisions an agent owned (for visibility) by installedByUserID
-// and mints its token. The raw token is returned once and never stored — only
-// its digest persists. Returns ErrNameTaken on duplicate name.
-func (s *Service) Create(ctx context.Context, name, installedByUserID string) (agentID, rawToken string, err error) {
+// MintToken generates a fresh agent token without persisting any agent. The
+// install flow shows the command up front, then persists the agent only on
+// confirmation by passing this same raw token to Create, which stores its
+// digest. Returned exactly once — there's no way to recover it later.
+func (s *Service) MintToken() (rawToken string, err error) {
+	raw, _, err := generateToken()
+	return raw, err
+}
+
+// Create pre-provisions an agent owned (for visibility) by installedByUserID.
+// If presetToken is non-empty its digest is stored (the two-step install flow
+// hands back the token minted earlier); otherwise a fresh token is generated.
+// The raw token is returned once and never stored — only its digest persists.
+// Returns ErrNameTaken on duplicate name.
+func (s *Service) Create(ctx context.Context, name, installedByUserID, presetToken string) (agentID, rawToken string, err error) {
 	uid := pgtype.UUID{}
 	if err = uid.Scan(installedByUserID); err != nil {
 		return "", "", err
 	}
-	raw, hash, err := generateToken()
-	if err != nil {
-		return "", "", err
+	var hash string
+	if presetToken != "" {
+		rawToken, hash = presetToken, hashToken(presetToken)
+	} else {
+		rawToken, hash, err = generateToken()
+		if err != nil {
+			return "", "", err
+		}
 	}
 	a, err := s.q.CreateAgent(ctx, sqlc.CreateAgentParams{
 		Name:              name,
@@ -108,7 +124,7 @@ func (s *Service) Create(ctx context.Context, name, installedByUserID string) (a
 		}
 		return "", "", err
 	}
-	return util.UUIDToString(a.ID), raw, nil
+	return util.UUIDToString(a.ID), rawToken, nil
 }
 
 // ReissueToken mints a fresh token for an existing agent, replacing any prior

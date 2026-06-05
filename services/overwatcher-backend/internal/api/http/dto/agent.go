@@ -25,6 +25,10 @@ type BindAgentProjectRequest struct {
 
 type CreateAgentRequest struct {
 	Name string `json:"name" binding:"required"`
+	// Token, when set, is the raw token minted earlier via MintToken; the
+	// server stores its digest so the command shown before confirmation keeps
+	// working. Empty means generate a fresh token on create.
+	Token string `json:"agent_token"`
 }
 
 // AgentTokenResponse carries a freshly minted token. The raw token is returned

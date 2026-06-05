@@ -30,7 +30,7 @@ func TestAgents(t *testing.T, router *gin.Engine, agentSvc *agentregistry.Servic
 	})
 
 	// Pre-provision an agent installed by the session user so it's visible.
-	agentID, token, err := agentSvc.Create(context.Background(), "test-agent", sessionUserID)
+	agentID, token, err := agentSvc.Create(context.Background(), "test-agent", sessionUserID, "")
 	require.NoError(t, err)
 	require.NotEmpty(t, agentID)
 	assert.Contains(t, token, agentregistry.TokenPrefix)

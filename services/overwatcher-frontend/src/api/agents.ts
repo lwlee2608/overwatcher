@@ -15,13 +15,28 @@ export interface AgentTokenResponse {
   agent_token: string;
 }
 
-// createAgent provisions a new agent and returns its token. The raw token is
-// returned exactly once — there's no way to fetch it again later.
-export async function createAgent(name: string): Promise<AgentTokenResponse> {
+// mintAgentToken issues a fresh token without persisting an agent. The install
+// flow shows the command first and only creates the agent when the user
+// confirms, passing this same token to createAgent.
+export async function mintAgentToken(): Promise<AgentTokenResponse> {
+  const res = await apiFetch("/api/v1/agents/token", { method: "POST" });
+  if (!res.ok) {
+    throw new Error((await res.text()) || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+// createAgent provisions a new agent. Pass the token minted earlier so its
+// digest is stored and the already-shown install command keeps working. The raw
+// token is returned exactly once — there's no way to fetch it again later.
+export async function createAgent(
+  name: string,
+  token?: string,
+): Promise<AgentTokenResponse> {
   const res = await apiFetch("/api/v1/agents", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, agent_token: token }),
   });
   if (!res.ok) {
     const body = await res.text();
