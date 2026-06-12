@@ -151,13 +151,16 @@ export function AgentCard({ agent, onDelete, releaseTag }: AgentCardProps) {
 
         {agent.metrics && (
           <div
-            className={`space-y-2 ${agent.status !== "connected" ? "opacity-50" : ""}`}
+            className={`space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/50 ${agent.status !== "connected" ? "opacity-50" : ""}`}
             title={
               agent.status !== "connected"
                 ? `As of last heartbeat, ${timeAgo(agent.last_seen)}`
                 : undefined
             }
           >
+            <div className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              System
+            </div>
             <MetricBar
               label="CPU"
               percent={agent.metrics.cpu_percent}
