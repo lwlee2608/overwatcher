@@ -13,7 +13,8 @@ import (
 
 var metricsWarnOnce sync.Once
 
-// collectHostMetrics snapshots CPU, memory and root-filesystem disk usage.
+// collectHostMetrics snapshots CPU, memory, swap and root-filesystem disk
+// usage.
 // Returns nil when collection fails (e.g. unsupported platform) — metrics are
 // best-effort and must never get in the way of polling. The failure is logged
 // once, not every poll.

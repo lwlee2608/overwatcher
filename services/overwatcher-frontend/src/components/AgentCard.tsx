@@ -3,6 +3,10 @@ import type { AgentStatus } from "../types/agent";
 import { AgentTypeBadge } from "./AgentTypeBadge";
 import { StatusBadge } from "./StatusBadge";
 
+function percentOf(used: number, total: number): number {
+  return total > 0 ? (used / total) * 100 : 0;
+}
+
 function formatBytes(bytes: number): string {
   const gb = bytes / 1024 ** 3;
   if (gb >= 1) return `${gb.toFixed(1)} GB`;
@@ -104,19 +108,19 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
             />
             <MetricBar
               label="RAM"
-              percent={(agent.metrics.mem_used_bytes / agent.metrics.mem_total_bytes) * 100}
+              percent={percentOf(agent.metrics.mem_used_bytes, agent.metrics.mem_total_bytes)}
               detail={`${formatBytes(agent.metrics.mem_used_bytes)} / ${formatBytes(agent.metrics.mem_total_bytes)}`}
             />
             {agent.metrics.swap_total_bytes > 0 && (
               <MetricBar
                 label="Swap"
-                percent={(agent.metrics.swap_used_bytes / agent.metrics.swap_total_bytes) * 100}
+                percent={percentOf(agent.metrics.swap_used_bytes, agent.metrics.swap_total_bytes)}
                 detail={`${formatBytes(agent.metrics.swap_used_bytes)} / ${formatBytes(agent.metrics.swap_total_bytes)}`}
               />
             )}
             <MetricBar
               label="Disk"
-              percent={(agent.metrics.disk_used_bytes / agent.metrics.disk_total_bytes) * 100}
+              percent={percentOf(agent.metrics.disk_used_bytes, agent.metrics.disk_total_bytes)}
               detail={`${formatBytes(agent.metrics.disk_used_bytes)} / ${formatBytes(agent.metrics.disk_total_bytes)}`}
             />
           </div>

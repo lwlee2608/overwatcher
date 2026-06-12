@@ -354,7 +354,7 @@ func (s *Service) toStatus(a sqlc.Agent, projectName string, now time.Time) Agen
 }
 
 // metricsFromAgent returns nil for agents that have never reported metrics.
-// The five columns are always written together, so mem_total stands in for
+// The metric columns are always written together, so mem_total stands in for
 // all of them.
 func metricsFromAgent(a sqlc.Agent) *HostMetrics {
 	if !a.MemTotalBytes.Valid {
