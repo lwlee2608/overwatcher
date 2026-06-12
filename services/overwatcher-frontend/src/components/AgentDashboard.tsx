@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { AgentStatus, ConnectionStatus } from "../types/agent";
 import { deleteAgent, fetchAgents } from "../api/agents";
+import { fetchVersion } from "../api/version";
 import { AgentCard } from "./AgentCard";
 import { InstallAgentCard } from "./InstallAgentCard";
 
@@ -20,7 +21,14 @@ export function AgentDashboard() {
     new Set(["connected", "stale", "disconnected"])
   );
   const [filterOpen, setFilterOpen] = useState(false);
+  const [releaseTag, setReleaseTag] = useState<string | null>(null);
   const filterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchVersion()
+      .then((v) => setReleaseTag(v.release_tag))
+      .catch(() => setReleaseTag(null));
+  }, []);
 
   useEffect(() => {
     if (!filterOpen) return;
@@ -234,7 +242,12 @@ export function AgentDashboard() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {sorted.map((agent) => (
-          <AgentCard key={agent.name} agent={agent} onDelete={handleDelete} />
+          <AgentCard
+            key={agent.name}
+            agent={agent}
+            onDelete={handleDelete}
+            releaseTag={releaseTag}
+          />
         ))}
       </div>
     </div>

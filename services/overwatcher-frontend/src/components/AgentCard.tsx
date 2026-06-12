@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { AgentStatus } from "../types/agent";
 import { AgentTypeBadge } from "./AgentTypeBadge";
@@ -32,6 +33,56 @@ function MetricBar({ label, percent, detail }: { label: string; percent: number;
   );
 }
 
+// The systemd installer re-reads the token from the existing env file, so the
+// upgrade command needs no secrets. Docker agents were started with run args
+// we don't know, so only the pull/remove steps can be given.
+function upgradeCommand(agent: AgentStatus, releaseTag: string): string {
+  if (agent.type === "docker") {
+    return `docker pull lwlee2608/agent:${releaseTag.replace(/^v/, "")}
+docker stop overwatcher-agent && docker rm overwatcher-agent
+# re-run your original docker run command with the new image tag`;
+  }
+  return `TOKEN=$(sudo sed -n 's/^AGENT_TOKEN=//p' /etc/overwatcher-agent.env)
+curl -fsSL ${window.location.origin}/install.sh | sudo AGENT_TOKEN="$TOKEN" bash`;
+}
+
+function UpgradeInstructions({ agent, releaseTag }: { agent: AgentStatus; releaseTag: string }) {
+  const [copied, setCopied] = useState(false);
+  const command = upgradeCommand(agent, releaseTag);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(command);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard fails in non-secure contexts; command is on-screen anyway.
+    }
+  };
+
+  return (
+    <div>
+      <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
+        {agent.type === "docker"
+          ? "Pull the new image and recreate the container on the host:"
+          : "Run this on the agent's host — the binary is swapped in place and the unit restarted:"}
+      </p>
+      <div className="relative">
+        <pre className="overflow-x-auto rounded bg-gray-900 p-2 pr-16 text-xs text-gray-100 dark:bg-gray-950">
+          <code>{command}</code>
+        </pre>
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="absolute right-1.5 top-1.5 rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-100 hover:bg-gray-600"
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function timeAgo(isoString: string): string {
   const seconds = Math.floor(
     (Date.now() - new Date(isoString).getTime()) / 1000
@@ -47,11 +98,18 @@ function timeAgo(isoString: string): string {
 interface AgentCardProps {
   agent: AgentStatus;
   onDelete?: (agent: AgentStatus) => void;
+  releaseTag?: string | null;
 }
 
-export function AgentCard({ agent, onDelete }: AgentCardProps) {
+export function AgentCard({ agent, onDelete, releaseTag }: AgentCardProps) {
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const bound = Boolean(agent.project_id);
   const canDelete = Boolean(onDelete) && !bound;
+  // Dev coordinator builds report release_tag "latest", which can't be
+  // compared against agent versions — only flag against a real vX.Y.Z tag.
+  const outdated = Boolean(
+    releaseTag?.startsWith("v") && agent.version && agent.version !== releaseTag
+  );
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
       <div className="flex items-center justify-between mb-3">
@@ -90,7 +148,20 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
               unknown
             </span>
           )}
+          {outdated && (
+            <button
+              type="button"
+              onClick={() => setShowUpgrade((v) => !v)}
+              className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:hover:bg-amber-900/50"
+            >
+              {releaseTag} available
+            </button>
+          )}
         </div>
+
+        {outdated && showUpgrade && (
+          <UpgradeInstructions agent={agent} releaseTag={releaseTag!} />
+        )}
 
         {agent.metrics && (
           <div
