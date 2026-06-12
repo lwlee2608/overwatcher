@@ -3,15 +3,26 @@ package dto
 import "time"
 
 type AgentStatusResponse struct {
-	ID          string    `json:"id"`
-	Name        string    `json:"name"`
-	LastSeen    time.Time `json:"last_seen"`
-	RemoteIP    string    `json:"remote_ip"`
-	Status      string    `json:"status"`
-	ProjectID   string    `json:"project_id,omitempty"`
-	ProjectName string    `json:"project_name,omitempty"`
-	Type        string    `json:"type,omitempty"`
-	Version     string    `json:"version,omitempty"`
+	ID          string        `json:"id"`
+	Name        string        `json:"name"`
+	LastSeen    time.Time     `json:"last_seen"`
+	RemoteIP    string        `json:"remote_ip"`
+	Status      string        `json:"status"`
+	ProjectID   string        `json:"project_id,omitempty"`
+	ProjectName string        `json:"project_name,omitempty"`
+	Type        string        `json:"type,omitempty"`
+	Version     string        `json:"version,omitempty"`
+	Metrics     *AgentMetrics `json:"metrics,omitempty"`
+}
+
+// AgentMetrics is the agent's last reported resource snapshot, no fresher
+// than last_seen. Omitted until the agent first reports.
+type AgentMetrics struct {
+	CPUPercent     float64 `json:"cpu_percent"`
+	MemUsedBytes   uint64  `json:"mem_used_bytes"`
+	MemTotalBytes  uint64  `json:"mem_total_bytes"`
+	DiskUsedBytes  uint64  `json:"disk_used_bytes"`
+	DiskTotalBytes uint64  `json:"disk_total_bytes"`
 }
 
 type AgentListResponse struct {

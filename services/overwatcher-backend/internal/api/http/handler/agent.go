@@ -265,7 +265,7 @@ func (h *AgentHandler) BindProject(c *gin.Context) {
 }
 
 func toAgentResponse(a *agentregistry.AgentStatus) dto.AgentStatusResponse {
-	return dto.AgentStatusResponse{
+	resp := dto.AgentStatusResponse{
 		ID:          a.ID,
 		Name:        a.Name,
 		LastSeen:    a.LastSeen,
@@ -276,4 +276,14 @@ func toAgentResponse(a *agentregistry.AgentStatus) dto.AgentStatusResponse {
 		Type:        a.Type,
 		Version:     a.Version,
 	}
+	if m := a.Metrics; m != nil {
+		resp.Metrics = &dto.AgentMetrics{
+			CPUPercent:     m.CPUPercent,
+			MemUsedBytes:   m.MemUsedBytes,
+			MemTotalBytes:  m.MemTotalBytes,
+			DiskUsedBytes:  m.DiskUsedBytes,
+			DiskTotalBytes: m.DiskTotalBytes,
+		}
+	}
+	return resp
 }

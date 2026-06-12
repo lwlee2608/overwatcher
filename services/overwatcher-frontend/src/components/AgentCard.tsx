@@ -3,6 +3,31 @@ import type { AgentStatus } from "../types/agent";
 import { AgentTypeBadge } from "./AgentTypeBadge";
 import { StatusBadge } from "./StatusBadge";
 
+function formatBytes(bytes: number): string {
+  const gb = bytes / 1024 ** 3;
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  return `${(bytes / 1024 ** 2).toFixed(0)} MB`;
+}
+
+function MetricBar({ label, percent, detail }: { label: string; percent: number; detail: string }) {
+  const clamped = Math.min(Math.max(percent, 0), 100);
+  const barColor = clamped >= 90 ? "bg-red-500" : clamped >= 75 ? "bg-yellow-500" : "bg-blue-500";
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-8 font-medium text-gray-500 dark:text-gray-500">
+        {label}
+      </span>
+      <div className="h-1.5 w-20 shrink-0 rounded-full bg-gray-200 dark:bg-gray-700">
+        <div
+          className={`h-1.5 rounded-full ${barColor}`}
+          style={{ width: `${clamped}%` }}
+        />
+      </div>
+      <span className="text-xs tabular-nums">{detail}</span>
+    </div>
+  );
+}
+
 function timeAgo(isoString: string): string {
   const seconds = Math.floor(
     (Date.now() - new Date(isoString).getTime()) / 1000
@@ -62,6 +87,33 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
             </span>
           )}
         </div>
+
+        {agent.metrics && (
+          <div
+            className={`space-y-2 ${agent.status !== "connected" ? "opacity-50" : ""}`}
+            title={
+              agent.status !== "connected"
+                ? `As of last heartbeat, ${timeAgo(agent.last_seen)}`
+                : undefined
+            }
+          >
+            <MetricBar
+              label="CPU"
+              percent={agent.metrics.cpu_percent}
+              detail={`${agent.metrics.cpu_percent.toFixed(0)}%`}
+            />
+            <MetricBar
+              label="RAM"
+              percent={(agent.metrics.mem_used_bytes / agent.metrics.mem_total_bytes) * 100}
+              detail={`${formatBytes(agent.metrics.mem_used_bytes)} / ${formatBytes(agent.metrics.mem_total_bytes)}`}
+            />
+            <MetricBar
+              label="Disk"
+              percent={(agent.metrics.disk_used_bytes / agent.metrics.disk_total_bytes) * 100}
+              detail={`${formatBytes(agent.metrics.disk_used_bytes)} / ${formatBytes(agent.metrics.disk_total_bytes)}`}
+            />
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
           <span className="font-medium text-gray-500 dark:text-gray-500">

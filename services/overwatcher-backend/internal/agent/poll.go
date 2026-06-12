@@ -94,6 +94,11 @@ func (p *Poller) fetchNext(ctx context.Context) (*protocol.DeployIntentResponse,
 	req.Header.Set("Authorization", "Bearer "+p.cfg.Token)
 	req.Header.Set("X-Agent-Type", p.agentType)
 	req.Header.Set("X-Agent-Version", p.version)
+	if m := collectHostMetrics(); m != nil {
+		if b, err := json.Marshal(m); err == nil {
+			req.Header.Set(protocol.HostMetricsHeader, string(b))
+		}
+	}
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
