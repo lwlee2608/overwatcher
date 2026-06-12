@@ -11,6 +11,8 @@ type HostMetrics struct {
 	CPUPercent     float64 `json:"cpu_percent"`
 	MemUsedBytes   uint64  `json:"mem_used_bytes"`
 	MemTotalBytes  uint64  `json:"mem_total_bytes"`
+	SwapUsedBytes  uint64  `json:"swap_used_bytes"`
+	SwapTotalBytes uint64  `json:"swap_total_bytes"`
 	DiskUsedBytes  uint64  `json:"disk_used_bytes"`
 	DiskTotalBytes uint64  `json:"disk_total_bytes"`
 }

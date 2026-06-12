@@ -6,6 +6,8 @@ export interface AgentMetrics {
   cpu_percent: number;
   mem_used_bytes: number;
   mem_total_bytes: number;
+  swap_used_bytes: number;
+  swap_total_bytes: number;
   disk_used_bytes: number;
   disk_total_bytes: number;
 }

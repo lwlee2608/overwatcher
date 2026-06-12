@@ -23,11 +23,12 @@ func collectHostMetrics() *protocol.HostMetrics {
 	// now, which is close enough.
 	cpuPcts, cpuErr := cpu.Percent(0, false)
 	vm, memErr := mem.VirtualMemory()
+	swap, swapErr := mem.SwapMemory()
 	du, diskErr := disk.Usage("/")
-	if cpuErr != nil || memErr != nil || diskErr != nil || len(cpuPcts) == 0 {
+	if cpuErr != nil || memErr != nil || swapErr != nil || diskErr != nil || len(cpuPcts) == 0 {
 		metricsWarnOnce.Do(func() {
 			slog.Warn("host metrics collection failed, not reporting metrics",
-				"cpu_error", cpuErr, "mem_error", memErr, "disk_error", diskErr)
+				"cpu_error", cpuErr, "mem_error", memErr, "swap_error", swapErr, "disk_error", diskErr)
 		})
 		return nil
 	}
@@ -35,6 +36,8 @@ func collectHostMetrics() *protocol.HostMetrics {
 		CPUPercent:     cpuPcts[0],
 		MemUsedBytes:   vm.Used,
 		MemTotalBytes:  vm.Total,
+		SwapUsedBytes:  swap.Used,
+		SwapTotalBytes: swap.Total,
 		DiskUsedBytes:  du.Used,
 		DiskTotalBytes: du.Total,
 	}

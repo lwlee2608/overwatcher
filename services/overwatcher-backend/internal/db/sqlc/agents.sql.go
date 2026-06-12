@@ -16,7 +16,7 @@ UPDATE agents
 SET project_id = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version, token_hash, installed_by_user_id, cpu_percent, mem_used_bytes, mem_total_bytes, disk_used_bytes, disk_total_bytes
+RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version, token_hash, installed_by_user_id, cpu_percent, mem_used_bytes, mem_total_bytes, swap_used_bytes, swap_total_bytes, disk_used_bytes, disk_total_bytes
 `
 
 type BindAgentToProjectParams struct {
@@ -42,6 +42,8 @@ func (q *Queries) BindAgentToProject(ctx context.Context, arg BindAgentToProject
 		&i.CpuPercent,
 		&i.MemUsedBytes,
 		&i.MemTotalBytes,
+		&i.SwapUsedBytes,
+		&i.SwapTotalBytes,
 		&i.DiskUsedBytes,
 		&i.DiskTotalBytes,
 	)
@@ -63,7 +65,7 @@ func (q *Queries) ClearAgentProjectBinding(ctx context.Context, projectID pgtype
 const createAgent = `-- name: CreateAgent :one
 INSERT INTO agents (name, installed_by_user_id, token_hash, remote_ip)
 VALUES ($1, $2, $3, '')
-RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version, token_hash, installed_by_user_id, cpu_percent, mem_used_bytes, mem_total_bytes, disk_used_bytes, disk_total_bytes
+RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version, token_hash, installed_by_user_id, cpu_percent, mem_used_bytes, mem_total_bytes, swap_used_bytes, swap_total_bytes, disk_used_bytes, disk_total_bytes
 `
 
 type CreateAgentParams struct {
@@ -92,6 +94,8 @@ func (q *Queries) CreateAgent(ctx context.Context, arg CreateAgentParams) (Agent
 		&i.CpuPercent,
 		&i.MemUsedBytes,
 		&i.MemTotalBytes,
+		&i.SwapUsedBytes,
+		&i.SwapTotalBytes,
 		&i.DiskUsedBytes,
 		&i.DiskTotalBytes,
 	)
@@ -111,7 +115,7 @@ func (q *Queries) DeleteAgent(ctx context.Context, id pgtype.UUID) (int64, error
 }
 
 const getAgent = `-- name: GetAgent :one
-SELECT a.id, a.name, a.remote_ip, a.last_seen_at, a.created_at, a.updated_at, a.project_id, a.agent_type, a.version, a.token_hash, a.installed_by_user_id, a.cpu_percent, a.mem_used_bytes, a.mem_total_bytes, a.disk_used_bytes, a.disk_total_bytes, p.name AS project_name
+SELECT a.id, a.name, a.remote_ip, a.last_seen_at, a.created_at, a.updated_at, a.project_id, a.agent_type, a.version, a.token_hash, a.installed_by_user_id, a.cpu_percent, a.mem_used_bytes, a.mem_total_bytes, a.swap_used_bytes, a.swap_total_bytes, a.disk_used_bytes, a.disk_total_bytes, p.name AS project_name
 FROM agents a
 LEFT JOIN projects p ON p.id = a.project_id
 WHERE a.id = $1
@@ -132,6 +136,8 @@ type GetAgentRow struct {
 	CpuPercent        pgtype.Float4      `json:"cpu_percent"`
 	MemUsedBytes      pgtype.Int8        `json:"mem_used_bytes"`
 	MemTotalBytes     pgtype.Int8        `json:"mem_total_bytes"`
+	SwapUsedBytes     pgtype.Int8        `json:"swap_used_bytes"`
+	SwapTotalBytes    pgtype.Int8        `json:"swap_total_bytes"`
 	DiskUsedBytes     pgtype.Int8        `json:"disk_used_bytes"`
 	DiskTotalBytes    pgtype.Int8        `json:"disk_total_bytes"`
 	ProjectName       pgtype.Text        `json:"project_name"`
@@ -155,6 +161,8 @@ func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (GetAgentRow, er
 		&i.CpuPercent,
 		&i.MemUsedBytes,
 		&i.MemTotalBytes,
+		&i.SwapUsedBytes,
+		&i.SwapTotalBytes,
 		&i.DiskUsedBytes,
 		&i.DiskTotalBytes,
 		&i.ProjectName,
@@ -163,7 +171,7 @@ func (q *Queries) GetAgent(ctx context.Context, id pgtype.UUID) (GetAgentRow, er
 }
 
 const getAgentByTokenHash = `-- name: GetAgentByTokenHash :one
-SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version, token_hash, installed_by_user_id, cpu_percent, mem_used_bytes, mem_total_bytes, disk_used_bytes, disk_total_bytes FROM agents WHERE token_hash = $1
+SELECT id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version, token_hash, installed_by_user_id, cpu_percent, mem_used_bytes, mem_total_bytes, swap_used_bytes, swap_total_bytes, disk_used_bytes, disk_total_bytes FROM agents WHERE token_hash = $1
 `
 
 func (q *Queries) GetAgentByTokenHash(ctx context.Context, tokenHash pgtype.Text) (Agent, error) {
@@ -184,6 +192,8 @@ func (q *Queries) GetAgentByTokenHash(ctx context.Context, tokenHash pgtype.Text
 		&i.CpuPercent,
 		&i.MemUsedBytes,
 		&i.MemTotalBytes,
+		&i.SwapUsedBytes,
+		&i.SwapTotalBytes,
 		&i.DiskUsedBytes,
 		&i.DiskTotalBytes,
 	)
@@ -191,7 +201,7 @@ func (q *Queries) GetAgentByTokenHash(ctx context.Context, tokenHash pgtype.Text
 }
 
 const listAgentsForUser = `-- name: ListAgentsForUser :many
-SELECT a.id, a.name, a.remote_ip, a.last_seen_at, a.created_at, a.updated_at, a.project_id, a.agent_type, a.version, a.token_hash, a.installed_by_user_id, a.cpu_percent, a.mem_used_bytes, a.mem_total_bytes, a.disk_used_bytes, a.disk_total_bytes, p.name AS project_name
+SELECT a.id, a.name, a.remote_ip, a.last_seen_at, a.created_at, a.updated_at, a.project_id, a.agent_type, a.version, a.token_hash, a.installed_by_user_id, a.cpu_percent, a.mem_used_bytes, a.mem_total_bytes, a.swap_used_bytes, a.swap_total_bytes, a.disk_used_bytes, a.disk_total_bytes, p.name AS project_name
 FROM agents a
 LEFT JOIN projects p ON p.id = a.project_id
 WHERE (a.project_id IS NULL AND a.installed_by_user_id = $1)
@@ -219,6 +229,8 @@ type ListAgentsForUserRow struct {
 	CpuPercent        pgtype.Float4      `json:"cpu_percent"`
 	MemUsedBytes      pgtype.Int8        `json:"mem_used_bytes"`
 	MemTotalBytes     pgtype.Int8        `json:"mem_total_bytes"`
+	SwapUsedBytes     pgtype.Int8        `json:"swap_used_bytes"`
+	SwapTotalBytes    pgtype.Int8        `json:"swap_total_bytes"`
 	DiskUsedBytes     pgtype.Int8        `json:"disk_used_bytes"`
 	DiskTotalBytes    pgtype.Int8        `json:"disk_total_bytes"`
 	ProjectName       pgtype.Text        `json:"project_name"`
@@ -250,6 +262,8 @@ func (q *Queries) ListAgentsForUser(ctx context.Context, installedByUserID pgtyp
 			&i.CpuPercent,
 			&i.MemUsedBytes,
 			&i.MemTotalBytes,
+			&i.SwapUsedBytes,
+			&i.SwapTotalBytes,
 			&i.DiskUsedBytes,
 			&i.DiskTotalBytes,
 			&i.ProjectName,
@@ -269,7 +283,7 @@ UPDATE agents
 SET token_hash = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version, token_hash, installed_by_user_id, cpu_percent, mem_used_bytes, mem_total_bytes, disk_used_bytes, disk_total_bytes
+RETURNING id, name, remote_ip, last_seen_at, created_at, updated_at, project_id, agent_type, version, token_hash, installed_by_user_id, cpu_percent, mem_used_bytes, mem_total_bytes, swap_used_bytes, swap_total_bytes, disk_used_bytes, disk_total_bytes
 `
 
 type SetAgentTokenParams struct {
@@ -296,6 +310,8 @@ func (q *Queries) SetAgentToken(ctx context.Context, arg SetAgentTokenParams) (A
 		&i.CpuPercent,
 		&i.MemUsedBytes,
 		&i.MemTotalBytes,
+		&i.SwapUsedBytes,
+		&i.SwapTotalBytes,
 		&i.DiskUsedBytes,
 		&i.DiskTotalBytes,
 	)
@@ -310,8 +326,10 @@ SET remote_ip        = $2,
     cpu_percent      = COALESCE($5::real, cpu_percent),
     mem_used_bytes   = COALESCE($6::bigint, mem_used_bytes),
     mem_total_bytes  = COALESCE($7::bigint, mem_total_bytes),
-    disk_used_bytes  = COALESCE($8::bigint, disk_used_bytes),
-    disk_total_bytes = COALESCE($9::bigint, disk_total_bytes),
+    swap_used_bytes  = COALESCE($8::bigint, swap_used_bytes),
+    swap_total_bytes = COALESCE($9::bigint, swap_total_bytes),
+    disk_used_bytes  = COALESCE($10::bigint, disk_used_bytes),
+    disk_total_bytes = COALESCE($11::bigint, disk_total_bytes),
     last_seen_at = NOW(),
     updated_at   = NOW()
 WHERE id = $1
@@ -325,6 +343,8 @@ type TouchAgentParams struct {
 	CpuPercent     pgtype.Float4 `json:"cpu_percent"`
 	MemUsedBytes   pgtype.Int8   `json:"mem_used_bytes"`
 	MemTotalBytes  pgtype.Int8   `json:"mem_total_bytes"`
+	SwapUsedBytes  pgtype.Int8   `json:"swap_used_bytes"`
+	SwapTotalBytes pgtype.Int8   `json:"swap_total_bytes"`
 	DiskUsedBytes  pgtype.Int8   `json:"disk_used_bytes"`
 	DiskTotalBytes pgtype.Int8   `json:"disk_total_bytes"`
 }
@@ -341,6 +361,8 @@ func (q *Queries) TouchAgent(ctx context.Context, arg TouchAgentParams) error {
 		arg.CpuPercent,
 		arg.MemUsedBytes,
 		arg.MemTotalBytes,
+		arg.SwapUsedBytes,
+		arg.SwapTotalBytes,
 		arg.DiskUsedBytes,
 		arg.DiskTotalBytes,
 	)

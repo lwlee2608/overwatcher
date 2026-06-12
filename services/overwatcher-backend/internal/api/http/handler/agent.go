@@ -281,6 +281,8 @@ func toAgentResponse(a *agentregistry.AgentStatus) dto.AgentStatusResponse {
 			CPUPercent:     m.CPUPercent,
 			MemUsedBytes:   m.MemUsedBytes,
 			MemTotalBytes:  m.MemTotalBytes,
+			SwapUsedBytes:  m.SwapUsedBytes,
+			SwapTotalBytes: m.SwapTotalBytes,
 			DiskUsedBytes:  m.DiskUsedBytes,
 			DiskTotalBytes: m.DiskTotalBytes,
 		}

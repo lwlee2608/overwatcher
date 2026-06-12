@@ -23,6 +23,8 @@ type Agent struct {
 	CpuPercent        pgtype.Float4      `json:"cpu_percent"`
 	MemUsedBytes      pgtype.Int8        `json:"mem_used_bytes"`
 	MemTotalBytes     pgtype.Int8        `json:"mem_total_bytes"`
+	SwapUsedBytes     pgtype.Int8        `json:"swap_used_bytes"`
+	SwapTotalBytes    pgtype.Int8        `json:"swap_total_bytes"`
 	DiskUsedBytes     pgtype.Int8        `json:"disk_used_bytes"`
 	DiskTotalBytes    pgtype.Int8        `json:"disk_total_bytes"`
 }

@@ -16,11 +16,14 @@ type AgentStatusResponse struct {
 }
 
 // AgentMetrics is the agent's last reported resource snapshot, no fresher
-// than last_seen. Omitted until the agent first reports.
+// than last_seen. Omitted until the agent first reports. swap_total_bytes is
+// 0 when the host has no swap configured.
 type AgentMetrics struct {
 	CPUPercent     float64 `json:"cpu_percent"`
 	MemUsedBytes   uint64  `json:"mem_used_bytes"`
 	MemTotalBytes  uint64  `json:"mem_total_bytes"`
+	SwapUsedBytes  uint64  `json:"swap_used_bytes"`
+	SwapTotalBytes uint64  `json:"swap_total_bytes"`
 	DiskUsedBytes  uint64  `json:"disk_used_bytes"`
 	DiskTotalBytes uint64  `json:"disk_total_bytes"`
 }

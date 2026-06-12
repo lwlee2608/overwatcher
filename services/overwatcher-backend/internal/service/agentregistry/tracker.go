@@ -36,11 +36,14 @@ const (
 )
 
 // HostMetrics is the last resource snapshot an agent reported with a
-// heartbeat. Disk figures are for the agent's root filesystem.
+// heartbeat. Disk figures are for the agent's root filesystem. SwapTotalBytes
+// is 0 when the host has no swap configured.
 type HostMetrics struct {
 	CPUPercent     float64 `json:"cpu_percent"`
 	MemUsedBytes   uint64  `json:"mem_used_bytes"`
 	MemTotalBytes  uint64  `json:"mem_total_bytes"`
+	SwapUsedBytes  uint64  `json:"swap_used_bytes"`
+	SwapTotalBytes uint64  `json:"swap_total_bytes"`
 	DiskUsedBytes  uint64  `json:"disk_used_bytes"`
 	DiskTotalBytes uint64  `json:"disk_total_bytes"`
 }
@@ -197,6 +200,8 @@ func (s *Service) Touch(ctx context.Context, agentID, remoteIP, agentType, versi
 		params.CpuPercent = pgtype.Float4{Float32: float32(metrics.CPUPercent), Valid: true}
 		params.MemUsedBytes = pgtype.Int8{Int64: int64(metrics.MemUsedBytes), Valid: true}
 		params.MemTotalBytes = pgtype.Int8{Int64: int64(metrics.MemTotalBytes), Valid: true}
+		params.SwapUsedBytes = pgtype.Int8{Int64: int64(metrics.SwapUsedBytes), Valid: true}
+		params.SwapTotalBytes = pgtype.Int8{Int64: int64(metrics.SwapTotalBytes), Valid: true}
 		params.DiskUsedBytes = pgtype.Int8{Int64: int64(metrics.DiskUsedBytes), Valid: true}
 		params.DiskTotalBytes = pgtype.Int8{Int64: int64(metrics.DiskTotalBytes), Valid: true}
 	}
@@ -359,6 +364,8 @@ func metricsFromAgent(a sqlc.Agent) *HostMetrics {
 		CPUPercent:     float64(a.CpuPercent.Float32),
 		MemUsedBytes:   uint64(a.MemUsedBytes.Int64),
 		MemTotalBytes:  uint64(a.MemTotalBytes.Int64),
+		SwapUsedBytes:  uint64(a.SwapUsedBytes.Int64),
+		SwapTotalBytes: uint64(a.SwapTotalBytes.Int64),
 		DiskUsedBytes:  uint64(a.DiskUsedBytes.Int64),
 		DiskTotalBytes: uint64(a.DiskTotalBytes.Int64),
 	}
@@ -379,6 +386,8 @@ func agentFromListRow(r sqlc.ListAgentsForUserRow) sqlc.Agent {
 		CpuPercent:        r.CpuPercent,
 		MemUsedBytes:      r.MemUsedBytes,
 		MemTotalBytes:     r.MemTotalBytes,
+		SwapUsedBytes:     r.SwapUsedBytes,
+		SwapTotalBytes:    r.SwapTotalBytes,
 		DiskUsedBytes:     r.DiskUsedBytes,
 		DiskTotalBytes:    r.DiskTotalBytes,
 	}
@@ -399,6 +408,8 @@ func agentFromGetRow(r sqlc.GetAgentRow) sqlc.Agent {
 		CpuPercent:        r.CpuPercent,
 		MemUsedBytes:      r.MemUsedBytes,
 		MemTotalBytes:     r.MemTotalBytes,
+		SwapUsedBytes:     r.SwapUsedBytes,
+		SwapTotalBytes:    r.SwapTotalBytes,
 		DiskUsedBytes:     r.DiskUsedBytes,
 		DiskTotalBytes:    r.DiskTotalBytes,
 	}
