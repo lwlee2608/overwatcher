@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { AgentStatus } from "../types/agent";
 import { AgentTypeBadge } from "./AgentTypeBadge";
+import { CopyButton } from "./CopyButton";
 import { StatusBadge } from "./StatusBadge";
 
 function percentOf(used: number, total: number): number {
@@ -47,18 +48,7 @@ curl -fsSL ${window.location.origin}/install.sh | sudo AGENT_TOKEN="$TOKEN" bash
 }
 
 function UpgradeInstructions({ agent, releaseTag }: { agent: AgentStatus; releaseTag: string }) {
-  const [copied, setCopied] = useState(false);
   const command = upgradeCommand(agent, releaseTag);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(command);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      // Clipboard fails in non-secure contexts; command is on-screen anyway.
-    }
-  };
 
   return (
     <div>
@@ -68,16 +58,12 @@ function UpgradeInstructions({ agent, releaseTag }: { agent: AgentStatus; releas
           : "Run this on the agent's host — the binary is swapped in place and the unit restarted:"}
       </p>
       <div className="relative">
-        <pre className="overflow-x-auto rounded bg-gray-900 p-2 pr-16 text-xs text-gray-100 dark:bg-gray-950">
+        <pre className="overflow-x-auto rounded bg-gray-900 p-3 pr-12 text-xs text-gray-100 dark:bg-gray-950">
           <code>{command}</code>
         </pre>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="absolute right-1.5 top-1.5 rounded bg-gray-700 px-1.5 py-0.5 text-xs text-gray-100 hover:bg-gray-600"
-        >
-          {copied ? "Copied" : "Copy"}
-        </button>
+        <div className="absolute right-2 top-2">
+          <CopyButton text={command} label="Copy upgrade command" />
+        </div>
       </div>
     </div>
   );
