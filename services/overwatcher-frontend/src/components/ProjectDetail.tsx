@@ -712,7 +712,7 @@ function MembersPanel({
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIdx((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
-    } else if (e.key === "Enter" && activeIdx >= 0) {
+    } else if (e.key === "Enter" && suggestions[activeIdx]) {
       e.preventDefault();
       selectUser(suggestions[activeIdx]);
     } else if (e.key === "Escape") {
@@ -797,7 +797,10 @@ function MembersPanel({
               className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
             />
             {showSuggestions && suggestions.length > 0 && (
-              <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-gray-300 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700">
+              <ul
+                onMouseLeave={() => setActiveIdx(-1)}
+                className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-gray-300 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700"
+              >
                 {suggestions.map((u, i) => (
                   <li key={u.id}>
                     <button
