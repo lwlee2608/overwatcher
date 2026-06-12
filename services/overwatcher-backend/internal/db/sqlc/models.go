@@ -20,6 +20,13 @@ type Agent struct {
 	Version           pgtype.Text        `json:"version"`
 	TokenHash         pgtype.Text        `json:"token_hash"`
 	InstalledByUserID pgtype.UUID        `json:"installed_by_user_id"`
+	CpuPercent        pgtype.Float4      `json:"cpu_percent"`
+	MemUsedBytes      pgtype.Int8        `json:"mem_used_bytes"`
+	MemTotalBytes     pgtype.Int8        `json:"mem_total_bytes"`
+	SwapUsedBytes     pgtype.Int8        `json:"swap_used_bytes"`
+	SwapTotalBytes    pgtype.Int8        `json:"swap_total_bytes"`
+	DiskUsedBytes     pgtype.Int8        `json:"disk_used_bytes"`
+	DiskTotalBytes    pgtype.Int8        `json:"disk_total_bytes"`
 }
 
 type DeployIntent struct {

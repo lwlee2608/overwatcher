@@ -35,6 +35,19 @@ const (
 	StatusLost         ConnectionStatus = "lost"
 )
 
+// HostMetrics is the last resource snapshot an agent reported with a
+// heartbeat. Disk figures are for the agent's root filesystem. SwapTotalBytes
+// is 0 when the host has no swap configured.
+type HostMetrics struct {
+	CPUPercent     float64 `json:"cpu_percent"`
+	MemUsedBytes   uint64  `json:"mem_used_bytes"`
+	MemTotalBytes  uint64  `json:"mem_total_bytes"`
+	SwapUsedBytes  uint64  `json:"swap_used_bytes"`
+	SwapTotalBytes uint64  `json:"swap_total_bytes"`
+	DiskUsedBytes  uint64  `json:"disk_used_bytes"`
+	DiskTotalBytes uint64  `json:"disk_total_bytes"`
+}
+
 // AgentStatus is a point-in-time snapshot of a registered agent.
 type AgentStatus struct {
 	ID          string           `json:"id"`
@@ -46,6 +59,9 @@ type AgentStatus struct {
 	ProjectName string           `json:"project_name,omitempty"`
 	Type        string           `json:"type,omitempty"`
 	Version     string           `json:"version,omitempty"`
+	// Metrics is nil until the agent first reports; afterwards it holds the
+	// last reported values (as of LastSeen at the latest).
+	Metrics *HostMetrics `json:"metrics,omitempty"`
 	// InstalledBy is the user who provisioned the agent. Used for visibility of
 	// an unbound agent; not surfaced to the dashboard.
 	InstalledBy string `json:"-"`
@@ -167,18 +183,29 @@ func (s *Service) ResolveByToken(ctx context.Context, rawToken string) (*AgentSt
 }
 
 // Touch records a heartbeat on an already-resolved agent. Empty agentType or
-// version leaves any existing stored value intact (see TouchAgent SQL).
-func (s *Service) Touch(ctx context.Context, agentID, remoteIP, agentType, version string) error {
+// version leaves any existing stored value intact (see TouchAgent SQL); a nil
+// metrics likewise keeps the last reported snapshot.
+func (s *Service) Touch(ctx context.Context, agentID, remoteIP, agentType, version string, metrics *HostMetrics) error {
 	aid := pgtype.UUID{}
 	if err := aid.Scan(agentID); err != nil {
 		return err
 	}
-	return s.q.TouchAgent(ctx, sqlc.TouchAgentParams{
+	params := sqlc.TouchAgentParams{
 		ID:        aid,
 		RemoteIp:  remoteIP,
 		AgentType: agentType,
 		Version:   version,
-	})
+	}
+	if metrics != nil {
+		params.CpuPercent = pgtype.Float4{Float32: float32(metrics.CPUPercent), Valid: true}
+		params.MemUsedBytes = pgtype.Int8{Int64: int64(metrics.MemUsedBytes), Valid: true}
+		params.MemTotalBytes = pgtype.Int8{Int64: int64(metrics.MemTotalBytes), Valid: true}
+		params.SwapUsedBytes = pgtype.Int8{Int64: int64(metrics.SwapUsedBytes), Valid: true}
+		params.SwapTotalBytes = pgtype.Int8{Int64: int64(metrics.SwapTotalBytes), Valid: true}
+		params.DiskUsedBytes = pgtype.Int8{Int64: int64(metrics.DiskUsedBytes), Valid: true}
+		params.DiskTotalBytes = pgtype.Int8{Int64: int64(metrics.DiskTotalBytes), Valid: true}
+	}
+	return s.q.TouchAgent(ctx, params)
 }
 
 // ListForUser returns the agents visible to userID: unbound agents they
@@ -321,7 +348,26 @@ func (s *Service) toStatus(a sqlc.Agent, projectName string, now time.Time) Agen
 		ProjectName: projectName,
 		Type:        a.AgentType.String,
 		Version:     a.Version.String,
+		Metrics:     metricsFromAgent(a),
 		InstalledBy: util.UUIDToString(a.InstalledByUserID),
+	}
+}
+
+// metricsFromAgent returns nil for agents that have never reported metrics.
+// The metric columns are always written together, so mem_total stands in for
+// all of them.
+func metricsFromAgent(a sqlc.Agent) *HostMetrics {
+	if !a.MemTotalBytes.Valid {
+		return nil
+	}
+	return &HostMetrics{
+		CPUPercent:     float64(a.CpuPercent.Float32),
+		MemUsedBytes:   uint64(a.MemUsedBytes.Int64),
+		MemTotalBytes:  uint64(a.MemTotalBytes.Int64),
+		SwapUsedBytes:  uint64(a.SwapUsedBytes.Int64),
+		SwapTotalBytes: uint64(a.SwapTotalBytes.Int64),
+		DiskUsedBytes:  uint64(a.DiskUsedBytes.Int64),
+		DiskTotalBytes: uint64(a.DiskTotalBytes.Int64),
 	}
 }
 
@@ -337,6 +383,13 @@ func agentFromListRow(r sqlc.ListAgentsForUserRow) sqlc.Agent {
 		AgentType:         r.AgentType,
 		Version:           r.Version,
 		InstalledByUserID: r.InstalledByUserID,
+		CpuPercent:        r.CpuPercent,
+		MemUsedBytes:      r.MemUsedBytes,
+		MemTotalBytes:     r.MemTotalBytes,
+		SwapUsedBytes:     r.SwapUsedBytes,
+		SwapTotalBytes:    r.SwapTotalBytes,
+		DiskUsedBytes:     r.DiskUsedBytes,
+		DiskTotalBytes:    r.DiskTotalBytes,
 	}
 }
 
@@ -352,6 +405,13 @@ func agentFromGetRow(r sqlc.GetAgentRow) sqlc.Agent {
 		AgentType:         r.AgentType,
 		Version:           r.Version,
 		InstalledByUserID: r.InstalledByUserID,
+		CpuPercent:        r.CpuPercent,
+		MemUsedBytes:      r.MemUsedBytes,
+		MemTotalBytes:     r.MemTotalBytes,
+		SwapUsedBytes:     r.SwapUsedBytes,
+		SwapTotalBytes:    r.SwapTotalBytes,
+		DiskUsedBytes:     r.DiskUsedBytes,
+		DiskTotalBytes:    r.DiskTotalBytes,
 	}
 }
 

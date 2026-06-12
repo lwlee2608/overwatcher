@@ -93,7 +93,8 @@ type Querier interface {
 	// pollers from blocking each other or double-claiming a stack.
 	TakeNextDeployIntent(ctx context.Context, agentName string) (DeployIntent, error)
 	// Heartbeat on the agent already resolved from its token. Empty agent_type or
-	// version preserves the existing value so a poll without the header can't wipe it.
+	// version preserves the existing value so a poll without the header can't wipe
+	// it; NULL metrics likewise keep the last reported values.
 	TouchAgent(ctx context.Context, arg TouchAgentParams) error
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)

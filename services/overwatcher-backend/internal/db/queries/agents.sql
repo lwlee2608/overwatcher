@@ -15,11 +15,19 @@ RETURNING *;
 
 -- name: TouchAgent :exec
 -- Heartbeat on the agent already resolved from its token. Empty agent_type or
--- version preserves the existing value so a poll without the header can't wipe it.
+-- version preserves the existing value so a poll without the header can't wipe
+-- it; NULL metrics likewise keep the last reported values.
 UPDATE agents
-SET remote_ip    = $2,
-    agent_type   = COALESCE(NULLIF(sqlc.arg(agent_type)::text, ''), agent_type),
-    version      = COALESCE(NULLIF(sqlc.arg(version)::text, ''), version),
+SET remote_ip        = $2,
+    agent_type       = COALESCE(NULLIF(sqlc.arg(agent_type)::text, ''), agent_type),
+    version          = COALESCE(NULLIF(sqlc.arg(version)::text, ''), version),
+    cpu_percent      = COALESCE(sqlc.narg(cpu_percent)::real, cpu_percent),
+    mem_used_bytes   = COALESCE(sqlc.narg(mem_used_bytes)::bigint, mem_used_bytes),
+    mem_total_bytes  = COALESCE(sqlc.narg(mem_total_bytes)::bigint, mem_total_bytes),
+    swap_used_bytes  = COALESCE(sqlc.narg(swap_used_bytes)::bigint, swap_used_bytes),
+    swap_total_bytes = COALESCE(sqlc.narg(swap_total_bytes)::bigint, swap_total_bytes),
+    disk_used_bytes  = COALESCE(sqlc.narg(disk_used_bytes)::bigint, disk_used_bytes),
+    disk_total_bytes = COALESCE(sqlc.narg(disk_total_bytes)::bigint, disk_total_bytes),
     last_seen_at = NOW(),
     updated_at   = NOW()
 WHERE id = $1;
