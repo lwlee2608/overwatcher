@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type {
   ComposeServiceResponse,
@@ -6,6 +6,7 @@ import type {
   ProjectResponse,
 } from "../types/project";
 import type { AgentStatus } from "../types/agent";
+import type { UserResponse } from "../types/user";
 import {
   addProjectMember,
   fetchProject,
@@ -14,6 +15,7 @@ import {
   replaceProjectServices,
 } from "../api/projects";
 import { bindAgentProject, fetchAgents } from "../api/agents";
+import { fetchUsers } from "../api/users";
 import { useAuth } from "../auth/context";
 
 interface ServiceRow {
@@ -655,6 +657,9 @@ function MembersPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [users, setUsers] = useState<UserResponse[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
 
   const load = useCallback(async () => {
     try {
@@ -671,6 +676,50 @@ function MembersPanel({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!isOwner) return;
+    fetchUsers()
+      .then((r) => setUsers(r.users ?? []))
+      .catch(() => {});
+  }, [isOwner]);
+
+  const suggestions = useMemo(() => {
+    const q = email.trim().toLowerCase();
+    const memberIds = new Set(members.map((m) => m.user_id));
+    return users
+      .filter(
+        (u) =>
+          u.id !== currentUserId &&
+          !memberIds.has(u.id) &&
+          (u.email.toLowerCase().includes(q) ||
+            u.name.toLowerCase().includes(q))
+      )
+      .slice(0, 8);
+  }, [users, members, email, currentUserId]);
+
+  function selectUser(u: UserResponse) {
+    setEmail(u.email);
+    setShowSuggestions(false);
+    setActiveIdx(-1);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (!showSuggestions || suggestions.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIdx((i) => (i + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+    } else if (e.key === "Enter" && activeIdx >= 0) {
+      e.preventDefault();
+      selectUser(suggestions[activeIdx]);
+    } else if (e.key === "Escape") {
+      setShowSuggestions(false);
+      setActiveIdx(-1);
+    }
+  }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -729,13 +778,53 @@ function MembersPanel({
 
       {isOwner && (
         <form onSubmit={handleAdd} className="mb-3 flex items-center gap-2">
-          <input
-            type="email"
-            placeholder="user@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="flex-1 rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-          />
+          <div className="relative flex-1">
+            <input
+              type="email"
+              placeholder="user@example.com"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setShowSuggestions(true);
+                setActiveIdx(-1);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => {
+                setShowSuggestions(false);
+                setActiveIdx(-1);
+              }}
+              onKeyDown={handleKeyDown}
+              className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-gray-300 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-700">
+                {suggestions.map((u, i) => (
+                  <li key={u.id}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectUser(u);
+                      }}
+                      onMouseEnter={() => setActiveIdx(i)}
+                      className={`block w-full px-2 py-1.5 text-left text-sm ${
+                        i === activeIdx ? "bg-gray-100 dark:bg-gray-600" : ""
+                      }`}
+                    >
+                      <span className="text-gray-900 dark:text-gray-100">
+                        {u.email}
+                      </span>
+                      {u.name && (
+                        <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
+                          {u.name}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <button
             type="submit"
             disabled={busy || !email.trim()}
