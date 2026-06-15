@@ -18,6 +18,7 @@ import {
 import { bindAgentProject, fetchAgents } from "../api/agents";
 import { fetchUsers } from "../api/users";
 import { useAuth } from "../auth/context";
+import { DeleteProjectModal } from "./DeleteProjectModal";
 
 interface ServiceRow {
   name: string;
@@ -197,6 +198,7 @@ export function ProjectDetail() {
   const [settings, setSettings] = useState<SettingsForm | null>(null);
   const [settingsDirty, setSettingsDirty] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -771,6 +773,40 @@ export function ProjectDetail() {
         <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
           Unsaved changes
         </p>
+      )}
+
+      {isOwner && (
+        <div className="mt-8 mb-6 rounded-lg border border-red-200 bg-red-50/50 p-4 dark:border-red-900/50 dark:bg-red-900/10">
+          <h2 className="text-sm font-semibold text-red-700 dark:text-red-400">
+            Danger zone
+          </h2>
+          <div className="mt-3 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                Delete this project
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Permanently removes the project, its services, and member
+                access. This cannot be undone.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDelete(true)}
+              className="shrink-0 rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/30"
+            >
+              Delete this project
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showDelete && (
+        <DeleteProjectModal
+          projectId={project.id}
+          projectName={project.name}
+          onClose={() => setShowDelete(false)}
+        />
       )}
     </div>
   );
