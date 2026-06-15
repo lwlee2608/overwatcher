@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ProjectResponse } from "../types/project";
-import { createProject, deleteProject, fetchProjects } from "../api/projects";
+import { createProject, fetchProjects } from "../api/projects";
 import { useAuth } from "../auth/context";
 
 interface FormState {
@@ -76,16 +76,6 @@ export function ProjectsDashboard() {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleDelete(p: ProjectResponse) {
-    if (!window.confirm(`Delete project ${p.name}?`)) return;
-    try {
-      await deleteProject(p.id);
-      await loadData();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed");
     }
   }
 
@@ -237,7 +227,6 @@ export function ProjectsDashboard() {
               <th className="px-4 py-3">Environment</th>
               <th className="px-4 py-3">Compose file</th>
               <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
@@ -285,24 +274,6 @@ export function ProjectsDashboard() {
                     >
                       {p.enabled ? "enabled" : "disabled"}
                     </span>
-                  </td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">
-                    {isOwner && (
-                      <>
-                        <Link
-                          to={`/projects/${p.id}`}
-                          className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
-                        >
-                          Edit
-                        </Link>
-                        <button
-                          onClick={() => handleDelete(p)}
-                          className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                        >
-                          Delete
-                        </button>
-                      </>
-                    )}
                   </td>
                 </tr>
               );
