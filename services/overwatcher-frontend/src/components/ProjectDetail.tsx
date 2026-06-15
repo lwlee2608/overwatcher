@@ -13,6 +13,7 @@ import {
   fetchProjectMembers,
   removeProjectMember,
   replaceProjectServices,
+  updateProject,
 } from "../api/projects";
 import { bindAgentProject, fetchAgents } from "../api/agents";
 import { fetchUsers } from "../api/users";
@@ -26,6 +27,14 @@ interface ServiceRow {
   image: string;
   tag: string;
   workflow: string;
+}
+
+interface SettingsForm {
+  name: string;
+  description: string;
+  compose_file: string;
+  environment: string;
+  enabled: boolean;
 }
 
 const emptyRow = (): ServiceRow => ({
@@ -185,12 +194,23 @@ export function ProjectDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [settings, setSettings] = useState<SettingsForm | null>(null);
+  const [settingsDirty, setSettingsDirty] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     try {
       const [p, a] = await Promise.all([fetchProject(id), fetchAgents()]);
       setProject(p);
+      setSettings({
+        name: p.name,
+        description: p.description,
+        compose_file: p.compose_file,
+        environment: p.environment,
+        enabled: p.enabled,
+      });
+      setSettingsDirty(false);
       const loadedRows = (p.services ?? []).map(toRow);
       setRows(loadedRows);
       setEditing(loadedRows.map(() => false));
@@ -269,6 +289,31 @@ export function ProjectDetail() {
     }
   }
 
+  function updateSettings(patch: Partial<SettingsForm>) {
+    setSettings((s) => (s ? { ...s, ...patch } : s));
+    setSettingsDirty(true);
+  }
+
+  async function handleSaveSettings() {
+    if (!id || !settings) return;
+    setSavingSettings(true);
+    setError(null);
+    try {
+      await updateProject(id, {
+        name: settings.name.trim(),
+        description: settings.description.trim(),
+        compose_file: settings.compose_file.trim(),
+        environment: settings.environment.trim() || "production",
+        enabled: settings.enabled,
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
   async function handleSave() {
     if (!id) return;
     setSaving(true);
@@ -331,35 +376,12 @@ export function ProjectDetail() {
       </div>
 
       <div className="mb-6">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-          {project.name}
-        </h1>
-        {project.description && (
-          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {project.description}
-          </p>
-        )}
-        <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
-          <span>
-            Owner:{" "}
-            <span className="font-mono text-gray-700 dark:text-gray-300">
-              {project.user_email || project.user_id}
-            </span>
-          </span>
-          <span>
-            Env:{" "}
-            <span className="font-mono text-gray-700 dark:text-gray-300">
-              {project.environment}
-            </span>
-          </span>
-          <span>
-            Compose:{" "}
-            <span className="font-mono text-gray-700 dark:text-gray-300">
-              {project.compose_file}
-            </span>
-          </span>
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+            {project.name}
+          </h1>
           <span
-            className={`inline-block rounded-full px-2 py-0.5 font-medium ${
+            className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
               project.enabled
                 ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                 : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
@@ -368,11 +390,107 @@ export function ProjectDetail() {
             {project.enabled ? "enabled" : "disabled"}
           </span>
         </div>
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          Owner:{" "}
+          <span className="font-mono text-gray-700 dark:text-gray-300">
+            {project.user_email || project.user_id}
+          </span>
+        </p>
       </div>
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
           {error}
+        </div>
+      )}
+
+      {settings && (
+        <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              Settings
+            </h2>
+            {isOwner && (
+              <button
+                type="button"
+                onClick={handleSaveSettings}
+                disabled={!settingsDirty || savingSettings}
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingSettings ? "Saving..." : "Save"}
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-12 gap-3">
+            <Field label="Name" className="col-span-12 sm:col-span-6">
+              <input
+                type="text"
+                value={settings.name}
+                disabled={!isOwner}
+                onChange={(e) => updateSettings({ name: e.target.value })}
+                className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              />
+            </Field>
+            <Field label="Environment" className="col-span-12 sm:col-span-6">
+              <input
+                type="text"
+                placeholder="production"
+                value={settings.environment}
+                disabled={!isOwner}
+                onChange={(e) =>
+                  updateSettings({ environment: e.target.value })
+                }
+                className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              />
+            </Field>
+            <Field label="Description" className="col-span-12">
+              <input
+                type="text"
+                placeholder="What is this project?"
+                value={settings.description}
+                disabled={!isOwner}
+                onChange={(e) =>
+                  updateSettings({ description: e.target.value })
+                }
+                className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              />
+            </Field>
+            <Field
+              label="Compose file"
+              hint="Absolute path on agent host"
+              className="col-span-12"
+            >
+              <input
+                type="text"
+                placeholder="/opt/stacks/my-app/docker-compose.yml"
+                value={settings.compose_file}
+                disabled={!isOwner}
+                onChange={(e) =>
+                  updateSettings({ compose_file: e.target.value })
+                }
+                className="w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm font-mono text-gray-900 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              />
+            </Field>
+            <div className="col-span-12">
+              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={settings.enabled}
+                  disabled={!isOwner}
+                  onChange={(e) =>
+                    updateSettings({ enabled: e.target.checked })
+                  }
+                  className="rounded border-gray-300 dark:border-gray-600"
+                />
+                Enabled
+              </label>
+            </div>
+          </div>
+          {!isOwner && (
+            <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+              Only the project owner can change settings.
+            </p>
+          )}
         </div>
       )}
 
