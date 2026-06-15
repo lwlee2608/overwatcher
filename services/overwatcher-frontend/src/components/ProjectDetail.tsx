@@ -281,7 +281,11 @@ export function ProjectDetail() {
       } else {
         await bindAgentProject(agentSelection, { project_id: project.id });
       }
-      await load();
+      const a = await fetchAgents();
+      const agentList = a.agents ?? [];
+      setAgents(agentList);
+      const bound = agentList.find((ag) => ag.project_id === project.id);
+      setAgentSelection(bound?.id ?? "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Bind failed");
     } finally {
@@ -299,14 +303,17 @@ export function ProjectDetail() {
     setSavingSettings(true);
     setError(null);
     try {
-      await updateProject(id, {
+      const payload = {
         name: settings.name.trim(),
         description: settings.description.trim(),
         compose_file: settings.compose_file.trim(),
         environment: settings.environment.trim() || "production",
         enabled: settings.enabled,
-      });
-      await load();
+      };
+      await updateProject(id, payload);
+      setProject((prev) => (prev ? { ...prev, ...payload } : prev));
+      setSettings(payload);
+      setSettingsDirty(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -329,8 +336,11 @@ export function ProjectDetail() {
         workflow: r.workflow.trim(),
         position: i,
       }));
-      await replaceProjectServices(id, { services });
-      await load();
+      const result = await replaceProjectServices(id, { services });
+      const loadedRows = (result.services ?? []).map(toRow);
+      setRows(loadedRows);
+      setEditing(loadedRows.map(() => false));
+      setDirty(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {
