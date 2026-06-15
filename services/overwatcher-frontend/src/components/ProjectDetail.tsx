@@ -424,7 +424,12 @@ export function ProjectDetail() {
               <button
                 type="button"
                 onClick={handleSaveSettings}
-                disabled={!settingsDirty || savingSettings}
+                disabled={
+                  !settingsDirty ||
+                  savingSettings ||
+                  !settings.name.trim() ||
+                  !settings.compose_file.trim()
+                }
                 className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {savingSettings ? "Saving..." : "Save"}
