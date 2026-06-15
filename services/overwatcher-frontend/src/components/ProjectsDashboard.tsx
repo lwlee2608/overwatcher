@@ -1,12 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ProjectResponse } from "../types/project";
-import {
-  createProject,
-  deleteProject,
-  fetchProjects,
-  updateProject,
-} from "../api/projects";
+import { createProject, deleteProject, fetchProjects } from "../api/projects";
 import { useAuth } from "../auth/context";
 
 interface FormState {
@@ -31,7 +26,6 @@ export function ProjectsDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
 
@@ -54,26 +48,12 @@ export function ProjectsDashboard() {
   }, [loadData]);
 
   function openCreate() {
-    setEditingId(null);
     setForm(emptyForm);
-    setShowForm(true);
-  }
-
-  function openEdit(p: ProjectResponse) {
-    setEditingId(p.id);
-    setForm({
-      name: p.name,
-      description: p.description,
-      compose_file: p.compose_file,
-      environment: p.environment,
-      enabled: p.enabled,
-    });
     setShowForm(true);
   }
 
   function closeForm() {
     setShowForm(false);
-    setEditingId(null);
     setForm(emptyForm);
   }
 
@@ -83,23 +63,13 @@ export function ProjectsDashboard() {
     setError(null);
 
     try {
-      if (editingId) {
-        await updateProject(editingId, {
-          name: form.name.trim(),
-          description: form.description.trim(),
-          compose_file: form.compose_file.trim(),
-          environment: form.environment.trim() || "production",
-          enabled: form.enabled,
-        });
-      } else {
-        await createProject({
-          name: form.name.trim(),
-          description: form.description.trim(),
-          compose_file: form.compose_file.trim(),
-          environment: form.environment.trim() || "production",
-          enabled: form.enabled,
-        });
-      }
+      await createProject({
+        name: form.name.trim(),
+        description: form.description.trim(),
+        compose_file: form.compose_file.trim(),
+        environment: form.environment.trim() || "production",
+        enabled: form.enabled,
+      });
       closeForm();
       await loadData();
     } catch (err) {
@@ -160,7 +130,7 @@ export function ProjectsDashboard() {
           className="mb-6 rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800"
         >
           <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
-            {editingId ? "Edit project" : "New project"}
+            New project
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -239,7 +209,7 @@ export function ProjectsDashboard() {
               disabled={saving}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {saving ? "Saving..." : editingId ? "Update" : "Create"}
+              {saving ? "Saving..." : "Create"}
             </button>
             <button
               type="button"
@@ -319,12 +289,12 @@ export function ProjectsDashboard() {
                   <td className="px-4 py-3 text-right whitespace-nowrap">
                     {isOwner && (
                       <>
-                        <button
-                          onClick={() => openEdit(p)}
+                        <Link
+                          to={`/projects/${p.id}`}
                           className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
                         >
                           Edit
-                        </button>
+                        </Link>
                         <button
                           onClick={() => handleDelete(p)}
                           className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
