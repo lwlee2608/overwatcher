@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { deleteProject } from "../api/projects";
@@ -17,6 +17,14 @@ export function DeleteProjectModal({ projectId, projectName, onClose }: Props) {
 
   const confirmed = confirmText === projectName;
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !deleting) onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [deleting, onClose]);
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!confirmed) return;
@@ -32,8 +40,14 @@ export function DeleteProjectModal({ projectId, projectName, onClose }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onClick={() => !deleting && onClose()}
+    >
+      <div
+        className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
           Delete project
         </h3>
