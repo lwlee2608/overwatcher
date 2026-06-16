@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { createAgent, mintAgentToken } from "../api/agents";
+import {
+  bindAgentProject,
+  createAgent,
+  fetchAgents,
+  mintAgentToken,
+} from "../api/agents";
+import { fetchProjects } from "../api/projects";
 import { fetchVersion } from "../api/version";
+import type { AgentStatus } from "../types/agent";
+import type { ProjectResponse } from "../types/project";
 import { CopyButton } from "./CopyButton";
 
 type Mode = "systemd" | "docker";
@@ -19,6 +27,9 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
   const [finalizing, setFinalizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [releaseTag, setReleaseTag] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ProjectResponse[]>([]);
+  const [agents, setAgents] = useState<AgentStatus[]>([]);
+  const [projectId, setProjectId] = useState("");
 
   const coordinatorURL = useMemo(() => window.location.origin, []);
   const installURL = `${coordinatorURL}/install.sh`;
@@ -27,7 +38,20 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
     fetchVersion()
       .then((v) => setReleaseTag(v.release_tag))
       .catch(() => setReleaseTag(null));
+    // Only owned projects can be bound; binding rejects non-owners server-side.
+    fetchProjects()
+      .then((r) => setProjects(r.projects.filter((p) => p.role === "owner")))
+      .catch(() => setProjects([]));
+    fetchAgents()
+      .then((r) => setAgents(r.agents))
+      .catch(() => setAgents([]));
   }, []);
+
+  // The agent (if any) the chosen project is currently bound to; binding the
+  // new agent there will move the project off it.
+  const reassignFrom = projectId
+    ? agents.find((a) => a.project_id === projectId)?.name
+    : undefined;
 
   // Pin the Docker image to the coordinator's agent release. Docker Hub
   // publishes the bare semver (v0.4.0 → 0.4.0), so strip the "v"; dev builds
@@ -57,7 +81,25 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
     setFinalizing(true);
     setError(null);
     try {
-      await createAgent(name.trim(), token);
+      const created = await createAgent(name.trim(), token);
+      if (projectId) {
+        try {
+          await bindAgentProject(created.agent_id, { project_id: projectId });
+        } catch (err) {
+          // The agent persisted; only the bind failed (e.g. someone grabbed the
+          // project first). Don't pretend it's bound — keep the card open so the
+          // user can retry from the project page.
+          onCreated?.();
+          setProjectId("");
+          setError(
+            `Agent created, but binding to the project failed: ${
+              err instanceof Error ? err.message : "unknown error"
+            }. Bind it from the project page.`,
+          );
+          setFinalizing(false);
+          return;
+        }
+      }
       onCreated?.();
       onClose();
     } catch (err) {
@@ -306,6 +348,34 @@ docker restart overwatcher-agent`}</code>
                 className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm font-mono dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
               />
             </label>
+          )}
+
+          <label className="mt-4 block text-sm">
+            <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">
+              Bind to project{" "}
+              <span className="font-normal text-gray-400">(optional)</span>
+            </span>
+            <select
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+            >
+              <option value="">— Leave unbound —</option>
+              {projects.map((p) => {
+                const bound = agents.find((a) => a.project_id === p.id);
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {bound ? " (bound)" : ""}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+          {reassignFrom && (
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+              ⚠ Will move this project off agent “{reassignFrom}”.
+            </p>
           )}
 
           <div className="mt-4">
