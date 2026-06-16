@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { createAgent, mintAgentToken } from "../api/agents";
+import {
+  bindAgentProject,
+  createAgent,
+  fetchAgents,
+  mintAgentToken,
+} from "../api/agents";
+import { fetchProjects } from "../api/projects";
 import { fetchVersion } from "../api/version";
+import type { AgentStatus } from "../types/agent";
+import type { ProjectResponse } from "../types/project";
 import { CopyButton } from "./CopyButton";
 
 type Mode = "systemd" | "docker";
@@ -19,6 +27,10 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
   const [finalizing, setFinalizing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [releaseTag, setReleaseTag] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ProjectResponse[]>([]);
+  const [agents, setAgents] = useState<AgentStatus[]>([]);
+  const [projectId, setProjectId] = useState("");
+  const [created, setCreated] = useState(false);
 
   const coordinatorURL = useMemo(() => window.location.origin, []);
   const installURL = `${coordinatorURL}/install.sh`;
@@ -27,7 +39,17 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
     fetchVersion()
       .then((v) => setReleaseTag(v.release_tag))
       .catch(() => setReleaseTag(null));
+    fetchProjects()
+      .then((r) => setProjects(r.projects.filter((p) => p.role === "owner")))
+      .catch(() => setProjects([]));
+    fetchAgents()
+      .then((r) => setAgents(r.agents))
+      .catch(() => setAgents([]));
   }, []);
+
+  const reassignFrom = projectId
+    ? agents.find((a) => a.project_id === projectId)?.name
+    : undefined;
 
   // Pin the Docker image to the coordinator's agent release. Docker Hub
   // publishes the bare semver (v0.4.0 → 0.4.0), so strip the "v"; dev builds
@@ -57,7 +79,25 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
     setFinalizing(true);
     setError(null);
     try {
-      await createAgent(name.trim(), token);
+      const createdAgent = await createAgent(name.trim(), token);
+      if (projectId) {
+        try {
+          await bindAgentProject(createdAgent.agent_id, {
+            project_id: projectId,
+          });
+        } catch (err) {
+          setCreated(true);
+          onCreated?.();
+          setProjectId("");
+          setError(
+            `Agent created, but binding to the project failed: ${
+              err instanceof Error ? err.message : "unknown error"
+            }. Bind it from the project page.`,
+          );
+          setFinalizing(false);
+          return;
+        }
+      }
       onCreated?.();
       onClose();
     } catch (err) {
@@ -277,10 +317,12 @@ docker restart overwatcher-agent`}</code>
             </details>
           )}
 
-          <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
-            The agent won't connect until you click <strong>Done</strong> —
-            that's when it's registered with this token.
-          </p>
+          {!created && (
+            <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+              The agent won't connect until you click <strong>Done</strong> —
+              that's when it's registered with this token.
+            </p>
+          )}
 
           {error && (
             <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
@@ -290,7 +332,7 @@ docker restart overwatcher-agent`}</code>
 
           {/* On a name clash the row was never written, so let the user fix the
               name and retry without re-minting the already-shown token. */}
-          {error && (
+          {error && !created && (
             <label className="mt-3 block text-sm">
               <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">
                 Agent name
@@ -308,15 +350,57 @@ docker restart overwatcher-agent`}</code>
             </label>
           )}
 
+          {!created && (
+            <>
+              <label className="mt-4 block text-sm">
+                <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">
+                  Bind to project{" "}
+                  <span className="font-normal text-gray-400">(optional)</span>
+                </span>
+                <select
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                >
+                  <option value="">— Leave unbound —</option>
+                  {projects.map((p) => {
+                    const bound = agents.find((a) => a.project_id === p.id);
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                        {bound ? " (bound)" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+              {reassignFrom && (
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+                  ⚠ Will move this project off agent “{reassignFrom}”.
+                </p>
+              )}
+            </>
+          )}
+
           <div className="mt-4">
-            <button
-              type="button"
-              onClick={handleDone}
-              disabled={!name.trim() || finalizing}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-400"
-            >
-              {finalizing ? "Creating…" : "Done"}
-            </button>
+            {created ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 dark:bg-blue-500 dark:hover:bg-blue-400"
+              >
+                Close
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleDone}
+                disabled={!name.trim() || finalizing}
+                className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-400"
+              >
+                {finalizing ? "Creating…" : "Done"}
+              </button>
+            )}
           </div>
         </>
       )}
