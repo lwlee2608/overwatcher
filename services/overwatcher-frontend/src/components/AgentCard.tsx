@@ -175,6 +175,11 @@ export function AgentCard({ agent, onDelete, releaseTag }: AgentCardProps) {
               percent={percentOf(agent.metrics.mem_used_bytes, agent.metrics.mem_total_bytes)}
               detail={`${formatBytes(agent.metrics.mem_used_bytes)} / ${formatBytes(agent.metrics.mem_total_bytes)}`}
             />
+            <MetricBar
+              label="Disk"
+              percent={percentOf(agent.metrics.disk_used_bytes, agent.metrics.disk_total_bytes)}
+              detail={`${formatBytes(agent.metrics.disk_used_bytes)} / ${formatBytes(agent.metrics.disk_total_bytes)}`}
+            />
             {agent.metrics.swap_total_bytes > 0 && (
               <MetricBar
                 label="Swap"
@@ -182,11 +187,6 @@ export function AgentCard({ agent, onDelete, releaseTag }: AgentCardProps) {
                 detail={`${formatBytes(agent.metrics.swap_used_bytes)} / ${formatBytes(agent.metrics.swap_total_bytes)}`}
               />
             )}
-            <MetricBar
-              label="Disk"
-              percent={percentOf(agent.metrics.disk_used_bytes, agent.metrics.disk_total_bytes)}
-              detail={`${formatBytes(agent.metrics.disk_used_bytes)} / ${formatBytes(agent.metrics.disk_total_bytes)}`}
-            />
           </div>
         )}
 
