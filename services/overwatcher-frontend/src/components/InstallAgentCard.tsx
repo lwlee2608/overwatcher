@@ -83,7 +83,6 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
     setError(null);
     try {
       const createdAgent = await createAgent(name.trim(), token);
-      setCreated(true);
       if (projectId) {
         try {
           await bindAgentProject(createdAgent.agent_id, {
@@ -91,9 +90,12 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
           });
         } catch (err) {
           // The agent persisted; only the bind failed (e.g. someone grabbed the
-          // project first). Don't pretend it's bound — surface the error in the
-          // card's created state so the user binds from the project page. Note:
-          // re-running Done here would duplicate-create, so the action locks.
+          // project first). Lock the card into its created state — re-running
+          // Done would duplicate-create — and surface the error so the user
+          // binds from the project page. Set created here, not before the bind,
+          // so "Creating…" shows for the whole request and Close can't appear
+          // mid-flight.
+          setCreated(true);
           onCreated?.();
           setProjectId("");
           setError(
