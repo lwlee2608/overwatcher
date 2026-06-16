@@ -9,16 +9,18 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/service/agentregistry"
+	"github.com/lwlee2608/overwatcher/internal/service/cloudprovider"
 	"github.com/lwlee2608/overwatcher/internal/service/project"
 )
 
 type AgentHandler struct {
 	agentService   *agentregistry.Service
 	projectService *project.Service
+	cloud          *cloudprovider.Resolver
 }
 
-func NewAgentHandler(svc *agentregistry.Service, projectSvc *project.Service) *AgentHandler {
-	return &AgentHandler{agentService: svc, projectService: projectSvc}
+func NewAgentHandler(svc *agentregistry.Service, projectSvc *project.Service, cloud *cloudprovider.Resolver) *AgentHandler {
+	return &AgentHandler{agentService: svc, projectService: projectSvc, cloud: cloud}
 }
 
 // canManage reports whether callerID may see and manage the agent, and writes
@@ -150,7 +152,7 @@ func (h *AgentHandler) List(c *gin.Context) {
 		Agents: make([]dto.AgentStatusResponse, len(agents)),
 	}
 	for i, a := range agents {
-		resp.Agents[i] = toAgentResponse(&a)
+		resp.Agents[i] = h.toAgentResponse(&a)
 	}
 	c.JSON(http.StatusOK, resp)
 }
@@ -174,7 +176,7 @@ func (h *AgentHandler) Get(c *gin.Context) {
 	if !h.canManage(c, callerID, a) {
 		return
 	}
-	c.JSON(http.StatusOK, toAgentResponse(a))
+	c.JSON(http.StatusOK, h.toAgentResponse(a))
 }
 
 func (h *AgentHandler) Delete(c *gin.Context) {
@@ -261,20 +263,21 @@ func (h *AgentHandler) BindProject(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, toAgentResponse(a))
+	c.JSON(http.StatusOK, h.toAgentResponse(a))
 }
 
-func toAgentResponse(a *agentregistry.AgentStatus) dto.AgentStatusResponse {
+func (h *AgentHandler) toAgentResponse(a *agentregistry.AgentStatus) dto.AgentStatusResponse {
 	resp := dto.AgentStatusResponse{
-		ID:          a.ID,
-		Name:        a.Name,
-		LastSeen:    a.LastSeen,
-		RemoteIP:    a.RemoteIP,
-		Status:      string(a.Status),
-		ProjectID:   a.ProjectID,
-		ProjectName: a.ProjectName,
-		Type:        a.Type,
-		Version:     a.Version,
+		ID:            a.ID,
+		Name:          a.Name,
+		LastSeen:      a.LastSeen,
+		RemoteIP:      a.RemoteIP,
+		CloudProvider: h.cloud.Get(a.RemoteIP),
+		Status:        string(a.Status),
+		ProjectID:     a.ProjectID,
+		ProjectName:   a.ProjectName,
+		Type:          a.Type,
+		Version:       a.Version,
 	}
 	if m := a.Metrics; m != nil {
 		resp.Metrics = &dto.AgentMetrics{

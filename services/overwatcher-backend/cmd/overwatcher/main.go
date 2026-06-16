@@ -18,6 +18,7 @@ import (
 	internalgithub "github.com/lwlee2608/overwatcher/internal/github"
 	"github.com/lwlee2608/overwatcher/internal/service/agentregistry"
 	"github.com/lwlee2608/overwatcher/internal/service/auth"
+	"github.com/lwlee2608/overwatcher/internal/service/cloudprovider"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/intent"
@@ -55,6 +56,7 @@ func main() {
 	userSvc := user.NewService(pool)
 	projectSvc := project.NewService(pool)
 	authSvc := auth.NewService(pool, config.Auth.SessionTTL)
+	cloudResolver := cloudprovider.New(config.Cloud.IPInfoToken)
 	webhookSvc := webhook.New(ghClient, projectSvc, intentStore, eventLogSvc)
 	dispatchSvc := dispatch.New(ghClient, intentStore)
 
@@ -73,6 +75,7 @@ func main() {
 		WebhookService:  webhookSvc,
 		DispatchService: dispatchSvc,
 		AgentService:    agentSvc,
+		CloudResolver:   cloudResolver,
 		EventLogService: eventLogSvc,
 		UserService:     userSvc,
 		ProjectService:  projectSvc,

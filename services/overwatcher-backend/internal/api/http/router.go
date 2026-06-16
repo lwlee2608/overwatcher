@@ -6,6 +6,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/service/agentregistry"
 	"github.com/lwlee2608/overwatcher/internal/service/auth"
+	"github.com/lwlee2608/overwatcher/internal/service/cloudprovider"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
 	"github.com/lwlee2608/overwatcher/internal/service/project"
@@ -18,13 +19,14 @@ type Config struct {
 }
 
 type Services struct {
-	WebhookService    *webhook.Service
-	DispatchService   *dispatch.Service
-	AgentService      *agentregistry.Service
-	EventLogService   *eventlog.Service
-	UserService       *user.Service
-	ProjectService    *project.Service
-	AuthService       *auth.Service
+	WebhookService  *webhook.Service
+	DispatchService *dispatch.Service
+	AgentService    *agentregistry.Service
+	CloudResolver   *cloudprovider.Resolver
+	EventLogService *eventlog.Service
+	UserService     *user.Service
+	ProjectService  *project.Service
+	AuthService     *auth.Service
 	WebhookSecret   string
 	AppVersion      string
 	AgentReleaseTag string
@@ -41,7 +43,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	installHandler := handler.NewInstallHandler(srvs.AgentReleaseTag, srvs.AgentPublicURL)
 	webhookHandler := handler.NewWebhookHandler(srvs.WebhookService)
 	deployHandler := handler.NewDeployHandler(srvs.DispatchService, srvs.WebhookService, srvs.ProjectService)
-	agentHandler := handler.NewAgentHandler(srvs.AgentService, srvs.ProjectService)
+	agentHandler := handler.NewAgentHandler(srvs.AgentService, srvs.ProjectService, srvs.CloudResolver)
 	eventLogHandler := handler.NewEventLogHandler(srvs.EventLogService)
 	userHandler := handler.NewUserHandler(srvs.UserService)
 	projectHandler := handler.NewProjectHandler(srvs.ProjectService)

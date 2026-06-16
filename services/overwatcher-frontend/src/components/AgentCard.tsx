@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { AgentStatus } from "../types/agent";
 import { AgentTypeBadge } from "./AgentTypeBadge";
+import { CloudProviderBadge } from "./CloudProviderBadge";
 import { CopyButton } from "./CopyButton";
 import { StatusBadge } from "./StatusBadge";
 
@@ -114,6 +115,9 @@ export function AgentCard({ agent, onDelete, releaseTag }: AgentCardProps) {
             IP
           </span>
           <span className="font-mono">{agent.remote_ip}</span>
+          {agent.cloud_provider && (
+            <CloudProviderBadge provider={agent.cloud_provider} />
+          )}
         </div>
 
         <div className="flex items-center gap-2">
