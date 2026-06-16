@@ -272,7 +272,7 @@ func (h *AgentHandler) toAgentResponse(a *agentregistry.AgentStatus) dto.AgentSt
 		Name:          a.Name,
 		LastSeen:      a.LastSeen,
 		RemoteIP:      a.RemoteIP,
-		CloudProvider: h.cloud.Get(a.RemoteIP),
+		CloudProvider: string(h.cloud.Get(a.RemoteIP)),
 		Status:        string(a.Status),
 		ProjectID:     a.ProjectID,
 		ProjectName:   a.ProjectName,
