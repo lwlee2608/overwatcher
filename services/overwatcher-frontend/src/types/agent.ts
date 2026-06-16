@@ -1,5 +1,7 @@
 export type AgentType = "systemd" | "docker";
 
+export type CloudProvider = "aws" | "gcp" | "alibaba" | "azure";
+
 export type ConnectionStatus = "connected" | "stale" | "disconnected" | "lost";
 
 export interface AgentMetrics {
@@ -17,6 +19,7 @@ export interface AgentStatus {
   name: string;
   last_seen: string;
   remote_ip: string;
+  cloud_provider?: CloudProvider;
   status: ConnectionStatus;
   project_id?: string;
   project_name?: string;

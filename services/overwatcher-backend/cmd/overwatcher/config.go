@@ -26,6 +26,10 @@ type AgentConfig struct {
 	PublicURL string `mapstructure:"public_url"`
 }
 
+type CloudConfig struct {
+	IPInfoToken string `mapstructure:"ipinfo_token" mask:"true"`
+}
+
 type DispatchConfig struct {
 	InFlightTimeout time.Duration `mapstructure:"in_flight_timeout"`
 	MaxAttempts     int           `mapstructure:"max_attempts"`
@@ -44,6 +48,7 @@ type Config struct {
 	Http          http.Config
 	GitHub        GitHubConfig             `mapstructure:"github"`
 	Agent         AgentConfig              `mapstructure:"agent"`
+	Cloud         CloudConfig              `mapstructure:"cloud"`
 	AgentRegistry agentregistry.Thresholds `mapstructure:"agent_registry"`
 	Dispatch      DispatchConfig           `mapstructure:"dispatch"`
 	Auth          AuthConfig               `mapstructure:"auth"`
