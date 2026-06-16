@@ -39,7 +39,6 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
     fetchVersion()
       .then((v) => setReleaseTag(v.release_tag))
       .catch(() => setReleaseTag(null));
-    // Only owned projects can be bound; binding rejects non-owners server-side.
     fetchProjects()
       .then((r) => setProjects(r.projects.filter((p) => p.role === "owner")))
       .catch(() => setProjects([]));
@@ -48,8 +47,6 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
       .catch(() => setAgents([]));
   }, []);
 
-  // The agent (if any) the chosen project is currently bound to; binding the
-  // new agent there will move the project off it.
   const reassignFrom = projectId
     ? agents.find((a) => a.project_id === projectId)?.name
     : undefined;
@@ -89,12 +86,6 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
             project_id: projectId,
           });
         } catch (err) {
-          // The agent persisted; only the bind failed (e.g. someone grabbed the
-          // project first). Lock the card into its created state — re-running
-          // Done would duplicate-create — and surface the error so the user
-          // binds from the project page. Set created here, not before the bind,
-          // so "Creating…" shows for the whole request and Close can't appear
-          // mid-flight.
           setCreated(true);
           onCreated?.();
           setProjectId("");
@@ -340,8 +331,7 @@ docker restart overwatcher-agent`}</code>
           )}
 
           {/* On a name clash the row was never written, so let the user fix the
-              name and retry without re-minting the already-shown token. Once the
-              agent exists, retrying would duplicate-create, so suppress it. */}
+              name and retry without re-minting the already-shown token. */}
           {error && !created && (
             <label className="mt-3 block text-sm">
               <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">
