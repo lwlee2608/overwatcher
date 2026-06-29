@@ -12,6 +12,7 @@ import type { ProjectResponse } from "../types/project";
 import { CopyButton } from "./CopyButton";
 
 type Mode = "systemd" | "docker";
+type RunAs = "login" | "overwatcher";
 
 interface InstallAgentCardProps {
   onClose: () => void;
@@ -21,6 +22,7 @@ interface InstallAgentCardProps {
 export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) {
   const [name, setName] = useState("");
   const [mode, setMode] = useState<Mode>("systemd");
+  const [runAs, setRunAs] = useState<RunAs>("login");
   const [revealed, setRevealed] = useState(false);
   const [token, setToken] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -112,7 +114,7 @@ export function InstallAgentCard({ onClose, onCreated }: InstallAgentCardProps) 
   const masked = "owa_••••••••••••••••";
 
   const buildSystemd = (t: string) => `curl -fsSL ${installURL} | \\
-sudo AGENT_TOKEN=${sh(t)} \\
+sudo ${runAs === "overwatcher" ? "AGENT_RUN_USER=overwatcher " : ""}AGENT_TOKEN=${sh(t)} \\
 bash`;
 
   const buildDocker = (t: string) => `docker run -d --name overwatcher-agent --restart unless-stopped \\
@@ -227,12 +229,45 @@ bash`;
           </div>
 
           {mode === "systemd" ? (
-            <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-              Run this on the VM you want to deploy to. The installer adds a
-              system user, drops the binary at{" "}
-              <code>/usr/local/bin/overwatcher-agent</code>, and enables a
-              systemd unit.
-            </p>
+            <>
+              <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+                Run this on the VM you want to deploy to. It drops the binary
+                at <code>/usr/local/bin/overwatcher-agent</code> and enables a
+                systemd unit running as the user you choose below.
+              </p>
+              <label className="mb-2 block text-sm">
+                <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">
+                  Run as
+                </span>
+                <select
+                  value={runAs}
+                  onChange={(e) => setRunAs(e.target.value as RunAs)}
+                  className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+                >
+                  <option value="login">Current login user (default)</option>
+                  <option value="overwatcher">
+                    Dedicated overwatcher user
+                  </option>
+                </select>
+              </label>
+              <div className="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-300">
+                {runAs === "login" ? (
+                  <>
+                    Runs as the user who runs the command — already owns the
+                    deployment files and registry login, so there's nothing to
+                    configure. The agent inherits that human's privileges
+                    (shell, home, and <code>sudo</code> if granted).
+                  </>
+                ) : (
+                  <>
+                    Isolated <code>nologin</code> service user. You must give it
+                    its <strong>own</strong> registry login and make the
+                    deployment directory traversable + readable by it, or image
+                    pulls and <code>.env</code> reads will fail.
+                  </>
+                )}
+              </div>
+            </>
           ) : (
             <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
               Run the agent as a container. Mount the host Docker socket so the
