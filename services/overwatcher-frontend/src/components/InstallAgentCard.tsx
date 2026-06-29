@@ -152,7 +152,7 @@ bash`;
         <div className="flex items-center gap-4">
           <a
             className="text-xs text-blue-600 hover:underline dark:text-blue-400"
-            href="https://github.com/lwlee2608/overwatcher/blob/main/docs/agent-systemd.md"
+            href="https://github.com/lwlee2608/overwatcher/blob/main/docs/architecture/agent-systemd.md"
             target="_blank"
             rel="noreferrer"
           >
