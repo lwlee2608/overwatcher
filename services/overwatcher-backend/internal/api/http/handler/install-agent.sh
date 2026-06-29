@@ -14,6 +14,15 @@
 # sudo. Putting them after `sudo` uses sudo's own VAR=val syntax, which
 # sets them in the child process regardless of env_reset.)
 #
+# Run user: by default the agent runs as the invoking login user ($SUDO_USER) —
+# that user owns the deployment dir, has the GHCR login, and is already in the
+# `docker` group, so there are no ownership/credential traps. Pass
+# AGENT_RUN_USER to override:
+#
+#   AGENT_RUN_USER unset (default) — run as $SUDO_USER (the login user)
+#   AGENT_RUN_USER=overwatcher     — create/use a dedicated nologin system user
+#   AGENT_RUN_USER=<existing user> — run as that user (must already exist)
+#
 # Re-running upgrades the binary in place: the file is swapped and the unit
 # is restarted; the env file is left untouched if it already exists. The
 # exception is the token — if the supplied AGENT_TOKEN differs from the one in
@@ -34,13 +43,35 @@ SERVICE_NAME="overwatcher-agent"
 BINARY_PATH="/usr/local/bin/${SERVICE_NAME}"
 ENV_FILE="/etc/${SERVICE_NAME}.env"
 UNIT_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
-USER_NAME="overwatcher"
+DEDICATED_USER="overwatcher"
 
 log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33mwarning:\033[0m %s\n' "$*" >&2; }
 err() { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || err "must run as root (try: curl ... | sudo AGENT_TOKEN=... bash)"
 [[ -n "${AGENT_TOKEN:-}" ]] || err "AGENT_TOKEN must be set (pass it to sudo: curl ... | sudo AGENT_TOKEN=owa_... bash)"
+
+# Resolve the user the agent runs as. Default: the human who ran sudo, which
+# sidesteps the .env-traversal and GHCR-auth traps that hit when agent user !=
+# file/credential owner. Override with AGENT_RUN_USER.
+RUN_USER="${AGENT_RUN_USER:-${SUDO_USER:-}}"
+[[ -n "$RUN_USER" ]] || err "could not determine the run user (no \$SUDO_USER — likely a raw root shell). Pass it explicitly: curl ... | sudo AGENT_RUN_USER=<user> AGENT_TOKEN=... bash, or AGENT_RUN_USER=overwatcher for a dedicated service user."
+[[ "$RUN_USER" != "root" ]] || err "refusing to run the agent as root. Pass AGENT_RUN_USER=<login user> or AGENT_RUN_USER=overwatcher."
+
+# Upgrade safety: re-running with a different run user orphans file ownership
+# and registry creds under the old user. Refuse rather than silently switch.
+if [[ -f "$UNIT_FILE" ]]; then
+  EXISTING_RUN_USER=$(sed -n 's/^User=//p' "$UNIT_FILE")
+  if [[ -n "$EXISTING_RUN_USER" && "$EXISTING_RUN_USER" != "$RUN_USER" ]]; then
+    err "agent is already installed to run as '${EXISTING_RUN_USER}', not '${RUN_USER}'. Switching users would orphan deployment files and registry creds owned by '${EXISTING_RUN_USER}'.
+    To keep the current user, re-run with: AGENT_RUN_USER=${EXISTING_RUN_USER}
+    To intentionally switch, uninstall first:
+      sudo systemctl disable --now ${SERVICE_NAME}
+      sudo rm ${UNIT_FILE} ${ENV_FILE}
+    then rerun this installer."
+  fi
+fi
 
 # Detect docker compose plugin upfront — failing here is much friendlier
 # than the agent erroring on every deploy attempt later.
@@ -64,13 +95,16 @@ else
   BASE_URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}"
 fi
 
-log "creating ${USER_NAME} system user (if absent)"
-if ! id -u "$USER_NAME" >/dev/null 2>&1; then
-  useradd --system --no-create-home --shell /usr/sbin/nologin "$USER_NAME"
+if ! getent passwd "$RUN_USER" >/dev/null 2>&1; then
+  # Only the dedicated service user is auto-created; a named login user that
+  # doesn't exist is a typo we shouldn't paper over.
+  [[ "$RUN_USER" == "$DEDICATED_USER" ]] || err "user '${RUN_USER}' does not exist. Create it first, or pass AGENT_RUN_USER=overwatcher to use a dedicated service user."
+  log "creating ${RUN_USER} system user"
+  useradd --system --no-create-home --shell /usr/sbin/nologin "$RUN_USER"
 fi
 # `docker` group lets the agent talk to /var/run/docker.sock without root.
 if getent group docker >/dev/null 2>&1; then
-  usermod -aG docker "$USER_NAME"
+  usermod -aG docker "$RUN_USER"
 else
   err "docker group not found — is Docker installed correctly?"
 fi
@@ -109,12 +143,12 @@ else
 AGENT_TOKEN=${AGENT_TOKEN}
 AGENT_COORDINATOR_URL=${COORDINATOR_URL}
 EOF
-  chown "${USER_NAME}:${USER_NAME}" "$ENV_FILE"
+  chown "${RUN_USER}:${RUN_USER}" "$ENV_FILE"
   chmod 0600 "$ENV_FILE"
 fi
 
 log "writing ${UNIT_FILE}"
-cat > "$UNIT_FILE" <<'UNIT'
+cat > "$UNIT_FILE" <<UNIT
 [Unit]
 Description=Overwatcher deployment agent
 After=network-online.target docker.service
@@ -123,7 +157,7 @@ Requires=docker.service
 
 [Service]
 Type=simple
-User=overwatcher
+User=${RUN_USER}
 Group=docker
 EnvironmentFile=/etc/overwatcher-agent.env
 ExecStart=/usr/local/bin/overwatcher-agent
@@ -147,3 +181,16 @@ log "recent log lines:"
 journalctl -u "${SERVICE_NAME}" -n 20 --no-pager || true
 
 log "done. follow logs with:  journalctl -u ${SERVICE_NAME} -f"
+
+# Surface the run-user trade-off the operator just chose — don't bury it in docs.
+if [[ "$RUN_USER" == "$DEDICATED_USER" ]]; then
+  warn "agent runs as the dedicated '${RUN_USER}' user. It has its OWN environment, so:
+    - private image pulls need ${RUN_USER}'s own registry login (it does NOT see your ~/.docker/config.json)
+    - the deployment dir must be traversable + readable by ${RUN_USER} (e.g. it's in the dir's group, and every parent dir is o+x)
+  If 'docker compose' fails with 'unauthorized' or '.env permission denied', this is why."
+else
+  warn "agent runs as login user '${RUN_USER}', so it inherits that human's privileges (shell, home, sudo)."
+  if id -nG "$RUN_USER" 2>/dev/null | tr ' ' '\n' | grep -qx -e sudo -e wheel; then
+    warn "'${RUN_USER}' is in the sudo/wheel group — the agent (and any container it runs) effectively has root. For tighter isolation, reinstall with AGENT_RUN_USER=overwatcher."
+  fi
+fi
