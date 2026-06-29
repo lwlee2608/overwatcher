@@ -52,7 +52,7 @@ type HostMetrics struct {
 type AgentStatus struct {
 	ID          string           `json:"id"`
 	Name        string           `json:"name"`
-	LastSeen    time.Time        `json:"last_seen"`
+	LastSeen    *time.Time       `json:"last_seen,omitempty"` // LastSeen is nil until the agent's first heartbeat (never connected).
 	RemoteIP    string           `json:"remote_ip"`
 	Status      ConnectionStatus `json:"status"`
 	ProjectID   string           `json:"project_id,omitempty"`
@@ -325,18 +325,22 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 }
 
 func (s *Service) toStatus(a sqlc.Agent, projectName string, now time.Time) AgentStatus {
-	lastSeen := a.LastSeenAt.Time
-	age := now.Sub(lastSeen)
-	var status ConnectionStatus
-	switch {
-	case age < s.thresholds.StaleAfter:
-		status = StatusConnected
-	case age < s.thresholds.DisconnectedAfter:
-		status = StatusStale
-	case age < s.thresholds.LostAfter:
-		status = StatusDisconnected
-	default:
-		status = StatusLost
+	// No heartbeat yet: a freshly provisioned agent has never connected.
+	var lastSeen *time.Time
+	status := StatusDisconnected
+	if a.LastSeenAt.Valid {
+		t := a.LastSeenAt.Time
+		lastSeen = &t
+		switch age := now.Sub(t); {
+		case age < s.thresholds.StaleAfter:
+			status = StatusConnected
+		case age < s.thresholds.DisconnectedAfter:
+			status = StatusStale
+		case age < s.thresholds.LostAfter:
+			status = StatusDisconnected
+		default:
+			status = StatusLost
+		}
 	}
 	return AgentStatus{
 		ID:          util.UUIDToString(a.ID),

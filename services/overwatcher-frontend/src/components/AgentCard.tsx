@@ -124,7 +124,7 @@ export function AgentCard({ agent, onDelete, releaseTag }: AgentCardProps) {
           <span className="font-medium text-gray-500 dark:text-gray-500">
             Last seen
           </span>
-          <span>{timeAgo(agent.last_seen)}</span>
+          <span>{agent.last_seen ? timeAgo(agent.last_seen) : "Never"}</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -157,7 +157,7 @@ export function AgentCard({ agent, onDelete, releaseTag }: AgentCardProps) {
           <div
             className={`space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/50 ${agent.status !== "connected" ? "opacity-50" : ""}`}
             title={
-              agent.status !== "connected"
+              agent.status !== "connected" && agent.last_seen
                 ? `As of last heartbeat, ${timeAgo(agent.last_seen)}`
                 : undefined
             }

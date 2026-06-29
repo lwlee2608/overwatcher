@@ -17,7 +17,7 @@ export interface AgentMetrics {
 export interface AgentStatus {
   id: string;
   name: string;
-  last_seen: string;
+  last_seen?: string;
   remote_ip: string;
   cloud_provider?: CloudProvider;
   status: ConnectionStatus;
