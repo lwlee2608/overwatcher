@@ -5,7 +5,7 @@ import "time"
 type AgentStatusResponse struct {
 	ID            string        `json:"id"`
 	Name          string        `json:"name"`
-	LastSeen      time.Time     `json:"last_seen"`
+	LastSeen      *time.Time    `json:"last_seen,omitempty"` // LastSeen is omitted until the agent's first heartbeat (never connected).
 	RemoteIP      string        `json:"remote_ip"`
 	CloudProvider string        `json:"cloud_provider,omitempty"`
 	Status        string        `json:"status"`
