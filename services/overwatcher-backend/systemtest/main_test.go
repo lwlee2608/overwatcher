@@ -74,6 +74,7 @@ func TestSystemIntegration(t *testing.T) {
 		AuthService:     authSvc,
 		APIKeyService:   apikey.NewService(pool),
 		WebhookSecret:   "test-webhook-secret",
+		AppVersion:      "systemtest-version",
 	}
 
 	require.NoError(t, authSvc.EnsureUserPassword(context.Background(), auth.BootstrapConfig{
@@ -95,6 +96,7 @@ func TestSystemIntegration(t *testing.T) {
 	t.Run("Users", func(t *testing.T) { tests.TestUsers(t, engine, sessionToken) })
 	t.Run("Projects", func(t *testing.T) { tests.TestProjects(t, engine, sessionUserID, sessionToken) })
 	t.Run("APIKeys", func(t *testing.T) { tests.TestAPIKeys(t, engine, sessionToken) })
+	t.Run("Owctl", func(t *testing.T) { tests.TestOwctl(t, engine, sessionToken) })
 	t.Run("Deploy", func(t *testing.T) {
 		tests.SeedTestAgent(t, pool)
 		tests.TestDeploy(t, engine, intentStore, tests.TestAgentToken)

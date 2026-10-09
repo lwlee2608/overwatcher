@@ -9,7 +9,7 @@ COMMIT_SHA      ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 APPVERSION           := $(VERSION)$(if $(COMMIT_SHA),-$(COMMIT_SHA))
 LDFLAGS         := -ldflags "-X main.AppVersion=$(APPVERSION)"
 
-.PHONY: all build build-agent clean run run-agent test dep generate release-agent
+.PHONY: all build build-agent build-owctl clean run run-agent test dep generate release-agent
 
 all: clean build build-agent
 
@@ -20,6 +20,8 @@ clean:
 	$(RM) -rf bin/*
 build:
 	$(GO) build -o bin/$(APP) $(LDFLAGS) cmd/$(APP)/*.go
+build-owctl:
+	$(GO) build -o bin/owctl $(LDFLAGS) ./cmd/owctl
 build-agent:
 	$(GO) build -o bin/$(AGENT) $(LDFLAGS) cmd/$(AGENT)/*.go
 run:
