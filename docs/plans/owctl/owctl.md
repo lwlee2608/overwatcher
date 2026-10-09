@@ -29,19 +29,19 @@
 - **Verification** — no per-phase Verify; one end-to-end verify after Phase 5, run as the Demo. Per-phase test tasks stay. Risk accepted: an early-phase bug surfaces late
 
 ## Progress
-Phase 1 of 5 · 0/25 tasks
+Phase 1 of 5 complete · 8/25 tasks (review/merge pending)
 
 ### Phase 1 — Log in and list projects from the terminal
 A user with an API key can run `owctl login`, then `owctl project list|get` against the coordinator.
 **Blocked by:** none
-- [ ] Add typed REST client with Bearer auth and API error mapping (internal/client)
-- [ ] Add project list/get and server version calls to the client (internal/client)
-- [ ] Add cobra root command with `--json`, `--url`, config file + env resolution (cmd/owctl)
-- [ ] Add `owctl login` storing the key without echo, file mode 0600 (cmd/owctl)
-- [ ] Add `owctl project list|get` with table and JSON output (cmd/owctl)
-- [ ] Add `owctl version` printing client and server versions (cmd/owctl)
-- [ ] Add `build-owctl` target (services/overwatcher-backend/Makefile)
-- [ ] Add owctl system test against the real router (systemtest/tests)
+- [x] Add typed REST client with Bearer auth and API error mapping (internal/client)
+- [x] Add project list/get and server version calls to the client (internal/client)
+- [x] Add cobra root command with `--json`, `--url`, config file + env resolution (cmd/owctl)
+- [x] Add `owctl login` storing the key without echo, file mode 0600 (cmd/owctl)
+- [x] Add `owctl project list|get` with table and JSON output (cmd/owctl)
+- [x] Add `owctl version` printing client and server versions (cmd/owctl)
+- [x] Add `build-owctl` target (services/overwatcher-backend/Makefile)
+- [x] Add owctl system test against the real router (systemtest/tests)
 **Verify:** deferred — single end-to-end verify after Phase 5 (see Demo)
 
 ### Phase 2 — Create a project with services and bind an existing agent
