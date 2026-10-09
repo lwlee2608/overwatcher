@@ -23,6 +23,8 @@
 - **`agent install` safety** — prints the SSH target and asks for confirmation unless `--yes`; preflight checks `overwatcher-agent` not already active and `docker compose` present; deletes the created agent if install or connect fails; agent token never printed; `--name` defaults to the SSH host; `--timeout` default 60s `agent`
 - **Tests** — client and commands tested against the real gin router via `httptest` on the systemtest Postgres; `agent install` tested with a fake `ssh` script on `PATH` that simulates the VM `agent`
 - **Phase count** — 5, sequential
+- **Build mode** — Orchestrator; worker `velocirouter/gpt-6-astra` at `medium`, fresh reviewer `velocirouter/gpt-6-astra` at `high` each round
+- **Current build checkpoint** — pause after Phase 2 merges; do not start Phase 3
 - **Branching** — integration branch `owctl-integrate` (from `main`); each phase branches from it and merges back via PR; `owctl-integrate` merges to `main` after the final verify
 - **Verification** — no per-phase Verify; one end-to-end verify after Phase 5, run as the Demo. Per-phase test tasks stay. Risk accepted: an early-phase bug surfaces late
 
