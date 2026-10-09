@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -36,6 +37,24 @@ func runSSH(ctx context.Context, target, script string) error {
 	return command.Run()
 }
 
+func readConfirmation(ctx context.Context, input io.Reader) (string, error) {
+	type result struct {
+		answer string
+		err    error
+	}
+	ready := make(chan result, 1)
+	go func() {
+		answer, err := bufio.NewReader(input).ReadString('\n')
+		ready <- result{answer, err}
+	}()
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case response := <-ready:
+		return response.answer, response.err
+	}
+}
+
 func newAgentInstallCommand(api clientFactory, jsonOutput *bool) *cobra.Command {
 	var target, project, name string
 	var yes bool
@@ -54,7 +73,7 @@ func newAgentInstallCommand(api clientFactory, jsonOutput *bool) *cobra.Command 
 			fmt.Fprintf(cmd.ErrOrStderr(), "SSH target: %s\n", target)
 			if !yes {
 				fmt.Fprint(cmd.ErrOrStderr(), "Install Overwatcher agent? [y/N]: ")
-				answer, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+				answer, err := readConfirmation(cmd.Context(), cmd.InOrStdin())
 				if err != nil {
 					return fmt.Errorf("read confirmation: %w", err)
 				}
@@ -74,8 +93,12 @@ func newAgentInstallCommand(api clientFactory, jsonOutput *bool) *cobra.Command 
 				if err != nil {
 					return err
 				}
-				if _, err = c.GetProject(ctx, projectID); err != nil {
+				project, err := c.GetProject(ctx, projectID)
+				if err != nil {
 					return err
+				}
+				if project.Data.Role != "owner" {
+					return fmt.Errorf("install requires project ownership to bind an agent")
 				}
 			}
 			if err := runSSH(ctx, target, agentPreflight); err != nil {
@@ -95,12 +118,20 @@ func newAgentInstallCommand(api clientFactory, jsonOutput *bool) *cobra.Command 
 			}
 			id := created.Data.AgentID
 			complete := false
+			bindAttempted := false
 			defer func() {
 				if complete {
 					return
 				}
 				cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cleanupCancel()
+				if bindAttempted {
+					// A failed response can follow a committed binding. Unbind before
+					// deleting so that ambiguous failures still revoke this agent.
+					if _, err := c.BindAgent(cleanupCtx, id, dto.BindAgentProjectRequest{}); err != nil {
+						resultErr = fmt.Errorf("%w; cleanup unbind failed for agent %s: %v", resultErr, id, err)
+					}
+				}
 				if err := c.DeleteAgent(cleanupCtx, id); err != nil {
 					resultErr = fmt.Errorf("%w; cleanup failed for agent %s: %v", resultErr, id, err)
 				} else {
@@ -123,6 +154,7 @@ curl -fsSL -o "$tmp" -- ` + shellQuote(c.ServerURL()+"/install.sh") + `
 				}
 				if agent.Data.LastSeen != nil {
 					if projectID != "" {
+						bindAttempted = true
 						agent, err = c.BindAgent(ctx, id, dto.BindAgentProjectRequest{ProjectID: projectID})
 						if err != nil {
 							return fmt.Errorf("bind agent: %w", err)

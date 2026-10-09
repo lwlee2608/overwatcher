@@ -3,6 +3,11 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +25,7 @@ func testOwctlInstall(t *testing.T, c *client.Client, binary, home, serverURL, k
 	dir := t.TempDir()
 	scripts := map[string]string{
 		"ssh": `#!/bin/sh
+touch "$FAKE_SSH_MARKER"
 for arg do case "$arg" in *owa_*) exit 90;; esac; done
 exec sh -s
 `,
@@ -60,17 +66,63 @@ INSTALL
 	project, err := c.CreateProject(context.Background(), dto.CreateProjectRequest{Name: "owctl-install-project", ComposeFile: "/tmp/compose.yml"})
 	require.NoError(t, err)
 	defer c.DeleteProject(context.Background(), project.Data.ID)
-	for _, mode := range []string{"success", "active", "nodocker", "fail", "timeout", "decline"} {
+	for _, mode := range []string{"success", "active", "nodocker", "fail", "timeout", "decline", "bind-response-failure", "member"} {
 		t.Run(mode, func(t *testing.T) {
 			before, err := c.ListAgents(context.Background())
 			require.NoError(t, err)
 			tokenFile := filepath.Join(t.TempDir(), "received-token")
+			sshMarker := filepath.Join(t.TempDir(), "ssh-called")
+			apiURL := serverURL
+			if mode == "bind-response-failure" || mode == "member" {
+				target, parseErr := url.Parse(serverURL)
+				require.NoError(t, parseErr)
+				proxy := httputil.NewSingleHostReverseProxy(target)
+				proxy.ModifyResponse = func(response *http.Response) error {
+					if mode == "member" && response.Request.URL.Path == "/api/v1/projects/"+project.Data.ID {
+						var payload map[string]any
+						if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+							return err
+						}
+						response.Body.Close()
+						payload["role"] = "member"
+						body, err := json.Marshal(payload)
+						if err != nil {
+							return err
+						}
+						response.Body = io.NopCloser(strings.NewReader(string(body)))
+						response.ContentLength = int64(len(body))
+						response.Header.Del("Content-Length")
+					}
+					if mode == "bind-response-failure" && response.Request.Method == "PUT" && strings.HasSuffix(response.Request.URL.Path, "/project") && response.StatusCode == 200 {
+						var agent dto.AgentStatusResponse
+						body, err := io.ReadAll(response.Body)
+						if err != nil {
+							return err
+						}
+						response.Body.Close()
+						if err := json.Unmarshal(body, &agent); err != nil {
+							return err
+						}
+						if agent.ProjectID != "" {
+							response.StatusCode = 500
+							body = []byte(`{"error":"injected failure after committed binding"}`)
+						}
+						response.Body = io.NopCloser(strings.NewReader(string(body)))
+						response.ContentLength = int64(len(body))
+						response.Header.Del("Content-Length")
+					}
+					return nil
+				}
+				server := httptest.NewServer(proxy)
+				defer server.Close()
+				apiURL = server.URL
+			}
 			args := []string{"agent", "install", "--ssh", "deploy@fake-vm", "--project", project.Data.Name, "--timeout", "3s", "--json"}
 			if mode != "decline" {
 				args = append(args, "--yes")
 			}
 			command := exec.Command(binary, args...)
-			command.Env = append(os.Environ(), "HOME="+home, "OVERWATCHER_URL="+serverURL, "OVERWATCHER_API_KEY="+key, "PATH="+dir+":"+os.Getenv("PATH"), "FAKE_MODE="+mode, "FAKE_URL="+serverURL, "FAKE_TOKEN_FILE="+tokenFile, "REAL_CURL="+realCurl)
+			command.Env = append(os.Environ(), "HOME="+home, "OVERWATCHER_URL="+apiURL, "OVERWATCHER_API_KEY="+key, "PATH="+dir+":"+os.Getenv("PATH"), "FAKE_MODE="+mode, "FAKE_URL="+serverURL, "FAKE_TOKEN_FILE="+tokenFile, "REAL_CURL="+realCurl, "FAKE_SSH_MARKER="+sshMarker)
 			var stdout, stderr strings.Builder
 			command.Stdout = &stdout
 			command.Stderr = &stderr
@@ -101,6 +153,13 @@ INSTALL
 				require.Error(t, err, output)
 				require.Len(t, after.Data.Agents, len(before.Data.Agents))
 				switch mode {
+				case "member":
+					require.Contains(t, output, "project ownership")
+					_, statErr := os.Stat(sshMarker)
+					require.True(t, os.IsNotExist(statErr))
+				case "bind-response-failure":
+					require.Contains(t, output, "injected failure after committed binding")
+					require.Contains(t, output, "created agent deleted")
 				case "active":
 					require.Contains(t, output, "already active")
 				case "nodocker":
