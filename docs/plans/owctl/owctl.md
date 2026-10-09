@@ -12,7 +12,7 @@
 - **SSH implementation** — shell out to the system `ssh` binary (inherits ~/.ssh/config, ssh-agent, ProxyJump, known_hosts)
 - **Credentials** — `owctl login` reads the key without echo and writes `~/.config/owctl/config.yaml` (0600); `OVERWATCHER_API_KEY` / `OVERWATCHER_URL` override it; URL defaults to `https://overwatcher-web-production.up.railway.app`
 - **Default output format** — human table by default; `--json` prints the raw API JSON
-- **Skill rewrite in this plan** — yes, final phase; PR #67 merges first as the curl-based stopgap
+- **Skill rewrite in this plan** — yes, final phase; PR #67's curl-based skill changes must be present on the integration branch before Phase 5 (already merged there; merging #67 to `main` separately is not required)
 - **`service set` input** — `-f <file>` (YAML or JSON, `-` = stdin), same shape as the `PUT /projects/:id/services` body
 - **Code location** — `cmd/owctl` in the backend Go module; reuses `internal/api/http/dto` types so request/response shapes can't drift `research`
 - **Release pipeline** — `agent-release.yml` builds on `v*` tags via a `make release-agent` target; linux amd64/arm64 only today `research`
@@ -24,12 +24,12 @@
 - **Tests** — client and commands tested against the real gin router via `httptest` on the systemtest Postgres; `agent install` tested with a fake `ssh` script on `PATH` that simulates the VM `agent`
 - **Phase count** — 5, sequential
 - **Build mode** — Orchestrator; worker `velocirouter/gpt-6-astra` at `medium`, fresh reviewer `velocirouter/gpt-6-astra` at `high` each round
-- **Current build checkpoint** — paused after Phase 4 merged; do not start Phase 5 without a new user request
+- **Current build checkpoint** — Phase 5 authorized; pause after it merges, before starting the Demo or opening the final PR
 - **Branching** — integration branch `owctl-integrate` (from `main`); each phase branches from it and merges back via PR; `owctl-integrate` merges to `main` after the final verify
 - **Verification** — no per-phase Verify; one end-to-end verify after Phase 5, run as the Demo. Per-phase test tasks stay. Risk accepted: an early-phase bug surfaces late
 
 ## Progress
-Phases 1–4 of 5 merged · 23/25 tasks · **Paused after Phase 4; Phase 5 not started.**
+Phases 1–4 of 5 merged · 23/25 tasks · **Phase 5 authorized; pause before the Demo.**
 - Phase 1: PR #68; two review rounds, terminal-interrupt cleanup fixed, final review clean.
 - Phase 2: PR #69; project create/delete, YAML/JSON/stdin service replacement, agent list/bind, and project name/ID resolution. Two review rounds; date-like YAML scalar corruption fixed, final review clean.
 - Both phases: `make build build-agent build-owctl`, `make test` (real-router system tests with disposable Postgres), `go vet ./...`, `git diff --check`, and CI passed after fixes. No findings skipped.
@@ -105,6 +105,6 @@ Agent-run end-to-end verify after Phase 5 — the only proof for every phase. On
 Real SSH, sudo and systemd are not exercised — see rollout.
 
 ## Post-merge rollout (user runs)
-1. Merge PR #67 (curl-based skill) before Phase 5 starts.
+1. PR #67's curl-based skill changes must be present on `owctl-integrate` before Phase 5; satisfied by merge commit `cac847e`. A separate merge of #67 to `main` is not required.
 2. Commit `services/overwatcher-backend/VERSION` as the intended release (`vX.Y.Z`) before tagging that commit with the identical tag. The release workflow rejects a tag/VERSION mismatch. After its owctl assets are published, deploy the coordinator from that same version so `/cli.sh` points at the published release.
 3. On a spare VM: `owctl agent install --ssh <user>@<vm> --project <test-project>` — confirms real sudo/systemd install, then delete the test agent and project.
