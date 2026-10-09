@@ -160,6 +160,7 @@ func addManagementCommands(root, project *cobra.Command, api clientFactory, json
 		}
 		return printAgents(cmd, []dto.AgentStatusResponse{response.Data})
 	}})
+	agent.AddCommand(newAgentInstallCommand(api, jsonOutput))
 	root.AddCommand(service, agent)
 }
 
