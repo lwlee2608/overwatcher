@@ -71,7 +71,7 @@ func newRootCommand() *cobra.Command {
 		_, err = fmt.Fprintln(cmd.OutOrStdout(), "API key saved.")
 		return err
 	}}
-	project := &cobra.Command{Use: "project", Short: "Read projects"}
+	project := &cobra.Command{Use: "project", Short: "Manage projects"}
 	project.AddCommand(&cobra.Command{Use: "list", Short: "List your projects", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		c, err := api()
 		if err != nil {
@@ -87,12 +87,16 @@ func newRootCommand() *cobra.Command {
 		}
 		return printProjects(cmd, response.Data.Projects)
 	}})
-	project.AddCommand(&cobra.Command{Use: "get <id>", Short: "Get a project by ID", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	project.AddCommand(&cobra.Command{Use: "get <project>", Short: "Get a project by name or ID", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		c, err := api()
 		if err != nil {
 			return err
 		}
-		response, err := c.GetProject(cmd.Context(), args[0])
+		id, err := resolveProject(cmd.Context(), c, args[0])
+		if err != nil {
+			return err
+		}
+		response, err := c.GetProject(cmd.Context(), id)
 		if err != nil {
 			return err
 		}
@@ -119,6 +123,7 @@ func newRootCommand() *cobra.Command {
 		return err
 	}}
 	root.AddCommand(login, project, version)
+	addManagementCommands(root, project, api, &jsonOutput)
 	return root
 }
 

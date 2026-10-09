@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -57,13 +58,28 @@ func (c *Client) Version(ctx context.Context) (Response[dto.VersionResponse], er
 }
 
 func get[T any](ctx context.Context, c *Client, path string) (Response[T], error) {
+	return request[T](ctx, c, http.MethodGet, path, nil)
+}
+
+func request[T any](ctx context.Context, c *Client, method, path string, payload any) (Response[T], error) {
 	var result Response[T]
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v1"+path, nil)
+	var input io.Reader
+	if payload != nil {
+		body, err := json.Marshal(payload)
+		if err != nil {
+			return result, fmt.Errorf("encode API request: %w", err)
+		}
+		input = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+"/api/v1"+path, input)
 	if err != nil {
 		return result, err
 	}
 	req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	req.Header.Set("Accept", "application/json")
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return result, fmt.Errorf("request API: %w", err)
@@ -85,6 +101,9 @@ func get[T any](ctx context.Context, c *Client, path string) (Response[T], error
 			payload.Error = http.StatusText(resp.StatusCode)
 		}
 		return result, &APIError{StatusCode: resp.StatusCode, Message: payload.Error}
+	}
+	if resp.StatusCode == http.StatusNoContent {
+		return result, nil
 	}
 	if err := json.Unmarshal(body, &result.Data); err != nil {
 		return result, fmt.Errorf("decode API response: %w", err)
