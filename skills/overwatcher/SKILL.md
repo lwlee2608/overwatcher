@@ -46,13 +46,15 @@ Overwatcher deploys Docker Compose services on a VM when a GitHub repo is pushed
    ```
    Create the agent and install it **in one command**, so the token stays in a shell variable and is never printed or written to a file:
    ```bash
-   R=$(ow POST /agents '{"name":"my-vm"}'); AGENT_ID=$(jq -r .agent_id <<<"$R"); TOKEN=$(jq -r .agent_token <<<"$R")
+   R=$(ow POST /agents '{"name":"my-vm"}') && AGENT_ID=$(jq -er .agent_id <<<"$R") && TOKEN=$(jq -er .agent_token <<<"$R") || { echo "create failed: $R"; exit 1; }
+   echo "agent_id=$AGENT_ID"
    ssh "$VM" "curl -fsSL ${OVERWATCHER_URL:-https://overwatcher-web-production.up.railway.app}/install.sh | sudo AGENT_TOKEN=$TOKEN bash"
    ```
+   - The guard matters: API errors still exit 0, and without it the installer runs as root with the token `null`, leaving a broken agent on the VM. If create fails with 409, the name is taken — pick another and retry.
    - The SSH user needs passwordless sudo. If sudo prompts, stop and give the user the command to run themselves.
    - The agent runs as the SSH login user. Private image pulls need that user's `docker login` on the VM.
    - If the install fails, run `ow DELETE /agents/$AGENT_ID` so a never-connected agent is not left behind.
-   - Poll `ow GET /agents/$AGENT_ID` every 5s for up to 1 minute until `status` is `connected`.
+   - Poll `ow GET /agents/$AGENT_ID` every 5s for up to 1 minute until `status` is `connected`. The installer exits 0 even if the agent crashes on start, so a timeout is a failure: run `ssh "$VM" 'journalctl -u overwatcher-agent -n 50 --no-pager'`, report the output, and ask the user before deleting or binding the agent (deleting it leaves the service running on the VM).
 
 7. **Bind an agent only if it is free.** Use the agent from step 6, or one from `ow GET /agents` whose `project_id` is empty:
    ```bash
