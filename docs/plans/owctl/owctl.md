@@ -29,7 +29,7 @@
 - **Verification** — no per-phase Verify; one end-to-end verify after Phase 5, run as the Demo. Per-phase test tasks stay. Risk accepted: an early-phase bug surfaces late
 
 ## Progress
-Phases 1–4 of 5 merged · 23/25 tasks · **Phase 5 authorized; pause before the Demo.**
+Phases 1–4 of 5 merged · 25/25 tasks implemented · **Phase 5 awaiting review; pause before the Demo.**
 - Phase 1: PR #68; two review rounds, terminal-interrupt cleanup fixed, final review clean.
 - Phase 2: PR #69; project create/delete, YAML/JSON/stdin service replacement, agent list/bind, and project name/ID resolution. Two review rounds; date-like YAML scalar corruption fixed, final review clean.
 - Both phases: `make build build-agent build-owctl`, `make test` (real-router system tests with disposable Postgres), `go vet ./...`, `git diff --check`, and CI passed after fixes. No findings skipped.
@@ -41,6 +41,8 @@ Phases 1–4 of 5 merged · 23/25 tasks · **Phase 5 authorized; pause before th
 - Phase 4 review round 1: fixed the release/coordinator version consistency finding. Release publishing now requires the tag to match committed `VERSION`, and binaries retain the same VERSION-based stamping as coordinator builds. Rollout now requires committing the intended version before tagging and deploying that version after assets publish. The exact workflow guard passed with a matching tag and rejected a mismatching tag in a disposable directory. `make build build-agent build-owctl`, `make test` (disposable Postgres), `go vet ./...`, `make release-agent release-owctl COMMIT_SHA=`, all six artifact checksums, and `git diff --check` passed. No findings skipped; no version bump, tag, release, deployment, or Phase 5 work performed.
 - Phase 4 review round 2: corrected the CLI README navigation to **user menu → API keys**. The previous version consistency fix was confirmed; no other actionable defects found. `make build build-agent build-owctl`, `make test` (disposable Postgres), `go vet ./...`, and `git diff --check` passed after the documentation correction. No findings skipped; Phase 5 sections remain unchanged.
 - Phase 4: PR #71 merged with a merge commit after three review rounds; round 3 clean. Both findings fixed, none skipped. Checks passed after the last fix and CI passed. Stopped at the requested checkpoint; no final PR to `main` opened.
+- Phase 5 implementation: rewrote the Overwatcher skill and README API-access/skill sections around `/cli.sh`, environment authentication, `--json`, service replacement, and `agent install --ssh`. Checked syntax and safety claims against the command/client/installer implementation and local CLI help, including binding displacement, token transport versus VM persistence, and best-effort cleanup. `make build build-agent build-owctl`, `make test` (disposable testcontainers Postgres), `go vet ./...`, and `git diff --check` passed from the backend module as applicable. An initial make invocation at the repository root failed because it has no build target; rerunning in the backend module passed. Test containers were removed; no credential files inspected, deployed hosts, shared databases, or admin login used. Documentation-only change; no CLI scope expansion. Functional verification remains deferred; the Demo was not run.
+- Phase 5 review round 1: corrected the installation-recovery link and both matching README references to `docs/architecture/agent-systemd.md`. All three targets resolve. `make build build-agent build-owctl`, `make test` (disposable testcontainers Postgres; system tests reran, other packages cached), `go vet ./...`, and `git diff --check` passed after the fix. No findings skipped; no Demo, deployed hosts, shared databases, credential inspection, or admin login used.
 - End-to-end verification remains deferred to the Phase 5 Demo. Work is on `owctl-integrate`; `main` is unchanged.
 
 ### Phase 1 — Log in and list projects from the terminal
@@ -89,8 +91,8 @@ A user can set up a whole project from the terminal when a free agent already ex
 ### Phase 5 — The overwatcher skill drives owctl instead of curl
 An AI agent with the skill sets up a project, including the VM install, using only owctl commands.
 **Blocked by:** 3, 4
-- [ ] Rewrite the skill around owctl: install via `/cli.sh`, env-based auth, `--json` commands, `agent install --ssh` (skills/overwatcher/SKILL.md)
-- [ ] Update the README API-access and skill sections (README.md)
+- [x] Rewrite the skill around owctl: install via `/cli.sh`, env-based auth, `--json` commands, `agent install --ssh` (skills/overwatcher/SKILL.md)
+- [x] Update the README API-access and skill sections (README.md)
 **Verify:** deferred — single end-to-end verify after Phase 5 (see Demo)
 
 ## Demo
