@@ -29,6 +29,15 @@ type Agent struct {
 	DiskTotalBytes    pgtype.Int8        `json:"disk_total_bytes"`
 }
 
+type ApiKey struct {
+	ID         pgtype.UUID        `json:"id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Name       string             `json:"name"`
+	TokenHash  string             `json:"token_hash"`
+	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type DeployIntent struct {
 	ID             pgtype.UUID      `json:"id"`
 	DeliveryID     string           `json:"delivery_id"`

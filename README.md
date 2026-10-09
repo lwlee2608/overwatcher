@@ -79,6 +79,29 @@ overwatcher-agent:
 The agent uses **Docker Compose v2** (`docker compose` plugin); the
 `docker:27-cli` base image ships with it.
 
+## API access
+
+Scripts and AI agents can drive the coordinator API with a personal API key.
+Create one under **user menu → API keys**; it's shown once. Send it as a
+Bearer token — it acts as you on every `/api/v1` UI route, except managing
+API keys and changing your password (those need a login session).
+
+```bash
+API=https://<coordinator>/api/v1
+AUTH="Authorization: Bearer owk_<key>"
+
+# 1. create the project
+PROJECT_ID=$(curl -sf -H "$AUTH" -X POST $API/projects \
+  -d '{"name":"my-app","compose_file":"/opt/stacks/my-app/docker-compose.yml"}' | jq -r .id)
+
+# 2. set its services
+curl -sf -H "$AUTH" -X PUT $API/projects/$PROJECT_ID/services \
+  -d '{"services":[{"name":"web","repo":"acme/my-app","image":"acme/my-app","workflow":"build.yml"}]}'
+
+# 3. bind an agent (see GET $API/agents)
+curl -sf -H "$AUTH" -X PUT $API/agents/<agent-id>/project -d "{\"project_id\":\"$PROJECT_ID\"}"
+```
+
 ## Docs
 
 - [`docs/architecture/high-level-design.md`](docs/architecture/high-level-design.md) — system shape, components, flow, trade-offs.
