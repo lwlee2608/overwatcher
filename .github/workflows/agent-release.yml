@@ -25,10 +25,18 @@ jobs:
           go-version-file: services/overwatcher-backend/go.mod
           cache-dependency-path: services/overwatcher-backend/go.sum
 
+      - name: Validate release version
+        run: |
+          version=$(cat VERSION)
+          if [ "$GITHUB_REF_NAME" != "$version" ]; then
+            echo "Release tag $GITHUB_REF_NAME must match committed VERSION ($version)." >&2
+            exit 1
+          fi
+
       - name: Build release artifacts
         run: |
           rm -rf dist
-          make release-agent release-owctl VERSION="$GITHUB_REF_NAME" COMMIT_SHA=
+          make release-agent release-owctl COMMIT_SHA=
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
