@@ -24,12 +24,12 @@
 - **Tests** — client and commands tested against the real gin router via `httptest` on the systemtest Postgres; `agent install` tested with a fake `ssh` script on `PATH` that simulates the VM `agent`
 - **Phase count** — 5, sequential
 - **Build mode** — Orchestrator; worker `velocirouter/gpt-6-astra` at `medium`, fresh reviewer `velocirouter/gpt-6-astra` at `high` each round
-- **Current build checkpoint** — resume at Phase 3; pause after Phase 4 merges; do not start Phase 5
+- **Current build checkpoint** — paused after Phase 4 merged; do not start Phase 5 without a new user request
 - **Branching** — integration branch `owctl-integrate` (from `main`); each phase branches from it and merges back via PR; `owctl-integrate` merges to `main` after the final verify
 - **Verification** — no per-phase Verify; one end-to-end verify after Phase 5, run as the Demo. Per-phase test tasks stay. Risk accepted: an early-phase bug surfaces late
 
 ## Progress
-Phases 1–3 of 5 merged · 23/25 tasks implemented · **Phase 4 implemented, awaiting review; stop after Phase 4.**
+Phases 1–4 of 5 merged · 23/25 tasks · **Paused after Phase 4; Phase 5 not started.**
 - Phase 1: PR #68; two review rounds, terminal-interrupt cleanup fixed, final review clean.
 - Phase 2: PR #69; project create/delete, YAML/JSON/stdin service replacement, agent list/bind, and project name/ID resolution. Two review rounds; date-like YAML scalar corruption fixed, final review clean.
 - Both phases: `make build build-agent build-owctl`, `make test` (real-router system tests with disposable Postgres), `go vet ./...`, `git diff --check`, and CI passed after fixes. No findings skipped.
@@ -40,6 +40,7 @@ Phases 1–3 of 5 merged · 23/25 tasks implemented · **Phase 4 implemented, aw
 - Phase 4 implementation: added four Linux/macOS owctl release binaries and shared SHA256SUMS without removing agent assets; `v*` publishing stamps the tag version. Added release-templated `/cli.sh`, checksum verification, user-local installation, web-domain proxy, and README install/login instructions. `make build build-agent build-owctl`, `make test` (disposable testcontainers Postgres), `go vet ./...`, `make release-agent release-owctl COMMIT_SHA=`, all six artifact checksums/platform formats, POSIX shell syntax and handler tests, disposable nginx configuration validation, and `git diff --check` passed. Test containers were removed; no credentials, deployed hosts, or shared deployments used. Release publishing and the installer end-to-end Demo remain unrun. No Phase 5 tasks started.
 - Phase 4 review round 1: fixed the release/coordinator version consistency finding. Release publishing now requires the tag to match committed `VERSION`, and binaries retain the same VERSION-based stamping as coordinator builds. Rollout now requires committing the intended version before tagging and deploying that version after assets publish. The exact workflow guard passed with a matching tag and rejected a mismatching tag in a disposable directory. `make build build-agent build-owctl`, `make test` (disposable Postgres), `go vet ./...`, `make release-agent release-owctl COMMIT_SHA=`, all six artifact checksums, and `git diff --check` passed. No findings skipped; no version bump, tag, release, deployment, or Phase 5 work performed.
 - Phase 4 review round 2: corrected the CLI README navigation to **user menu → API keys**. The previous version consistency fix was confirmed; no other actionable defects found. `make build build-agent build-owctl`, `make test` (disposable Postgres), `go vet ./...`, and `git diff --check` passed after the documentation correction. No findings skipped; Phase 5 sections remain unchanged.
+- Phase 4: PR #71 merged with a merge commit after three review rounds; round 3 clean. Both findings fixed, none skipped. Checks passed after the last fix and CI passed. Stopped at the requested checkpoint; no final PR to `main` opened.
 - End-to-end verification remains deferred to the Phase 5 Demo. Work is on `owctl-integrate`; `main` is unchanged.
 
 ### Phase 1 — Log in and list projects from the terminal
