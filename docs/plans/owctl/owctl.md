@@ -29,10 +29,13 @@
 - **Verification** — no per-phase Verify; one end-to-end verify after Phase 5, run as the Demo. Per-phase test tasks stay. Risk accepted: an early-phase bug surfaces late
 
 ## Progress
-Phases 1–2 of 5 merged · 14/25 tasks · **Resuming Phase 3; stop after Phase 4.**
+Phases 1–2 of 5 merged · 18/25 tasks implemented · **Phase 3 implemented, awaiting review; stop after Phase 4.**
 - Phase 1: PR #68; two review rounds, terminal-interrupt cleanup fixed, final review clean.
 - Phase 2: PR #69; project create/delete, YAML/JSON/stdin service replacement, agent list/bind, and project name/ID resolution. Two review rounds; date-like YAML scalar corruption fixed, final review clean.
 - Both phases: `make build build-agent build-owctl`, `make test` (real-router system tests with disposable Postgres), `go vet ./...`, `git diff --check`, and CI passed after fixes. No findings skipped.
+- Phase 3 implementation: typed agent create/get/delete and SSH install with confirmation, preflight, stdin-only token transport, bounded install/connect wait, bind-on-connect, and independent failure cleanup. Fake SSH executes the remote shell with simulated VM commands and real-router/Postgres heartbeats; success, active-agent refusal, missing Compose, installer failure, timeout, and declined confirmation covered. `make build build-agent build-owctl`, `make test`, `go vet ./...`, and `git diff --check` passed using disposable testcontainers Postgres. Initial test-fixture issues (unbound heartbeat returns 412; bound agents must unbind before deletion) corrected. No deployed hosts used; real SSH/sudo/systemd remain rollout-only. Failed installs revoke the created agent but may leave remote files/service requiring operator cleanup.
+- Phase 3 review round 1: fixed all three findings. Ambiguous bind failures now unbind before deleting the created agent; confirmation exits on SIGINT/SIGTERM; project ownership is checked before SSH or agent creation. Regression coverage injects a failed response after a real committed binding and a member-role response, and signals subprocesses blocked at confirmation. `make build build-agent build-owctl`, `make test` (disposable Postgres), `go vet ./...`, and `git diff --check` passed after fixes. No findings skipped; awaiting the next review, not merged.
+- Phase 3 review round 2: scoped signal interception to `agent install`, restoring normal termination for unrelated commands without changing login's terminal-restoration handler. Added subprocess regressions for SIGINT/SIGTERM while `service set -f -` waits on an open input stream; install-confirmation and login signal tests remain passing. `make build build-agent build-owctl`, `make test` (disposable Postgres), `go vet ./...`, and `git diff --check` passed. No findings skipped; awaiting round 3, not merged.
 - End-to-end verification remains deferred to the Phase 5 Demo. Work is on `owctl-integrate`; `main` is unchanged.
 
 ### Phase 1 — Log in and list projects from the terminal
@@ -62,10 +65,10 @@ A user can set up a whole project from the terminal when a free agent already ex
 ### Phase 3 — Install an agent on a VM with one command
 `owctl agent install --ssh user@vm --project <name>` leaves a connected, bound agent.
 **Blocked by:** 2
-- [ ] Add agent create/get/delete to the client (internal/client)
-- [ ] Add `owctl agent install --ssh <target> [--project] [--name] [--yes] [--timeout]` per the install-safety decision (cmd/owctl)
-- [ ] Add a fake `ssh` harness that simulates the VM and heartbeats with the received agent token (systemtest)
-- [ ] Test success, VM already running an agent, failed install cleanup, and connect timeout (systemtest/tests)
+- [x] Add agent create/get/delete to the client (internal/client)
+- [x] Add `owctl agent install --ssh <target> [--project] [--name] [--yes] [--timeout]` per the install-safety decision (cmd/owctl)
+- [x] Add a fake `ssh` harness that simulates the VM and heartbeats with the received agent token (systemtest)
+- [x] Test success, VM already running an agent, failed install cleanup, and connect timeout (systemtest/tests)
 **Verify:** deferred — single end-to-end verify after Phase 5 (see Demo)
 
 ### Phase 4 — Install owctl with one curl command

@@ -131,6 +131,7 @@ func TestOwctl(t *testing.T, router *gin.Engine, sessionToken string) {
 	require.NoError(t, err, outputText)
 	require.JSONEq(t, string(version.Raw), outputText)
 	testOwctlManagement(t, router, sessionToken, c, binary, home, server.URL, key.Key, run)
+	testOwctlInstall(t, c, binary, home, server.URL, key.Key)
 	outputText, err = run("owk_invalid", "project", "list")
 	require.Error(t, err)
 	require.Contains(t, outputText, "invalid api key")
