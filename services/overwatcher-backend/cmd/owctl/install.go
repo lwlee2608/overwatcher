@@ -5,9 +5,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
+	"os/signal"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
@@ -61,6 +64,8 @@ func newAgentInstallCommand(api clientFactory, jsonOutput *bool) *cobra.Command 
 	var timeout time.Duration
 	cmd := &cobra.Command{Use: "install --ssh <target>", Short: "Install an agent over SSH (requires passwordless sudo)", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) (resultErr error) {
+			installCtx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
 			if !sshTargetPattern.MatchString(target) {
 				return fmt.Errorf("invalid SSH target: use [user@]host (SSH config aliases are supported)")
 			}
@@ -73,7 +78,7 @@ func newAgentInstallCommand(api clientFactory, jsonOutput *bool) *cobra.Command 
 			fmt.Fprintf(cmd.ErrOrStderr(), "SSH target: %s\n", target)
 			if !yes {
 				fmt.Fprint(cmd.ErrOrStderr(), "Install Overwatcher agent? [y/N]: ")
-				answer, err := readConfirmation(cmd.Context(), cmd.InOrStdin())
+				answer, err := readConfirmation(installCtx, cmd.InOrStdin())
 				if err != nil {
 					return fmt.Errorf("read confirmation: %w", err)
 				}
@@ -85,7 +90,7 @@ func newAgentInstallCommand(api clientFactory, jsonOutput *bool) *cobra.Command 
 			if err != nil {
 				return err
 			}
-			ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
+			ctx, cancel := context.WithTimeout(installCtx, timeout)
 			defer cancel()
 			var projectID string
 			if project != "" {

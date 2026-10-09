@@ -14,6 +14,50 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestServiceSignalHelper(t *testing.T) {
+	if os.Getenv("OWCTL_SERVICE_SIGNAL_HELPER") != "1" {
+		return
+	}
+	os.Args = []string{"owctl", "service", "set", "project", "-f", "-"}
+	main()
+	os.Exit(0)
+}
+
+func TestServiceInputExitsOnSignal(t *testing.T) {
+	for _, signal := range []os.Signal{os.Interrupt, syscall.SIGTERM} {
+		t.Run(signal.String(), func(t *testing.T) {
+			command := exec.Command(os.Args[0], "-test.run=^TestServiceSignalHelper$")
+			command.Env = append(os.Environ(), "OWCTL_SERVICE_SIGNAL_HELPER=1", "HOME="+t.TempDir())
+			stdin, err := command.StdinPipe()
+			require.NoError(t, err)
+			defer stdin.Close()
+			require.NoError(t, command.Start())
+			defer command.Process.Kill()
+			_, err = stdin.Write([]byte("services: []\n"))
+			require.NoError(t, err)
+			done := make(chan error, 1)
+			go func() { done <- command.Wait() }()
+			// Keep stdin open: the decoder must wait for EOF or another document.
+			select {
+			case err := <-done:
+				t.Fatalf("service command exited before signal: %v", err)
+			case <-time.After(250 * time.Millisecond):
+			}
+			require.NoError(t, command.Process.Signal(signal))
+			select {
+			case err := <-done:
+				require.Error(t, err)
+				status, ok := command.ProcessState.Sys().(syscall.WaitStatus)
+				require.True(t, ok)
+				require.True(t, status.Signaled())
+				require.Equal(t, signal, os.Signal(status.Signal()))
+			case <-time.After(5 * time.Second):
+				t.Fatal("service stdin did not exit on signal")
+			}
+		})
+	}
+}
+
 func TestInstallSignalHelper(t *testing.T) {
 	if os.Getenv("OWCTL_INSTALL_SIGNAL_HELPER") != "1" {
 		return
