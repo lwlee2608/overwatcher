@@ -29,7 +29,11 @@
 - **Verification** — no per-phase Verify; one end-to-end verify after Phase 5, run as the Demo. Per-phase test tasks stay. Risk accepted: an early-phase bug surfaces late
 
 ## Progress
-Phase 1 of 5 merged · Phase 2 implemented, awaiting review · 14/25 tasks. Phase 1: PR #68, two review rounds, final review clean. Phase 2: project creation/deletion, service replacement, agent listing/binding, and project name/ID resolution implemented with client, command, and real-router system tests. Local build, tests (disposable Postgres), and vet passed; end-to-end verification remains deferred to the Phase 5 Demo. Pause after Phase 2 merges; do not start Phase 3.
+Phases 1–2 of 5 merged · 14/25 tasks · **Paused after Phase 2; Phase 3 not started.**
+- Phase 1: PR #68; two review rounds, terminal-interrupt cleanup fixed, final review clean.
+- Phase 2: PR #69; project create/delete, YAML/JSON/stdin service replacement, agent list/bind, and project name/ID resolution. Two review rounds; date-like YAML scalar corruption fixed, final review clean.
+- Both phases: `make build build-agent build-owctl`, `make test` (real-router system tests with disposable Postgres), `go vet ./...`, `git diff --check`, and CI passed after fixes. No findings skipped.
+- End-to-end verification remains deferred to the Phase 5 Demo. Work is on `owctl-integrate`; `main` is unchanged.
 
 ### Phase 1 — Log in and list projects from the terminal
 A user with an API key can run `owctl login`, then `owctl project list|get` against the coordinator.
