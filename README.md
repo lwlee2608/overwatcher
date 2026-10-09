@@ -102,6 +102,19 @@ curl -sf -H "$AUTH" -X PUT $API/projects/$PROJECT_ID/services \
 curl -sf -H "$AUTH" -X PUT $API/agents/<agent-id>/project -d "{\"project_id\":\"$PROJECT_ID\"}"
 ```
 
+### Agent skill
+
+[`skills/overwatcher`](skills/overwatcher/SKILL.md)
+teaches an AI agent (Claude Code or any agent that loads `SKILL.md`) this
+workflow. Install for Claude Code, then export `OVERWATCHER_API_KEY`
+(and `OVERWATCHER_URL` for a self-hosted coordinator):
+
+```bash
+mkdir -p ~/.claude/skills/overwatcher
+curl -fsSL https://raw.githubusercontent.com/lwlee2608/overwatcher/main/skills/overwatcher/SKILL.md \
+  -o ~/.claude/skills/overwatcher/SKILL.md
+```
+
 ## Docs
 
 - [`docs/architecture/high-level-design.md`](docs/architecture/high-level-design.md) — system shape, components, flow, trade-offs.
