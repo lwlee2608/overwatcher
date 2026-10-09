@@ -56,8 +56,7 @@ func newRootCommand() *cobra.Command {
 		if !ok || !term.IsTerminal(int(input.Fd())) {
 			return fmt.Errorf("login requires a terminal; use OVERWATCHER_API_KEY for non-interactive access")
 		}
-		fmt.Fprint(cmd.ErrOrStderr(), "API key: ")
-		key, err := term.ReadPassword(int(input.Fd()))
+		key, err := readPassword(input, cmd.ErrOrStderr())
 		fmt.Fprintln(cmd.ErrOrStderr())
 		if err != nil {
 			return fmt.Errorf("read API key: %w", err)
