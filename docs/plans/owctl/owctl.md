@@ -24,7 +24,7 @@
 - **Tests** — client and commands tested against the real gin router via `httptest` on the systemtest Postgres; `agent install` tested with a fake `ssh` script on `PATH` that simulates the VM `agent`
 - **Phase count** — 5, sequential
 - **Build mode** — Orchestrator; worker `velocirouter/gpt-6-astra` at `medium`, fresh reviewer `velocirouter/gpt-6-astra` at `high` each round
-- **Current build checkpoint** — paused after Phase 5 merged; do not start the Demo or open the final PR without a new user request
+- **Current build checkpoint** — all phases merged; user authorized opening the final PR before the Demo. Demo remains paused until a new user request; final PR merge remains user-owned.
 - **Branching** — integration branch `owctl-integrate` (from `main`); each phase branches from it and merges back via PR; `owctl-integrate` merges to `main` after the final verify
 - **Verification** — no per-phase Verify; one end-to-end verify after Phase 5, run as the Demo. Per-phase test tasks stay. Risk accepted: an early-phase bug surfaces late
 
@@ -44,7 +44,7 @@ Phases 1–5 of 5 merged · 25/25 tasks · **Paused before the Demo.**
 - Phase 5 implementation: rewrote the Overwatcher skill and README API-access/skill sections around `/cli.sh`, environment authentication, `--json`, service replacement, and `agent install --ssh`. Checked syntax and safety claims against the command/client/installer implementation and local CLI help, including binding displacement, token transport versus VM persistence, and best-effort cleanup. `make build build-agent build-owctl`, `make test` (disposable testcontainers Postgres), `go vet ./...`, and `git diff --check` passed from the backend module as applicable. An initial make invocation at the repository root failed because it has no build target; rerunning in the backend module passed. Test containers were removed; no credential files inspected, deployed hosts, shared databases, or admin login used. Documentation-only change; no CLI scope expansion. Functional verification remains deferred; the Demo was not run.
 - Phase 5 review round 1: corrected the installation-recovery link and both matching README references to `docs/architecture/agent-systemd.md`. All three targets resolve. `make build build-agent build-owctl`, `make test` (disposable testcontainers Postgres; system tests reran, other packages cached), `go vet ./...`, and `git diff --check` passed after the fix. No findings skipped; no Demo, deployed hosts, shared databases, credential inspection, or admin login used.
 - Phase 5: PR #72 merged with a merge commit after two review rounds; round 2 clean. One finding fixed (all three matching README links), none skipped. Local checks passed after the last fix. `gh pr checks --watch` reported no checks because the documentation-only PR does not match the backend/frontend workflow path filters; the user explicitly approved merging with local checks. No unreviewed fixes merged.
-- End-to-end verification remains deferred to the Demo, which has not started. Paused at the user's requested checkpoint; no final PR to `main` opened. Work is on `owctl-integrate`; `main` is unchanged.
+- End-to-end verification remains deferred to the Demo, which has not started. The user authorized raising the final PR to `main` first, with Demo status explicitly pending. Work is on `owctl-integrate`; `main` is unchanged.
 
 ### Phase 1 — Log in and list projects from the terminal
 A user with an API key can run `owctl login`, then `owctl project list|get` against the coordinator.
