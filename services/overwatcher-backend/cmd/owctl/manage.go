@@ -166,13 +166,18 @@ func addManagementCommands(root, project *cobra.Command, api clientFactory, json
 func readServices(input io.Reader) (dto.ReplaceComposeServicesRequest, error) {
 	var result dto.ReplaceComposeServicesRequest
 	decoder := yaml.NewDecoder(input)
-	var value any
-	if err := decoder.Decode(&value); err != nil {
+	var document yaml.Node
+	if err := decoder.Decode(&document); err != nil {
 		return result, fmt.Errorf("read services: %w", err)
 	}
 	var extra any
 	if err := decoder.Decode(&extra); err != io.EOF {
 		return result, fmt.Errorf("services input must contain exactly one document")
+	}
+	preserveTimestampText(&document)
+	var value any
+	if err := document.Decode(&value); err != nil {
+		return result, fmt.Errorf("read services: %w", err)
 	}
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -188,6 +193,16 @@ func readServices(input io.Reader) (dto.ReplaceComposeServicesRequest, error) {
 		return result, fmt.Errorf("services must be an array (use services: [] to clear)")
 	}
 	return result, nil
+}
+
+func preserveTimestampText(node *yaml.Node) {
+	// YAML implicitly resolves date-like tags and branches as timestamps.
+	if node.Kind == yaml.ScalarNode && node.Tag == "!!timestamp" {
+		node.Tag = "!!str"
+	}
+	for _, child := range node.Content {
+		preserveTimestampText(child)
+	}
 }
 
 func printRaw(cmd *cobra.Command, raw json.RawMessage) error {

@@ -27,6 +27,20 @@ func TestReadServices(t *testing.T) {
 	require.Empty(t, got.Services)
 }
 
+func TestReadServicesPreservesDateText(t *testing.T) {
+	for _, input := range []string{
+		"services: [{tag: 2026-10-09, branch: 2026-10-09}]",
+		"services: [{tag: &date 2026-10-09, branch: *date}]",
+		"services: [{tag: '2026-10-09', branch: '2026-10-09'}]",
+		`{"services":[{"tag":"2026-10-09","branch":"2026-10-09"}]}`,
+	} {
+		got, err := readServices(strings.NewReader(input))
+		require.NoError(t, err)
+		require.Equal(t, "2026-10-09", got.Services[0].Tag)
+		require.Equal(t, "2026-10-09", got.Services[0].Branch)
+	}
+}
+
 func TestResolveProject(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/api/v1/projects", r.URL.Path)
