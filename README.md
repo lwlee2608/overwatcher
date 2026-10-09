@@ -97,7 +97,7 @@ The installer verifies SHA256 checksums and installs to `~/.local/bin` without s
 curl -fsSL https://overwatcher-web-production.up.railway.app/cli.sh | OWCTL_INSTALL_DIR="$HOME/bin" sh
 ```
 
-For a self-hosted coordinator, use its `/cli.sh` URL and run `owctl login --url https://your-coordinator`. `login` prompts for an API key without echo and saves it in `~/.config/owctl/config.yaml` with mode `0600`. Create a key in **Settings → API keys**. `OVERWATCHER_URL` and `OVERWATCHER_API_KEY` override saved settings; `--url` overrides the URL. Use environment-based auth for non-interactive sessions. Do not commit API keys.
+For a self-hosted coordinator, use its `/cli.sh` URL and run `owctl login --url https://your-coordinator`. `login` prompts for an API key without echo and saves it in `~/.config/owctl/config.yaml` with mode `0600`. Create a key in **user menu → API keys**. `OVERWATCHER_URL` and `OVERWATCHER_API_KEY` override saved settings; `--url` overrides the URL. Use environment-based auth for non-interactive sessions. Do not commit API keys.
 
 Re-run the installer after upgrading the coordinator. Published releases include `owctl_linux_amd64`, `owctl_linux_arm64`, `owctl_darwin_amd64`, `owctl_darwin_arm64`, and `SHA256SUMS`. Development coordinators without a release tag use the latest release. Installing from source also works from `services/overwatcher-backend` with `go install ./cmd/owctl` (requires Go; install location follows `GOBIN`/`GOPATH`).
 
