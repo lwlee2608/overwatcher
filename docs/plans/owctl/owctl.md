@@ -24,12 +24,12 @@
 - **Tests** — client and commands tested against the real gin router via `httptest` on the systemtest Postgres; `agent install` tested with a fake `ssh` script on `PATH` that simulates the VM `agent`
 - **Phase count** — 5, sequential
 - **Build mode** — Orchestrator; worker `velocirouter/gpt-6-astra` at `medium`, fresh reviewer `velocirouter/gpt-6-astra` at `high` each round
-- **Current build checkpoint** — pause after Phase 2 merges; do not start Phase 3
+- **Current build checkpoint** — resume at Phase 3; pause after Phase 4 merges; do not start Phase 5
 - **Branching** — integration branch `owctl-integrate` (from `main`); each phase branches from it and merges back via PR; `owctl-integrate` merges to `main` after the final verify
 - **Verification** — no per-phase Verify; one end-to-end verify after Phase 5, run as the Demo. Per-phase test tasks stay. Risk accepted: an early-phase bug surfaces late
 
 ## Progress
-Phases 1–2 of 5 merged · 14/25 tasks · **Paused after Phase 2; Phase 3 not started.**
+Phases 1–2 of 5 merged · 14/25 tasks · **Resuming Phase 3; stop after Phase 4.**
 - Phase 1: PR #68; two review rounds, terminal-interrupt cleanup fixed, final review clean.
 - Phase 2: PR #69; project create/delete, YAML/JSON/stdin service replacement, agent list/bind, and project name/ID resolution. Two review rounds; date-like YAML scalar corruption fixed, final review clean.
 - Both phases: `make build build-agent build-owctl`, `make test` (real-router system tests with disposable Postgres), `go vet ./...`, `git diff --check`, and CI passed after fixes. No findings skipped.
