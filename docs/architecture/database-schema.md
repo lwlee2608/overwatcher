@@ -6,7 +6,7 @@ PostgreSQL backs the entire control plane. Migrations live under `services/overw
 
 The schema is split along three axes:
 
-- **Auth & tenancy** — `users`, `sessions`, `project_members`. The UI logs in with email + password (cookie-based sessions); a "bootstrap admin" is seeded with a one-time password on first start. `project_members` lets the owner share a project with other users.
+- **Auth & tenancy** — `users`, `sessions`, `api_keys`, `project_members`. The UI logs in with email + password (cookie-based sessions); scripts and AI agents authenticate with a per-user API key; a "bootstrap admin" is seeded with a one-time password on first start. `project_members` lets the owner share a project with other users.
 - **Deploy model** — `projects`, `services`, `agents`, `deploy_intents`. A user owns N projects. A project has exactly one compose file, exactly one agent (1:1, partial unique), and N services. A service is a `(repo, root_directory, branch, image, tag, workflow)` row that triggers from `push` when `workflow` is empty, or from `workflow_run(success)` when `workflow` is set.
 - **Observability** — `event_logs`. Every received GitHub webhook delivery is recorded so the UI can show what was seen, even when it didn't produce a deploy.
 
@@ -107,6 +107,10 @@ UI auth. `password_hash` uses bcrypt; `password_is_bootstrap = true` marks accou
 
 Server-side session store. Cookies carry only the opaque `token`. An hourly reaper deletes rows where `expires_at < NOW()`. Password changes revoke all sessions for that user.
 
+### api_keys
+
+Personal API keys. A key (`owk_` prefix) is sent as `Authorization: Bearer` and acts as `user_id` on the UI API. Only `token_hash = sha256(key)` is stored; the raw key is returned once on creation. `last_used_at` is written at most once a minute. `UNIQUE(user_id, name)`; deleting a user cascades to their keys. Keys survive password changes and are revoked by deleting the row.
+
 ### projects
 
 The deployable unit (Railway-style). Each project owns exactly one `compose_file` and binds to exactly one agent. `UNIQUE(user_id, name)` lets two users both have a project called `staging`. Deleting a user cascades to their projects, and through them to services.
@@ -135,7 +139,7 @@ Every received GitHub webhook delivery, including ones that didn't match any ser
 
 ## Migration History
 
-Migrations are numbered 0001–0020 and applied in order. Notable points:
+Migrations are numbered 0001–0023 and applied in order. Notable points:
 
 - `0001` — `deploy_intents` (the original MVP table).
 - `0003` — original `agents` + `deploy_mappings` schema.
@@ -150,3 +154,4 @@ Migrations are numbered 0001–0020 and applied in order. Notable points:
 - `0018` — `agents.agent_type` (`docker` / `systemd`), reported by the agent on each poll.
 - `0019` — `agents.version`, the agent's build version, reported on each poll.
 - `0020` — `agents.token_hash` (per-agent auth, partial unique on non-NULL digests) and `agents.installed_by_user_id` (FK → `users`, who provisioned the agent).
+- `0023` — `api_keys` for per-user Bearer API access.

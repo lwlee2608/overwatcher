@@ -22,6 +22,7 @@ type Querier interface {
 	CountDeployIntentsByStatus(ctx context.Context, status string) (int64, error)
 	CountDeployIntentsForUser(ctx context.Context, arg CountDeployIntentsForUserParams) (int64, error)
 	CountEventLogs(ctx context.Context, arg CountEventLogsParams) (int64, error)
+	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (ApiKey, error)
 	// Pre-provision an agent. token_hash is sha256(raw token); the raw token is
 	// returned to the caller once and never stored. Fails on duplicate name.
 	CreateAgent(ctx context.Context, arg CreateAgentParams) (Agent, error)
@@ -34,6 +35,7 @@ type Querier interface {
 	CreateService(ctx context.Context, arg CreateServiceParams) (Service, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteAPIKeyForUser(ctx context.Context, arg DeleteAPIKeyForUserParams) (ApiKey, error)
 	DeleteAgent(ctx context.Context, id pgtype.UUID) (int64, error)
 	DeleteExpiredSessions(ctx context.Context) error
 	DeleteOldEventLogs(ctx context.Context, offset int32) (int64, error)
@@ -44,6 +46,7 @@ type Querier interface {
 	DeleteSessionsForUser(ctx context.Context, userID pgtype.UUID) error
 	DeleteUser(ctx context.Context, id pgtype.UUID) (User, error)
 	FailTimedOutIntents(ctx context.Context, arg FailTimedOutIntentsParams) ([]DeployIntent, error)
+	GetAPIKeyByTokenHash(ctx context.Context, tokenHash string) (ApiKey, error)
 	GetAgent(ctx context.Context, id pgtype.UUID) (GetAgentRow, error)
 	GetAgentByTokenHash(ctx context.Context, tokenHash pgtype.Text) (Agent, error)
 	GetDeployIntentByID(ctx context.Context, id pgtype.UUID) (DeployIntent, error)
@@ -55,6 +58,7 @@ type Querier interface {
 	GetUser(ctx context.Context, id pgtype.UUID) (User, error)
 	GetUserByEmail(ctx context.Context, lower string) (User, error)
 	GetUserPasswordHashByEmail(ctx context.Context, lower string) (GetUserPasswordHashByEmailRow, error)
+	ListAPIKeysByUser(ctx context.Context, userID pgtype.UUID) ([]ApiKey, error)
 	// Visibility: an unbound agent is seen only by its installer; once bound, by
 	// members of its project (owner or project_members row).
 	ListAgentsForUser(ctx context.Context, installedByUserID pgtype.UUID) ([]ListAgentsForUserRow, error)
@@ -92,6 +96,8 @@ type Querier interface {
 	// FOR UPDATE SKIP LOCKED + the dispatched-stack guard keep concurrent
 	// pollers from blocking each other or double-claiming a stack.
 	TakeNextDeployIntent(ctx context.Context, agentName string) (DeployIntent, error)
+	// Throttled to one write per minute so a busy key doesn't write on every request.
+	TouchAPIKey(ctx context.Context, id pgtype.UUID) error
 	// Heartbeat on the agent already resolved from its token. Empty agent_type or
 	// version preserves the existing value so a poll without the header can't wipe
 	// it; NULL metrics likewise keep the last reported values.

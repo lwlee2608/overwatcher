@@ -5,6 +5,7 @@ import { ProjectsDashboard } from "./components/ProjectsDashboard";
 import { ProjectDetail } from "./components/ProjectDetail";
 import { EventLogDashboard } from "./components/EventLogDashboard";
 import { DeploymentDashboard } from "./components/DeploymentDashboard";
+import { APIKeysDashboard } from "./components/APIKeysDashboard";
 import { LoginPage } from "./components/LoginPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { UserMenu } from "./components/UserMenu";
@@ -68,6 +69,7 @@ function App() {
           <Route path="projects/:id" element={<ProjectDetail />} />
           <Route path="deployments" element={<DeploymentDashboard />} />
           <Route path="events" element={<EventLogDashboard />} />
+          <Route path="api-keys" element={<APIKeysDashboard />} />
         </Route>
       </Route>
     </Routes>

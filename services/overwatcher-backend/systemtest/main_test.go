@@ -11,6 +11,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/db"
 	"github.com/lwlee2608/overwatcher/internal/db/sqlc"
 	"github.com/lwlee2608/overwatcher/internal/service/agentregistry"
+	"github.com/lwlee2608/overwatcher/internal/service/apikey"
 	"github.com/lwlee2608/overwatcher/internal/service/auth"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
 	"github.com/lwlee2608/overwatcher/internal/service/eventlog"
@@ -64,14 +65,15 @@ func TestSystemIntegration(t *testing.T) {
 	webhookSvc := webhook.New(nil, projectSvc, intentStore, eventLogSvc)
 
 	services := &internalhttp.Services{
-		WebhookService:    webhookSvc,
-		DispatchService:   dispatchSvc,
-		AgentService:      agentSvc,
-		EventLogService:   eventLogSvc,
-		UserService:       userSvc,
-		ProjectService:    projectSvc,
-		AuthService:   authSvc,
-		WebhookSecret: "test-webhook-secret",
+		WebhookService:  webhookSvc,
+		DispatchService: dispatchSvc,
+		AgentService:    agentSvc,
+		EventLogService: eventLogSvc,
+		UserService:     userSvc,
+		ProjectService:  projectSvc,
+		AuthService:     authSvc,
+		APIKeyService:   apikey.NewService(pool),
+		WebhookSecret:   "test-webhook-secret",
 	}
 
 	require.NoError(t, authSvc.EnsureUserPassword(context.Background(), auth.BootstrapConfig{
@@ -92,6 +94,7 @@ func TestSystemIntegration(t *testing.T) {
 	t.Run("Agents", func(t *testing.T) { tests.TestAgents(t, engine, agentSvc, sessionUserID, sessionToken) })
 	t.Run("Users", func(t *testing.T) { tests.TestUsers(t, engine, sessionToken) })
 	t.Run("Projects", func(t *testing.T) { tests.TestProjects(t, engine, sessionUserID, sessionToken) })
+	t.Run("APIKeys", func(t *testing.T) { tests.TestAPIKeys(t, engine, sessionToken) })
 	t.Run("Deploy", func(t *testing.T) {
 		tests.SeedTestAgent(t, pool)
 		tests.TestDeploy(t, engine, intentStore, tests.TestAgentToken)

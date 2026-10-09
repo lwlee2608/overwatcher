@@ -5,6 +5,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/api/http/handler"
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/service/agentregistry"
+	"github.com/lwlee2608/overwatcher/internal/service/apikey"
 	"github.com/lwlee2608/overwatcher/internal/service/auth"
 	"github.com/lwlee2608/overwatcher/internal/service/cloudprovider"
 	"github.com/lwlee2608/overwatcher/internal/service/dispatch"
@@ -27,6 +28,7 @@ type Services struct {
 	UserService     *user.Service
 	ProjectService  *project.Service
 	AuthService     *auth.Service
+	APIKeyService   *apikey.Service
 	WebhookSecret   string
 	AppVersion      string
 	AgentReleaseTag string
@@ -48,6 +50,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	userHandler := handler.NewUserHandler(srvs.UserService)
 	projectHandler := handler.NewProjectHandler(srvs.ProjectService)
 	authHandler := handler.NewAuthHandler(srvs.AuthService, srvs.CookieConfig)
+	apiKeyHandler := handler.NewAPIKeyHandler(srvs.APIKeyService)
 
 	engine.GET("/health", healthHandler.Check)
 	// Public: piped into bash before any credentials exist on the VM.
@@ -74,11 +77,20 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 		apis.POST("/auth/login", authHandler.Login)
 		apis.POST("/auth/logout", authHandler.Logout)
 
+		// Accepts a session cookie or an `Authorization: Bearer owk_…` API key.
 		ui := apis.Group("")
-		ui.Use(middleware.SessionAuth(srvs.AuthService, srvs.CookieConfig))
+		ui.Use(middleware.UserAuth(srvs.AuthService, srvs.APIKeyService, srvs.CookieConfig))
 		{
+			sessionOnly := ui.Group("")
+			sessionOnly.Use(middleware.RequireSession())
+			{
+				sessionOnly.PUT("/auth/password", authHandler.ChangePassword)
+				sessionOnly.GET("/api-keys", apiKeyHandler.List)
+				sessionOnly.POST("/api-keys", apiKeyHandler.Create)
+				sessionOnly.DELETE("/api-keys/:id", apiKeyHandler.Delete)
+			}
+
 			ui.GET("/auth/me", authHandler.Me)
-			ui.PUT("/auth/password", authHandler.ChangePassword)
 
 			ui.GET("/version", versionHandler.Get)
 
