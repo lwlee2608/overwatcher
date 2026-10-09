@@ -53,7 +53,7 @@ bash
 
 The agent runs as a host user in the `docker` group, so there is no
 container/host path translation, no socket mounting, and no
-`~/.docker/config.json` juggling. See [`docs/agent-systemd.md`](docs/agent-systemd.md)
+`~/.docker/config.json` juggling. See [`docs/architecture/agent-systemd.md`](docs/architecture/agent-systemd.md)
 for install, upgrade, logs, uninstall, and troubleshooting.
 
 ### Docker container
@@ -150,7 +150,7 @@ it. `--timeout` defaults to `60s` for the whole operation. The agent token trave
 via SSH stdin and is not printed; the installer stores it on the VM. On failure,
 owctl attempts to delete the created agent, but remote files/service may remain
 and cleanup can fail. Inspect errors before retrying; see the
-[systemd guide](docs/agent-systemd.md) for troubleshooting.
+[systemd guide](docs/architecture/agent-systemd.md) for troubleshooting.
 
 The CLI covers core project/service/agent workflows, not every API route.
 Direct API clients can still send the personal key as a Bearer token on
@@ -179,4 +179,4 @@ curl -fsSL https://raw.githubusercontent.com/lwlee2608/overwatcher/main/skills/o
 - [`docs/architecture/database-schema.md`](docs/architecture/database-schema.md) — Postgres tables and migration history.
 - [`docs/architecture/agent-protocol.md`](docs/architecture/agent-protocol.md) — coordinator ↔ agent HTTP contract.
 - [`docs/architecture/workflow-run-trigger.md`](docs/architecture/workflow-run-trigger.md) — `workflow_run` setup and failure modes.
-- [`docs/agent-systemd.md`](docs/agent-systemd.md) — install, upgrade, logs, and troubleshooting for the systemd agent.
+- [`docs/architecture/agent-systemd.md`](docs/architecture/agent-systemd.md) — install, upgrade, logs, and troubleshooting for the systemd agent.
