@@ -55,6 +55,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	engine.GET("/health", healthHandler.Check)
 	// Public: piped into bash before any credentials exist on the VM.
 	engine.GET("/install.sh", installHandler.Serve)
+	engine.GET("/cli.sh", handler.NewCLIHandler(srvs.AgentReleaseTag).Serve)
 
 	apis := engine.Group("/api/v1")
 	{

@@ -9,7 +9,7 @@ COMMIT_SHA      ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo dev)
 APPVERSION           := $(VERSION)$(if $(COMMIT_SHA),-$(COMMIT_SHA))
 LDFLAGS         := -ldflags "-X main.AppVersion=$(APPVERSION)"
 
-.PHONY: all build build-agent build-owctl clean run run-agent test dep generate release-agent
+.PHONY: all build build-agent build-owctl clean run run-agent test dep generate release-agent release-owctl
 
 all: clean build build-agent
 
@@ -48,12 +48,30 @@ push-agent:
 # linux/arm64, strips it (`-s -w`), and writes a SHA256SUMS file. Output goes
 # to dist/. The release workflow uploads this dir to a GitHub release.
 release-agent:
-	$(RM) -rf dist
 	mkdir -p dist
+	$(RM) dist/overwatcher-agent_*
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 		$(GO) build -trimpath -ldflags "-s -w -X main.AppVersion=$(APPVERSION)" \
 		-o dist/overwatcher-agent_linux_amd64 cmd/$(AGENT)/*.go
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
 		$(GO) build -trimpath -ldflags "-s -w -X main.AppVersion=$(APPVERSION)" \
 		-o dist/overwatcher-agent_linux_arm64 cmd/$(AGENT)/*.go
-	cd dist && shasum -a 256 overwatcher-agent_linux_amd64 overwatcher-agent_linux_arm64 > SHA256SUMS
+	$(MAKE) release-checksums
+
+release-owctl:
+	mkdir -p dist
+	$(RM) dist/owctl_*
+	@set -e; for os in linux darwin; do \
+		for arch in amd64 arm64; do \
+			CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch \
+				$(GO) build -trimpath -ldflags "-s -w -X main.AppVersion=$(APPVERSION)" \
+				-o dist/owctl_$${os}_$${arch} ./cmd/owctl; \
+		done; \
+	done
+	$(MAKE) release-checksums
+
+.PHONY: release-checksums
+release-checksums:
+	cd dist && for file in overwatcher-agent_* owctl_*; do \
+		if [ -f "$$file" ]; then shasum -a 256 "$$file" || exit; fi; \
+	done > SHA256SUMS
