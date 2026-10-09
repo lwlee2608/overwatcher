@@ -29,7 +29,7 @@
 - **Verification** — no per-phase Verify; one end-to-end verify after Phase 5, run as the Demo. Per-phase test tasks stay. Risk accepted: an early-phase bug surfaces late
 
 ## Progress
-Phase 1 of 5 complete · 8/25 tasks (review/merge pending)
+Phase 1 of 5 merged · 8/25 tasks · PR #68; two review rounds, terminal-interrupt cleanup fixed, final review clean. Local checks and CI passed. Phase 2 next.
 
 ### Phase 1 — Log in and list projects from the terminal
 A user with an API key can run `owctl login`, then `owctl project list|get` against the coordinator.
