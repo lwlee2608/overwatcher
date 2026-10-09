@@ -29,7 +29,7 @@
 - **Verification** — no per-phase Verify; one end-to-end verify after Phase 5, run as the Demo. Per-phase test tasks stay. Risk accepted: an early-phase bug surfaces late
 
 ## Progress
-Phase 1 of 5 merged · 8/25 tasks · PR #68; two review rounds, terminal-interrupt cleanup fixed, final review clean. Local checks and CI passed. Phase 2 next.
+Phase 1 of 5 merged · Phase 2 implemented, awaiting review · 14/25 tasks. Phase 1: PR #68, two review rounds, final review clean. Phase 2: project creation/deletion, service replacement, agent listing/binding, and project name/ID resolution implemented with client, command, and real-router system tests. Local build, tests (disposable Postgres), and vet passed; end-to-end verification remains deferred to the Phase 5 Demo. Pause after Phase 2 merges; do not start Phase 3.
 
 ### Phase 1 — Log in and list projects from the terminal
 A user with an API key can run `owctl login`, then `owctl project list|get` against the coordinator.
@@ -47,12 +47,12 @@ A user with an API key can run `owctl login`, then `owctl project list|get` agai
 ### Phase 2 — Create a project with services and bind an existing agent
 A user can set up a whole project from the terminal when a free agent already exists.
 **Blocked by:** 1
-- [ ] Add project create/delete, replace services, agent list/bind to the client (internal/client)
-- [ ] Add `owctl project create|delete` (cmd/owctl)
-- [ ] Add `owctl service set <project> -f` reading YAML, JSON or stdin (cmd/owctl)
-- [ ] Add `owctl agent list|bind` (cmd/owctl)
-- [ ] Accept project name or ID in every project-scoped command (cmd/owctl)
-- [ ] Extend the owctl system test (systemtest/tests)
+- [x] Add project create/delete, replace services, agent list/bind to the client (internal/client)
+- [x] Add `owctl project create|delete` (cmd/owctl)
+- [x] Add `owctl service set <project> -f` reading YAML, JSON or stdin (cmd/owctl)
+- [x] Add `owctl agent list|bind` (cmd/owctl)
+- [x] Accept project name or ID in every project-scoped command (cmd/owctl)
+- [x] Extend the owctl system test (systemtest/tests)
 **Verify:** deferred — single end-to-end verify after Phase 5 (see Demo)
 
 ### Phase 3 — Install an agent on a VM with one command
