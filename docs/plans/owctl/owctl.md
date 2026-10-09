@@ -29,7 +29,7 @@
 - **Verification** — no per-phase Verify; one end-to-end verify after Phase 5, run as the Demo. Per-phase test tasks stay. Risk accepted: an early-phase bug surfaces late
 
 ## Progress
-Phases 1–3 of 5 merged · 18/25 tasks · **Starting Phase 4; stop after Phase 4.**
+Phases 1–3 of 5 merged · 23/25 tasks implemented · **Phase 4 implemented, awaiting review; stop after Phase 4.**
 - Phase 1: PR #68; two review rounds, terminal-interrupt cleanup fixed, final review clean.
 - Phase 2: PR #69; project create/delete, YAML/JSON/stdin service replacement, agent list/bind, and project name/ID resolution. Two review rounds; date-like YAML scalar corruption fixed, final review clean.
 - Both phases: `make build build-agent build-owctl`, `make test` (real-router system tests with disposable Postgres), `go vet ./...`, `git diff --check`, and CI passed after fixes. No findings skipped.
@@ -37,6 +37,7 @@ Phases 1–3 of 5 merged · 18/25 tasks · **Starting Phase 4; stop after Phase 
 - Phase 3 review round 1: fixed all three findings. Ambiguous bind failures now unbind before deleting the created agent; confirmation exits on SIGINT/SIGTERM; project ownership is checked before SSH or agent creation. Regression coverage injects a failed response after a real committed binding and a member-role response, and signals subprocesses blocked at confirmation. `make build build-agent build-owctl`, `make test` (disposable Postgres), `go vet ./...`, and `git diff --check` passed after fixes. No findings skipped.
 - Phase 3 review round 2: scoped signal interception to `agent install`, restoring normal termination for unrelated commands without changing login's terminal-restoration handler. Added subprocess regressions for SIGINT/SIGTERM while `service set -f -` waits on an open input stream; install-confirmation and login signal tests remain passing. `make build build-agent build-owctl`, `make test` (disposable Postgres), `go vet ./...`, and `git diff --check` passed. No findings skipped.
 - Phase 3: PR #70 merged with a merge commit after three review rounds; round 3 clean. All four findings fixed, none skipped. Checks passed after the last fix and CI passed.
+- Phase 4 implementation: added four Linux/macOS owctl release binaries and shared SHA256SUMS without removing agent assets; `v*` publishing stamps the tag version. Added release-templated `/cli.sh`, checksum verification, user-local installation, web-domain proxy, and README install/login instructions. `make build build-agent build-owctl`, `make test` (disposable testcontainers Postgres), `go vet ./...`, `make release-agent release-owctl COMMIT_SHA=`, all six artifact checksums/platform formats, POSIX shell syntax and handler tests, disposable nginx configuration validation, and `git diff --check` passed. Test containers were removed; no credentials, deployed hosts, or shared deployments used. Release publishing and the installer end-to-end Demo remain unrun. No Phase 5 tasks started.
 - End-to-end verification remains deferred to the Phase 5 Demo. Work is on `owctl-integrate`; `main` is unchanged.
 
 ### Phase 1 — Log in and list projects from the terminal
@@ -75,11 +76,11 @@ A user can set up a whole project from the terminal when a free agent already ex
 ### Phase 4 — Install owctl with one curl command
 `curl <coordinator>/cli.sh | sh` installs the `owctl` matching the coordinator's release.
 **Blocked by:** 3
-- [ ] Add `release-owctl` target for linux/darwin × amd64/arm64 with SHA256SUMS (services/overwatcher-backend/Makefile)
-- [ ] Publish owctl assets on `v*` tags (.github/workflows/agent-release.yml)
-- [ ] Serve `/cli.sh` templated with the coordinator's release tag (internal/api/http/handler, router.go)
-- [ ] Proxy `/cli.sh` on the web domain (services/overwatcher-frontend/nginx.conf)
-- [ ] Document owctl install and login (README.md)
+- [x] Add `release-owctl` target for linux/darwin × amd64/arm64 with SHA256SUMS (services/overwatcher-backend/Makefile)
+- [x] Publish owctl assets on `v*` tags (.github/workflows/agent-release.yml)
+- [x] Serve `/cli.sh` templated with the coordinator's release tag (internal/api/http/handler, router.go)
+- [x] Proxy `/cli.sh` on the web domain (services/overwatcher-frontend/nginx.conf)
+- [x] Document owctl install and login (README.md)
 **Verify:** deferred — single end-to-end verify after Phase 5 (see Demo)
 
 ### Phase 5 — The overwatcher skill drives owctl instead of curl

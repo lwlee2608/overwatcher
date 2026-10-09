@@ -1,7 +1,7 @@
 name: Agent Release
 
 # Triggered by pushing an annotated tag of the form `vX.Y.Z`. Builds
-# linux/amd64 + linux/arm64 binaries with version stamped in via ldflags,
+# Linux agent and Linux/macOS owctl binaries with version stamped via ldflags,
 # attaches a SHA256SUMS file, and publishes them as a GitHub release.
 on:
   push:
@@ -26,7 +26,9 @@ jobs:
           cache-dependency-path: services/overwatcher-backend/go.sum
 
       - name: Build release artifacts
-        run: make release-agent COMMIT_SHA=
+        run: |
+          rm -rf dist
+          make release-agent release-owctl VERSION="$GITHUB_REF_NAME" COMMIT_SHA=
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
@@ -34,5 +36,9 @@ jobs:
           files: |
             services/overwatcher-backend/dist/overwatcher-agent_linux_amd64
             services/overwatcher-backend/dist/overwatcher-agent_linux_arm64
+            services/overwatcher-backend/dist/owctl_linux_amd64
+            services/overwatcher-backend/dist/owctl_linux_arm64
+            services/overwatcher-backend/dist/owctl_darwin_amd64
+            services/overwatcher-backend/dist/owctl_darwin_arm64
             services/overwatcher-backend/dist/SHA256SUMS
           generate_release_notes: true

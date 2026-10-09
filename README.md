@@ -79,6 +79,28 @@ overwatcher-agent:
 The agent uses **Docker Compose v2** (`docker compose` plugin); the
 `docker:27-cli` base image ships with it.
 
+## CLI
+
+Install `owctl` for Linux or macOS (amd64/arm64), matching the coordinator's release:
+
+```sh
+curl -fsSL https://overwatcher-web-production.up.railway.app/cli.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+owctl login
+owctl version
+owctl project list
+```
+
+The installer verifies SHA256 checksums and installs to `~/.local/bin` without sudo. Add that directory to your shell's startup `PATH`. To choose another directory, pass `OWCTL_INSTALL_DIR` to `sh`, not `curl`:
+
+```sh
+curl -fsSL https://overwatcher-web-production.up.railway.app/cli.sh | OWCTL_INSTALL_DIR="$HOME/bin" sh
+```
+
+For a self-hosted coordinator, use its `/cli.sh` URL and run `owctl login --url https://your-coordinator`. `login` prompts for an API key without echo and saves it in `~/.config/owctl/config.yaml` with mode `0600`. Create a key in **Settings → API keys**. `OVERWATCHER_URL` and `OVERWATCHER_API_KEY` override saved settings; `--url` overrides the URL. Use environment-based auth for non-interactive sessions. Do not commit API keys.
+
+Re-run the installer after upgrading the coordinator. Published releases include `owctl_linux_amd64`, `owctl_linux_arm64`, `owctl_darwin_amd64`, `owctl_darwin_arm64`, and `SHA256SUMS`. Development coordinators without a release tag use the latest release. Installing from source also works from `services/overwatcher-backend` with `go install ./cmd/owctl` (requires Go; install location follows `GOBIN`/`GOPATH`).
+
 ## API access
 
 Scripts and AI agents can drive the coordinator API with a personal API key.
