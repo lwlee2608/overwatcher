@@ -31,7 +31,7 @@ type Services struct {
 	APIKeyService   *apikey.Service
 	WebhookSecret   string
 	AppVersion      string
-	ReleaseTag string
+	ReleaseTag      string
 	AgentPublicURL  string
 	CookieConfig    middleware.CookieConfig
 }
