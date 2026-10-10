@@ -6,88 +6,79 @@ user-invocable: true
 
 # Managing Overwatcher Projects
 
-Overwatcher deploys Docker Compose services on a VM when a GitHub repo is pushed or its CI workflow succeeds. Use `owctl` with environment-based authentication for this workflow; do not assemble curl API calls or handle agent tokens yourself.
+Overwatcher deploys Docker Compose services on a VM when a GitHub repo is pushed or its CI workflow succeeds. Use `owctl` for every API operation; do not hand-roll API calls or handle agent tokens.
 
 ## Rules
 
-1. **Require environment credentials.** Have the user supply `OVERWATCHER_API_KEY` (starts with `owk_`) through the session environment. If missing, stop and ask them to create a key under **user menu → API keys** and supply it securely. Never echo it, include it in tool arguments, or write it to a file. Do not run `owctl login` for this workflow: login saves credentials. Disable shell tracing. Set the coordinator base URL explicitly to avoid accidentally using a saved login's URL:
-   ```sh
-   export OVERWATCHER_URL="${OVERWATCHER_URL:-https://overwatcher-web-production.up.railway.app}"
-   ```
-   Use a base URL without `/api/v1`. Ensure both environment variables reach every tool invocation; shell exports may not persist between calls. Nonempty environment settings override saved owctl settings; `--url` overrides the URL.
-
-2. **Install owctl if missing.** On Linux or macOS (amd64/arm64):
+1. **Install owctl if missing.** If the installer fails, stop and report it; do not build from source unless asked.
    ```sh
    curl -fsSL "${OVERWATCHER_URL:-https://overwatcher-web-production.up.railway.app}/cli.sh" | sh
    export PATH="$HOME/.local/bin:$PATH"
-   owctl version --json
    ```
-   The installer checks SHA256 checksums and installs to `~/.local/bin` without sudo, matching the coordinator's release (development coordinators use latest). Keep that directory on PATH in subsequent calls. Re-run after coordinator upgrades. Curl is only needed for CLI bootstrap; use owctl for API operations.
 
-3. **Inspect before changing anything.** Use `--json` for raw API JSON on stdout; errors exit nonzero and appear on stderr. Stop on errors and report them without exposing secrets.
+2. **Use existing credentials.** owctl reads `OVERWATCHER_API_KEY` or a saved `owctl login`. If it reports no API key, ask the user to run `owctl login` in their terminal or set `OVERWATCHER_API_KEY` (create one under **user menu → API keys**). Never echo the key or pass it as an argument.
+
+3. **Inspect the coordinator.** Use `--json`; stop on errors. Reuse a project with the same name instead of creating a duplicate.
    ```sh
    owctl project list --json
    owctl agent list --json
-   ```
-   Reuse an existing project with the same name rather than creating a duplicate. Project references accept names or IDs; use the ID if a name is ambiguous. Inspect an existing project's complete configuration before changing it:
-   ```sh
-   owctl project get my-app --json
+   owctl project get <project> --json
    ```
 
-4. **Create only with a confirmed compose path.** Ask for the absolute path on the VM; do not guess. The file must already exist there — owctl does not upload it.
+4. **Inspect the VM before asking anything else.** Ask only for the SSH target, resolve aliases with `ssh -G <target>`, then probe (read-only; `sh -s` avoids zsh glob errors on the VM):
    ```sh
-   owctl project create my-app \
-     --compose-file /opt/stacks/my-app/docker-compose.yml \
-     --environment production --json
+   ssh -T -o BatchMode=yes <target> sh -s <<'EOF'
+   echo "user: $(id -un)"
+   sudo -n true 2>/dev/null && echo "sudo: passwordless" || echo "sudo: needs password"
+   command -v systemctl >/dev/null && echo "systemd: ok" || echo "systemd: missing"
+   command -v curl >/dev/null && echo "curl: ok" || echo "curl: missing"
+   systemctl show -p LoadState -p ActiveState overwatcher-agent 2>/dev/null
+   docker compose version 2>/dev/null || echo "compose v2: missing"
+   docker compose ls --all 2>/dev/null || echo "docker: no access for $(id -un)"
+   EOF
+   ```
+   Do not read `/etc/overwatcher-agent.env`; it holds the agent token. Then ask only what is still unknown, stating findings:
+   - `LoadState=loaded`: an agent exists. If it is in `agent list` (match `name` or `remote_ip`), offer to bind it instead of reinstalling; otherwise ask the user.
+   - Offer `docker compose ls` config files as the compose path. Without docker access, ask for the path; the installer adds the user to the `docker` group.
+   - Missing sudo, systemd, curl, or Compose v2: stop until fixed.
+
+5. **Create the project with a confirmed compose path.** The file must already exist on the VM (`ssh <target> test -r <path>`).
+   ```sh
+   owctl project create <project> --compose-file <path> --environment production --json
    ```
 
-5. **Replace services deliberately.** Write `services.yaml` with the complete desired list, preserving existing services unless their removal was requested:
-   ```yaml
+6. **Derive services from the app repo.** Take each field from the source, not defaults: `image` from the compose `image:` line, `workflow` from the CI file that pushes it, `tag` from the tags it pushes, `root_directory` from its build `context` (never `/` in a monorepo). Use existing projects as a pattern. `name` must equal the compose service key. `service set` replaces the whole list, so keep existing services.
+   ```sh
+   owctl service set <project> -f - --json <<'EOF'
    services:
      - name: web
        repo: acme/my-app
-       image: ghcr.io/acme/my-app
-       tag: latest
+       image: ghcr.io/acme/my-app-web
+       tag: main
        branch: main
-       root_directory: /
+       root_directory: services/web
        workflow: build.yml
+   EOF
    ```
+   Without `workflow`, deploys fire on push and may pull a stale image. If one workflow builds several images, every run redeploys all of them; tell the user.
+
+7. **Bind or install the agent.** Binding moves an agent off its old project and replaces the project's current agent; ask before either.
    ```sh
-   owctl service set my-app -f services.yaml --json
+   owctl agent bind <agent-id> <project> --json
+   owctl agent install --ssh <target> --project <project> --json
    ```
-   JSON files also work; `-f -` reads stdin. This is the services request body, not a Docker Compose file. It replaces the whole list; `services: []` clears it. There is no CLI append command.
-   - `name` must equal the compose service key: the agent runs `docker compose pull <name>` / `up -d <name>`.
-   - `repo` is `owner/repo`; `image` is required. Defaults are `branch: main`, `tag: latest`, `root_directory: /`.
-   - Set `workflow` to a filename such as `build.yml` when CI builds the image. Without it, deployment fires on push and can pull a stale image before CI finishes.
-   - `root_directory` filters push triggers for monorepos; workflow triggers ignore it.
+   Install sets up a root-managed systemd service; get explicit approval before adding `--yes`. On failure owctl revokes the agent but VM files may remain; report and do not retry blindly. The agent runs as the SSH user, which needs registry login for private images.
 
-6. **Bind only with consent to any displacement.** Read `agent list --json`: choose a free agent (`project_id` absent or empty) and check whether another agent already serves the project. Binding silently moves an agent away from its old project and replaces a project's previous agent. Ask before either displacement, including when installing a new agent with `--project`.
+8. **Check GitHub App access.** Without it, CI passes but nothing deploys. owctl cannot check this; use `gh` (needs the `read:user` scope; if missing, ask the user to run `gh auth refresh -h github.com -s read:user`):
    ```sh
-   owctl agent bind <agent-id> my-app --json
+   gh api user/installations --jq '.installations[] | select(.app_slug=="overwatcher-app") | {id, account: .account.login, repository_selection, events}'
+   gh api user/installations/<id>/repositories --paginate --jq '.repositories[].full_name'
    ```
+   The repo owner needs an installation whose `events` include `push` (and `workflow_run` when used). If `repository_selection` is `selected`, the repo must be listed. Otherwise send the user to the installation's **Configure → Repository access** and do not report setup as complete. GitHub does not resend earlier events; re-run the latest CI run after access is granted.
 
-7. **Install over SSH when no suitable free agent exists.** Ask for and confirm the target, project, and permission to install a root-managed systemd service before running:
-   ```sh
-   owctl agent install --ssh ubuntu@vm --project my-app --json
-   ```
-   The CLI prints the SSH target and prompts unless `--yes` is passed. For non-interactive execution, add `--yes` only after the user has explicitly approved that target and operation.
-   - Use a non-root SSH login with passwordless sudo, working non-interactive SSH, systemd, and Docker Compose v2. The VM needs curl and access to the coordinator and release downloads. System SSH inherits config aliases, ssh-agent, ProxyJump, and known_hosts; do not bypass host-key verification.
-   - Preflight refuses an active `overwatcher-agent` and requires `docker compose`. It does not prove an inactive installation is absent; ask before retrying or altering an existing installation.
-   - `--name` defaults to the SSH host. `--timeout 60s` is the default total budget for preflight, installation, and connection. `--project` requires project ownership; omitting it leaves the new agent unbound.
-   - owctl creates the agent, sends its token through SSH stdin (not command arguments or output), waits for a heartbeat, and binds it. The installer persists the agent token on the VM for the service; the personal API key is not sent to the VM. Remote installer output is suppressed to prevent token leaks.
-   - On install, connection, or bind failure, owctl attempts to revoke the created agent. Cleanup can fail: report that error and agent ID. Remote files or a service may remain even after successful revocation; do not claim rollback or blindly retry. Ask the user to inspect/clean up through the UI and the systemd troubleshooting docs before retrying. owctl has no agent delete/uninstall command.
-   - The agent runs as the SSH login user. Private image pulls need that user's registry login on the VM; the compose path must be readable by that user.
+## Verification
 
-8. **Confirm GitHub prerequisites.** The Overwatcher GitHub App must be installed on each repo and subscribed to `push` (and `workflow_run` when configured). owctl cannot verify this; remind the user.
-
-## Verification procedure
-
-1. Run `owctl project get my-app --json`. Confirm `compose_file`, `enabled: true`, and every service's `name`, `repo`, `image`, and `workflow`.
-2. Run `owctl agent list --json`. In `agents`, confirm the intended agent's `project_id` equals the project ID and `status` is `connected`. Project output does not include agent status. Any other status needs investigation before claiming deployments will run.
-3. Report the project ID, agent name, and trigger per service (`push` or `workflow_run: <file>`). Configuration and connection checks do not prove an actual deployment succeeded.
-
-## Common mistakes
-
-- Inventing unsupported commands: this CLI covers projects, service replacement, and agent list/bind/install, not deployments, events, or users.
-- Replacing services without preserving the existing list, or binding without checking both sides for displacement.
-- Treating a failed install as a full VM rollback, or dumping remote logs/configuration that could expose tokens.
+1. `owctl project get <project> --json`: check `compose_file`, `enabled`, and each service's fields.
+2. `owctl agent list --json`: the agent's `project_id` matches and `status` is `connected`.
+3. The GitHub App check in rule 8 passes for every repo.
+4. Report project ID, agent name, and trigger per service. This does not prove a deploy succeeded.
