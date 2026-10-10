@@ -40,10 +40,10 @@ Overwatcher deploys Docker Compose services on a VM when a GitHub repo is pushed
    docker compose ls --all 2>/dev/null || echo "docker: no access for $(id -un)"
    EOF
    ```
-   Do not read agent config, env files, or logs on the VM; they can contain the agent token. Then ask only what is still unknown, stating findings:
-   - `LoadState=loaded`: an agent exists. Offer to bind it (match by name in `agent list`) instead of reinstalling.
-   - Offer `docker compose ls` config files as the compose path.
-   - Missing prerequisites: stop until fixed.
+   Do not read `/etc/overwatcher-agent.env`; it holds the agent token. Then ask only what is still unknown, stating findings:
+   - `LoadState=loaded`: an agent exists. If it is in `agent list` (match `name` or `remote_ip`), offer to bind it instead of reinstalling; otherwise ask the user.
+   - Offer `docker compose ls` config files as the compose path. Without docker access, ask for the path; the installer adds the user to the `docker` group.
+   - Missing sudo, systemd, curl, or Compose v2: stop until fixed.
 
 5. **Create the project with a confirmed compose path.** The file must already exist on the VM (`ssh <target> test -r <path>`).
    ```sh
