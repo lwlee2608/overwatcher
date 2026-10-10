@@ -32,3 +32,6 @@ SET password_hash         = $2,
     password_is_bootstrap = $3,
     updated_at            = NOW()
 WHERE id = $1;
+
+-- name: SetUserAdmin :exec
+UPDATE users SET is_admin = $2, updated_at = NOW() WHERE id = $1;

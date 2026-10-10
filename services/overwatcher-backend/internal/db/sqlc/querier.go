@@ -91,6 +91,7 @@ type Querier interface {
 	RequeueTimedOutIntents(ctx context.Context, arg RequeueTimedOutIntentsParams) ([]DeployIntent, error)
 	// Re-issue: replace the stored digest with a fresh one (migration / loss recovery).
 	SetAgentToken(ctx context.Context, arg SetAgentTokenParams) (Agent, error)
+	SetUserAdmin(ctx context.Context, arg SetUserAdminParams) error
 	SetUserPasswordHash(ctx context.Context, arg SetUserPasswordHashParams) error
 	// Claim the oldest dispatchable intent for @agent_name's bound project.
 	// FOR UPDATE SKIP LOCKED + the dispatched-stack guard keep concurrent

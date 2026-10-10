@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { UserResponse } from "../types/user";
 import { createUser, deleteUser, fetchUsers, updateUser } from "../api/users";
+import { useAuth } from "../auth/context";
 
 interface FormState {
   email: string;
@@ -18,6 +19,8 @@ function generatePassword() {
 }
 
 export function UsersDashboard() {
+  const { user: me, refresh } = useAuth();
+  const isAdmin = me?.is_admin ?? false;
   const [users, setUsers] = useState<UserResponse[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -92,6 +95,7 @@ export function UsersDashboard() {
     try {
       if (editingId) {
         await updateUser(editingId, base);
+        if (editingId === me?.id) await refresh();
       } else {
         await createUser({ ...base, password: form.password });
       }
@@ -137,7 +141,7 @@ export function UsersDashboard() {
           </span>{" "}
           user{users.length !== 1 && "s"}
         </div>
-        {!showForm && (
+        {isAdmin && !showForm && (
           <button
             onClick={openCreate}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -279,6 +283,7 @@ export function UsersDashboard() {
               <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Role</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -293,19 +298,34 @@ export function UsersDashboard() {
                       <span className="text-gray-400 dark:text-gray-500">—</span>
                     )}
                   </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                        u.is_admin
+                          ? "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300"
+                          : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                      }`}
+                    >
+                      {u.is_admin ? "admin" : "member"}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => openEdit(u)}
-                      className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(u)}
-                      className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                    >
-                      Delete
-                    </button>
+                    {(isAdmin || u.id === me?.id) && (
+                      <button
+                        onClick={() => openEdit(u)}
+                        className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
+                      >
+                        Edit
+                      </button>
+                    )}
+                    {isAdmin && u.id !== me?.id && (
+                      <button
+                        onClick={() => handleDelete(u)}
+                        className="text-sm text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

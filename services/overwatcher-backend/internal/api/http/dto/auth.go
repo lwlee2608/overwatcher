@@ -15,4 +15,5 @@ type MeResponse struct {
 	Email              string `json:"email"`
 	Name               string `json:"name"`
 	MustChangePassword bool   `json:"must_change_password"`
+	IsAdmin            bool   `json:"is_admin"`
 }

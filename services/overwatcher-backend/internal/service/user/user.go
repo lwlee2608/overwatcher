@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
@@ -18,12 +19,14 @@ import (
 var (
 	ErrNotFound      = errors.New("user not found")
 	ErrEmailConflict = errors.New("email already in use")
+	ErrOwnsProjects  = errors.New("user still owns projects")
 )
 
 type Entry struct {
 	ID        string
 	Email     string
 	Name      string
+	IsAdmin   bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -135,6 +138,10 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23503" {
+			return ErrOwnsProjects
+		}
 		return err
 	}
 	return nil
@@ -145,6 +152,7 @@ func rowToEntry(r sqlc.User) *Entry {
 		ID:        util.UUIDToString(r.ID),
 		Email:     r.Email,
 		Name:      r.Name,
+		IsAdmin:   r.IsAdmin,
 		CreatedAt: r.CreatedAt.Time,
 		UpdatedAt: r.UpdatedAt.Time,
 	}

@@ -118,4 +118,5 @@ type User struct {
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 	PasswordHash        string             `json:"password_hash"`
 	PasswordIsBootstrap bool               `json:"password_is_bootstrap"`
+	IsAdmin             bool               `json:"is_admin"`
 }

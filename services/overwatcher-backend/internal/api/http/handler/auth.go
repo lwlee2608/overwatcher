@@ -49,6 +49,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Email:              user.Email,
 		Name:               user.Name,
 		MustChangePassword: user.PasswordIsBootstrap,
+		IsAdmin:            user.IsAdmin,
 	})
 }
 
@@ -83,6 +84,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		Email:              user.Email,
 		Name:               user.Name,
 		MustChangePassword: user.PasswordIsBootstrap,
+		IsAdmin:            user.IsAdmin,
 	})
 }
 

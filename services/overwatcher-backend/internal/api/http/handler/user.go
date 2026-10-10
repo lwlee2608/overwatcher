@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
+	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/service/auth"
 	"github.com/lwlee2608/overwatcher/internal/service/user"
 )
@@ -98,9 +99,17 @@ func (h *UserHandler) Update(c *gin.Context) {
 }
 
 func (h *UserHandler) Delete(c *gin.Context) {
+	if callerID, _ := middleware.UserID(c); callerID == c.Param("id") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot delete yourself"})
+		return
+	}
 	if err := h.svc.Delete(c.Request.Context(), c.Param("id")); err != nil {
 		if errors.Is(err, user.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+		if errors.Is(err, user.ErrOwnsProjects) {
+			c.JSON(http.StatusConflict, gin.H{"error": "user still owns projects; transfer them first"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -114,6 +123,7 @@ func userToDTO(e user.Entry) dto.UserResponse {
 		ID:        e.ID,
 		Email:     e.Email,
 		Name:      e.Name,
+		IsAdmin:   e.IsAdmin,
 		CreatedAt: e.CreatedAt,
 		UpdatedAt: e.UpdatedAt,
 	}

@@ -89,6 +89,10 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 				sessionOnly.GET("/api-keys", apiKeyHandler.List)
 				sessionOnly.POST("/api-keys", apiKeyHandler.Create)
 				sessionOnly.DELETE("/api-keys/:id", apiKeyHandler.Delete)
+
+				sessionOnly.POST("/users", middleware.RequireAdmin(srvs.AuthService), userHandler.Create)
+				sessionOnly.PUT("/users/:id", middleware.RequireAdminOrSelf(srvs.AuthService), userHandler.Update)
+				sessionOnly.DELETE("/users/:id", middleware.RequireAdmin(srvs.AuthService), userHandler.Delete)
 			}
 
 			ui.GET("/auth/me", authHandler.Me)
@@ -104,10 +108,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 			ui.DELETE("/agents/:id", agentHandler.Delete)
 
 			ui.GET("/users", userHandler.List)
-			ui.POST("/users", userHandler.Create)
 			ui.GET("/users/:id", userHandler.Get)
-			ui.PUT("/users/:id", userHandler.Update)
-			ui.DELETE("/users/:id", userHandler.Delete)
 
 			ui.GET("/projects", projectHandler.List)
 			ui.POST("/projects", projectHandler.Create)

@@ -57,3 +57,39 @@ func RequireSession() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// RequireAdmin rejects callers whose user is not an admin.
+func RequireAdmin(svc *auth.Service) gin.HandlerFunc {
+	return requireAdmin(svc, false)
+}
+
+// RequireAdminOrSelf lets a non-admin through only when the :id route param
+// is their own user ID.
+func RequireAdminOrSelf(svc *auth.Service) gin.HandlerFunc {
+	return requireAdmin(svc, true)
+}
+
+func requireAdmin(svc *auth.Service, allowSelf bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, ok := UserID(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+			return
+		}
+		if allowSelf && c.Param("id") == userID {
+			c.Next()
+			return
+		}
+		u, err := svc.GetUser(c.Request.Context(), userID)
+		if err != nil {
+			slog.Error("admin check user lookup failed", "error", err)
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal error"})
+			return
+		}
+		if !u.IsAdmin {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "requires admin"})
+			return
+		}
+		c.Next()
+	}
+}
