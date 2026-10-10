@@ -9,6 +9,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/api/http/dto"
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/service/project"
+	"github.com/lwlee2608/overwatcher/internal/util"
 )
 
 type ProjectHandler struct {
@@ -174,6 +175,31 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 	if err := h.svc.DeleteProject(c.Request.Context(), c.Param("id")); err != nil {
 		if errors.Is(err, project.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "project not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (h *ProjectHandler) TransferProjects(c *gin.Context) {
+	var req dto.TransferProjectsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if util.SameUUID(c.Param("id"), req.ToUserID) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "source and target user are the same"})
+		return
+	}
+	if err := h.svc.TransferProjects(c.Request.Context(), c.Param("id"), req.ToUserID); err != nil {
+		if isUniqueViolation(err) {
+			c.JSON(http.StatusConflict, gin.H{"error": "target user already owns a project with the same name"})
+			return
+		}
+		if isForeignKeyViolation(err) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "target user not found"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

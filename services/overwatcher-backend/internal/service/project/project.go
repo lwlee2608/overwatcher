@@ -224,6 +224,19 @@ func (s *Service) DeleteProject(ctx context.Context, id string) error {
 	return nil
 }
 
+// TransferProjects moves every project owned by fromUserID to toUserID and
+// drops toUserID's now-redundant member rows on those projects.
+func (s *Service) TransferProjects(ctx context.Context, fromUserID, toUserID string) error {
+	var from, to pgtype.UUID
+	if err := from.Scan(fromUserID); err != nil {
+		return err
+	}
+	if err := to.Scan(toUserID); err != nil {
+		return err
+	}
+	return s.q.TransferProjects(ctx, sqlc.TransferProjectsParams{FromUserID: from, ToUserID: to})
+}
+
 // --- ComposeService CRUD ---
 
 type CreateComposeServiceParams struct {

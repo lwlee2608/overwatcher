@@ -93,6 +93,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 				sessionOnly.POST("/users", middleware.RequireAdmin(srvs.AuthService), userHandler.Create)
 				sessionOnly.PUT("/users/:id", middleware.RequireAdminOrSelf(srvs.AuthService), userHandler.Update)
 				sessionOnly.DELETE("/users/:id", middleware.RequireAdmin(srvs.AuthService), userHandler.Delete)
+				sessionOnly.POST("/users/:id/transfer-projects", middleware.RequireAdmin(srvs.AuthService), projectHandler.TransferProjects)
 			}
 
 			ui.GET("/auth/me", authHandler.Me)

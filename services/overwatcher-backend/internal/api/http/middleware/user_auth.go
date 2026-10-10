@@ -10,6 +10,7 @@ import (
 
 	"github.com/lwlee2608/overwatcher/internal/service/apikey"
 	"github.com/lwlee2608/overwatcher/internal/service/auth"
+	"github.com/lwlee2608/overwatcher/internal/util"
 )
 
 const ContextAPIKeyAuthKey = "auth.api_key"
@@ -76,7 +77,7 @@ func requireAdmin(svc *auth.Service, allowSelf bool) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 			return
 		}
-		if allowSelf && c.Param("id") == userID {
+		if allowSelf && util.SameUUID(c.Param("id"), userID) {
 			c.Next()
 			return
 		}

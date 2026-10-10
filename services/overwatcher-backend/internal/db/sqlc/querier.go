@@ -103,6 +103,7 @@ type Querier interface {
 	// version preserves the existing value so a poll without the header can't wipe
 	// it; NULL metrics likewise keep the last reported values.
 	TouchAgent(ctx context.Context, arg TouchAgentParams) error
+	TransferProjects(ctx context.Context, arg TransferProjectsParams) error
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error)
 }

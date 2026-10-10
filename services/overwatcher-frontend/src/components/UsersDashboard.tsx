@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import type { UserResponse } from "../types/user";
-import { createUser, deleteUser, fetchUsers, updateUser } from "../api/users";
+import {
+  createUser,
+  deleteUser,
+  fetchUsers,
+  transferProjects,
+  updateUser,
+} from "../api/users";
 import { useAuth } from "../auth/context";
 
 interface FormState {
@@ -29,6 +35,8 @@ export function UsersDashboard() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [passwordCopied, setPasswordCopied] = useState(false);
+  const [transferFrom, setTransferFrom] = useState<UserResponse | null>(null);
+  const [transferTo, setTransferTo] = useState("");
 
   const loadData = useCallback(async () => {
     try {
@@ -49,6 +57,7 @@ export function UsersDashboard() {
   }, [loadData]);
 
   function openCreate() {
+    setTransferFrom(null);
     setEditingId(null);
     setForm(emptyForm);
     setPasswordCopied(false);
@@ -56,6 +65,7 @@ export function UsersDashboard() {
   }
 
   function openEdit(u: UserResponse) {
+    setTransferFrom(null);
     setEditingId(u.id);
     setForm({ email: u.email, name: u.name, password: "" });
     setPasswordCopied(false);
@@ -108,6 +118,27 @@ export function UsersDashboard() {
     }
   }
 
+  function openTransfer(u: UserResponse) {
+    closeForm();
+    setTransferFrom(u);
+    setTransferTo("");
+  }
+
+  async function handleTransfer(e: React.FormEvent) {
+    e.preventDefault();
+    if (!transferFrom || !transferTo) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await transferProjects(transferFrom.id, transferTo);
+      setTransferFrom(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Transfer failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleDelete(u: UserResponse) {
     if (!window.confirm(`Delete user ${u.email}?`)) return;
     try {
@@ -141,7 +172,7 @@ export function UsersDashboard() {
           </span>{" "}
           user{users.length !== 1 && "s"}
         </div>
-        {isAdmin && !showForm && (
+        {isAdmin && !showForm && !transferFrom && (
           <button
             onClick={openCreate}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
@@ -270,6 +301,53 @@ export function UsersDashboard() {
         </form>
       )}
 
+      {transferFrom && (
+        <form
+          onSubmit={handleTransfer}
+          className="mb-6 rounded-lg border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+        >
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-4">
+            Transfer all projects owned by {transferFrom.email}
+          </h3>
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+            New owner
+          </label>
+          <select
+            required
+            value={transferTo}
+            onChange={(e) => setTransferTo(e.target.value)}
+            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+          >
+            <option value="" disabled>
+              Select a user
+            </option>
+            {users
+              .filter((u) => u.id !== transferFrom.id)
+              .map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.email}
+                </option>
+              ))}
+          </select>
+          <div className="mt-4 flex gap-2">
+            <button
+              type="submit"
+              disabled={saving || !transferTo}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? "Transferring..." : "Transfer"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTransferFrom(null)}
+              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
       {users.length === 0 && !error && (
         <div className="text-center py-12 text-gray-400 dark:text-gray-500">
           No users yet
@@ -316,6 +394,14 @@ export function UsersDashboard() {
                         className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 mr-3"
                       >
                         Edit
+                      </button>
+                    )}
+                    {isAdmin && users.length > 1 && (
+                      <button
+                        onClick={() => openTransfer(u)}
+                        className="text-sm text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 mr-3"
+                      >
+                        Transfer
                       </button>
                     )}
                     {isAdmin && u.id !== me?.id && (

@@ -11,6 +11,7 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/api/http/middleware"
 	"github.com/lwlee2608/overwatcher/internal/service/auth"
 	"github.com/lwlee2608/overwatcher/internal/service/user"
+	"github.com/lwlee2608/overwatcher/internal/util"
 )
 
 type UserHandler struct {
@@ -99,7 +100,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 }
 
 func (h *UserHandler) Delete(c *gin.Context) {
-	if callerID, _ := middleware.UserID(c); callerID == c.Param("id") {
+	if callerID, _ := middleware.UserID(c); util.SameUUID(callerID, c.Param("id")) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot delete yourself"})
 		return
 	}
@@ -109,7 +110,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 			return
 		}
 		if errors.Is(err, user.ErrOwnsProjects) {
-			c.JSON(http.StatusConflict, gin.H{"error": "user still owns projects; transfer them first"})
+			c.JSON(http.StatusConflict, gin.H{"error": "user still owns projects; transfer them to another user first"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
