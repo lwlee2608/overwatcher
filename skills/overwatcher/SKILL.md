@@ -10,16 +10,13 @@ Overwatcher deploys Docker Compose services on a VM when a GitHub repo is pushed
 
 ## Rules
 
-1. **Credentials from the environment.** Require `OVERWATCHER_API_KEY` (`owk_...`); if missing, ask the user to create one under **user menu → API keys**. Never echo it, pass it as an argument, or write it to a file, and do not run `owctl login`. Set the URL explicitly and make sure both variables reach every call:
+1. **Install owctl if missing.** If the installer fails, stop and report it; do not build from source unless asked.
    ```sh
-   export OVERWATCHER_URL="${OVERWATCHER_URL:-https://overwatcher-web-production.up.railway.app}"
-   ```
-
-2. **Install owctl if missing.** If the installer fails, stop and report it; do not build from source unless asked.
-   ```sh
-   curl -fsSL "$OVERWATCHER_URL/cli.sh" | sh
+   curl -fsSL "${OVERWATCHER_URL:-https://overwatcher-web-production.up.railway.app}/cli.sh" | sh
    export PATH="$HOME/.local/bin:$PATH"
    ```
+
+2. **Use existing credentials.** owctl reads `OVERWATCHER_API_KEY` or a saved `owctl login`. If it reports no API key, ask the user to run `owctl login` in their terminal or set `OVERWATCHER_API_KEY` (create one under **user menu → API keys**). Never echo the key or pass it as an argument.
 
 3. **Inspect the coordinator.** Use `--json`; stop on errors. Reuse a project with the same name instead of creating a duplicate.
    ```sh
