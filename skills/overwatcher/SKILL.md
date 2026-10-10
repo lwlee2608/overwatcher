@@ -22,7 +22,7 @@ Overwatcher deploys Docker Compose services on a VM when a GitHub repo is pushed
    export PATH="$HOME/.local/bin:$PATH"
    owctl version --json
    ```
-   The installer checks SHA256 checksums and installs to `~/.local/bin` without sudo, matching the coordinator's release (development coordinators use latest). Keep that directory on PATH in subsequent calls. Re-run after coordinator upgrades. Curl is only needed for CLI bootstrap; use owctl for API operations.
+   The installer checks SHA256 checksums and installs to `~/.local/bin` without sudo, matching the coordinator's release (development coordinators use latest). Keep that directory on PATH in subsequent calls. Re-run after coordinator upgrades. Curl is only needed for CLI bootstrap; use owctl for API operations. If the installer fails (for example a 404 for the release asset), stop and report it; do not build owctl from source unless the user asks.
 
 3. **Inspect before changing anything.** Use `--json` for raw API JSON on stdout; errors exit nonzero and appear on stderr. Stop on errors and report them without exposing secrets.
    ```sh
@@ -34,14 +34,31 @@ Overwatcher deploys Docker Compose services on a VM when a GitHub repo is pushed
    owctl project get my-app --json
    ```
 
-4. **Create only with a confirmed compose path.** Ask for the absolute path on the VM; do not guess. The file must already exist there — owctl does not upload it.
+4. **Inspect the VM before asking setup questions.** First ask only for the VM's SSH target (`user@host`, IP, or `~/.ssh/config` alias). Resolve aliases with `ssh -G <target>`; do not grep SSH config files. Then run this read-only probe:
+   ```sh
+   ssh -T -o BatchMode=yes <target> sh -s <<'EOF'
+   echo "user: $(id -un)"
+   sudo -n true 2>/dev/null && echo "sudo: passwordless" || echo "sudo: needs password"
+   command -v systemctl >/dev/null && echo "systemd: ok" || echo "systemd: missing"
+   command -v curl >/dev/null && echo "curl: ok" || echo "curl: missing"
+   systemctl show -p LoadState -p ActiveState overwatcher-agent 2>/dev/null
+   docker compose version 2>/dev/null || echo "compose v2: missing"
+   docker compose ls --all 2>/dev/null || echo "docker: no access for $(id -un)"
+   EOF
+   ```
+   If SSH itself fails, report the error and ask the user to fix access; do not guess another target. The remote login shell may be zsh, where an unmatched glob aborts the whole command: send further remote checks through `sh -s` and quote globs locally too. Do not read agent config, env files, or service logs on the VM, even filtered through `grep -v`: they can contain the agent token. Then ask the user only what the probe and `owctl` output could not answer, stating findings with each question:
+   - `LoadState=loaded` means an agent is already installed. Match it against `agent list` (name defaults to the SSH host) and offer to bind it instead of reinstalling. Ask before touching an inactive or failed installation.
+   - Offer the `CONFIG FILES` from `docker compose ls` as compose path choices.
+   - Report missing prerequisites (passwordless sudo, systemd, curl, Compose v2, docker access for the SSH user) and stop until the user fixes them or chooses another VM.
+
+5. **Create only with a confirmed compose path.** Have the user confirm the absolute path on the VM; do not guess. The file must already exist there; owctl does not upload it. Check it with `ssh <target> test -r <path>`.
    ```sh
    owctl project create my-app \
      --compose-file /opt/stacks/my-app/docker-compose.yml \
      --environment production --json
    ```
 
-5. **Replace services deliberately.** Write `services.yaml` with the complete desired list, preserving existing services unless their removal was requested:
+6. **Derive services from the app repo, then replace deliberately.** For each compose service built from the repo, read its fields from the source rather than using defaults: `image` and tag variable from the compose `image:` line, `workflow` from the CI file that pushes that image, `tag` from the tags it pushes, and `root_directory` from its build `context`. Use the user's existing projects (`owctl project get`) as a reference pattern. Write `services.yaml` with the complete desired list, preserving existing services unless their removal was requested:
    ```yaml
    services:
      - name: web
@@ -59,14 +76,15 @@ Overwatcher deploys Docker Compose services on a VM when a GitHub repo is pushed
    - `name` must equal the compose service key: the agent runs `docker compose pull <name>` / `up -d <name>`.
    - `repo` is `owner/repo`; `image` is required. Defaults are `branch: main`, `tag: latest`, `root_directory: /`.
    - Set `workflow` to a filename such as `build.yml` when CI builds the image. Without it, deployment fires on push and can pull a stale image before CI finishes.
-   - `root_directory` filters push triggers for monorepos; workflow triggers ignore it.
+   - In monorepos, set `root_directory` to the service's source directory, never `/`. It filters push triggers; workflow triggers ignore it.
+   - If one workflow builds several images, every successful run redeploys all services mapped to it. Tell the user; per-image workflows avoid this.
 
-6. **Bind only with consent to any displacement.** Read `agent list --json`: choose a free agent (`project_id` absent or empty) and check whether another agent already serves the project. Binding silently moves an agent away from its old project and replaces a project's previous agent. Ask before either displacement, including when installing a new agent with `--project`.
+7. **Bind only with consent to any displacement.** Read `agent list --json`: choose a free agent (`project_id` absent or empty) and check whether another agent already serves the project. Binding silently moves an agent away from its old project and replaces a project's previous agent. Ask before either displacement, including when installing a new agent with `--project`.
    ```sh
    owctl agent bind <agent-id> my-app --json
    ```
 
-7. **Install over SSH when no suitable free agent exists.** Ask for and confirm the target, project, and permission to install a root-managed systemd service before running:
+8. **Install over SSH when no suitable free agent exists.** Confirm the probed target, project, and permission to install a root-managed systemd service before running:
    ```sh
    owctl agent install --ssh ubuntu@vm --project my-app --json
    ```
@@ -78,7 +96,7 @@ Overwatcher deploys Docker Compose services on a VM when a GitHub repo is pushed
    - On install, connection, or bind failure, owctl attempts to revoke the created agent. Cleanup can fail: report that error and agent ID. Remote files or a service may remain even after successful revocation; do not claim rollback or blindly retry. Ask the user to inspect/clean up through the UI and the systemd troubleshooting docs before retrying. owctl has no agent delete/uninstall command.
    - The agent runs as the SSH login user. Private image pulls need that user's registry login on the VM; the compose path must be readable by that user.
 
-8. **Confirm GitHub prerequisites.** The Overwatcher GitHub App must be installed on each repo and subscribed to `push` (and `workflow_run` when configured). owctl cannot verify this; remind the user.
+9. **Confirm GitHub prerequisites.** The Overwatcher GitHub App must be installed on each repo and subscribed to `push` (and `workflow_run` when configured). owctl cannot verify this; remind the user.
 
 ## Verification procedure
 
@@ -90,4 +108,6 @@ Overwatcher deploys Docker Compose services on a VM when a GitHub repo is pushed
 
 - Inventing unsupported commands: this CLI covers projects, service replacement, and agent list/bind/install, not deployments, events, or users.
 - Replacing services without preserving the existing list, or binding without checking both sides for displacement.
-- Treating a failed install as a full VM rollback, or dumping remote logs/configuration that could expose tokens.
+- Treating a failed install as a full VM rollback, or dumping remote logs/configuration that could expose tokens. Filtering `journalctl` output with `grep -v token` is not redaction.
+- Asking the user for facts the VM probe, repo, or existing projects already answer.
+- Leaving `root_directory: /` for services in a monorepo.

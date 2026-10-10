@@ -16,6 +16,8 @@ import (
 	"github.com/lwlee2608/overwatcher/internal/protocol"
 )
 
+var errUnbound = errors.New("agent is not bound to a project")
+
 // Poller pulls one intent at a time from the coordinator and feeds it to the
 // runner. The loop is single-threaded by design — one deploy at a time.
 type Poller struct {
@@ -50,6 +52,7 @@ func NewPoller(cfg AgentConfig, runner *Runner, version string) (*Poller, error)
 func (p *Poller) Run(ctx context.Context) {
 	backoff := time.Second
 	const maxBackoff = 30 * time.Second
+	unbound := false
 
 	for {
 		if ctx.Err() != nil {
@@ -61,7 +64,14 @@ func (p *Poller) Run(ctx context.Context) {
 			if ctx.Err() != nil {
 				return
 			}
-			slog.Warn("poll error, backing off", "error", err, "backoff", backoff)
+			if errors.Is(err, errUnbound) {
+				if !unbound {
+					slog.Info("waiting for project binding")
+				}
+				unbound = true
+			} else {
+				slog.Warn("poll error, backing off", "error", err, "backoff", backoff)
+			}
 			select {
 			case <-time.After(backoff):
 			case <-ctx.Done():
@@ -74,6 +84,7 @@ func (p *Poller) Run(ctx context.Context) {
 			continue
 		}
 		backoff = time.Second
+		unbound = false
 
 		if intent == nil {
 			// 204 — re-poll immediately.
@@ -115,6 +126,8 @@ func (p *Poller) fetchNext(ctx context.Context) (*protocol.DeployIntentResponse,
 			return nil, fmt.Errorf("decode intent: %w", err)
 		}
 		return &intent, nil
+	case http.StatusPreconditionFailed:
+		return nil, errUnbound
 	default:
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
