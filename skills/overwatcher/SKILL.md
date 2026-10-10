@@ -69,10 +69,16 @@ Overwatcher deploys Docker Compose services on a VM when a GitHub repo is pushed
    ```
    Install sets up a root-managed systemd service; get explicit approval before adding `--yes`. On failure owctl revokes the agent but VM files may remain; report and do not retry blindly. The agent runs as the SSH user, which needs registry login for private images.
 
-8. **Remind about GitHub.** The Overwatcher GitHub App must be installed on each repo with `push` (and `workflow_run`) events. owctl cannot check this.
+8. **Check GitHub App access.** Without it, CI passes but nothing deploys. owctl cannot check this; use `gh` (needs the `read:user` scope; if missing, ask the user to run `gh auth refresh -h github.com -s read:user`):
+   ```sh
+   gh api user/installations --jq '.installations[] | select(.app_slug=="overwatcher-app") | {id, account: .account.login, repository_selection, events}'
+   gh api user/installations/<id>/repositories --paginate --jq '.repositories[].full_name'
+   ```
+   The repo owner needs an installation whose `events` include `push` (and `workflow_run` when used). If `repository_selection` is `selected`, the repo must be listed. Otherwise send the user to the installation's **Configure → Repository access** and do not report setup as complete. GitHub does not resend earlier events; re-run the latest CI run after access is granted.
 
 ## Verification
 
 1. `owctl project get <project> --json`: check `compose_file`, `enabled`, and each service's fields.
 2. `owctl agent list --json`: the agent's `project_id` matches and `status` is `connected`.
-3. Report project ID, agent name, and trigger per service. This does not prove a deploy succeeded.
+3. The GitHub App check in rule 8 passes for every repo.
+4. Report project ID, agent name, and trigger per service. This does not prove a deploy succeeded.
