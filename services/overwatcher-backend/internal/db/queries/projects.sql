@@ -22,3 +22,14 @@ RETURNING *;
 
 -- name: DeleteProject :one
 DELETE FROM projects WHERE id = $1 RETURNING *;
+
+-- name: TransferProjects :exec
+WITH moved AS (
+    UPDATE projects
+    SET user_id = @to_user_id, updated_at = NOW()
+    WHERE projects.user_id = @from_user_id
+    RETURNING projects.id
+)
+DELETE FROM project_members pm
+USING moved
+WHERE pm.project_id = moved.id AND pm.user_id = @to_user_id;

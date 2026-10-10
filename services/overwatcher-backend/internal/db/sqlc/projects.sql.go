@@ -118,6 +118,28 @@ func (q *Queries) GetProjectByUserAndName(ctx context.Context, arg GetProjectByU
 	return i, err
 }
 
+const transferProjects = `-- name: TransferProjects :exec
+WITH moved AS (
+    UPDATE projects
+    SET user_id = $1, updated_at = NOW()
+    WHERE projects.user_id = $2
+    RETURNING projects.id
+)
+DELETE FROM project_members pm
+USING moved
+WHERE pm.project_id = moved.id AND pm.user_id = $1
+`
+
+type TransferProjectsParams struct {
+	ToUserID   pgtype.UUID `json:"to_user_id"`
+	FromUserID pgtype.UUID `json:"from_user_id"`
+}
+
+func (q *Queries) TransferProjects(ctx context.Context, arg TransferProjectsParams) error {
+	_, err := q.db.Exec(ctx, transferProjects, arg.ToUserID, arg.FromUserID)
+	return err
+}
+
 const updateProject = `-- name: UpdateProject :one
 UPDATE projects
 SET name         = $2,

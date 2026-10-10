@@ -14,7 +14,7 @@ import (
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, name, password_hash, password_is_bootstrap)
 VALUES ($1, $2, $3, $4)
-RETURNING id, email, name, created_at, updated_at, password_hash, password_is_bootstrap
+RETURNING id, email, name, created_at, updated_at, password_hash, password_is_bootstrap, is_admin
 `
 
 type CreateUserParams struct {
@@ -40,12 +40,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.PasswordHash,
 		&i.PasswordIsBootstrap,
+		&i.IsAdmin,
 	)
 	return i, err
 }
 
 const deleteUser = `-- name: DeleteUser :one
-DELETE FROM users WHERE id = $1 RETURNING id, email, name, created_at, updated_at, password_hash, password_is_bootstrap
+DELETE FROM users WHERE id = $1 RETURNING id, email, name, created_at, updated_at, password_hash, password_is_bootstrap, is_admin
 `
 
 func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -59,12 +60,13 @@ func (q *Queries) DeleteUser(ctx context.Context, id pgtype.UUID) (User, error) 
 		&i.UpdatedAt,
 		&i.PasswordHash,
 		&i.PasswordIsBootstrap,
+		&i.IsAdmin,
 	)
 	return i, err
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, email, name, created_at, updated_at, password_hash, password_is_bootstrap FROM users WHERE id = $1
+SELECT id, email, name, created_at, updated_at, password_hash, password_is_bootstrap, is_admin FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (User, error) {
@@ -78,12 +80,13 @@ func (q *Queries) GetUser(ctx context.Context, id pgtype.UUID) (User, error) {
 		&i.UpdatedAt,
 		&i.PasswordHash,
 		&i.PasswordIsBootstrap,
+		&i.IsAdmin,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, created_at, updated_at, password_hash, password_is_bootstrap FROM users WHERE LOWER(email) = LOWER($1)
+SELECT id, email, name, created_at, updated_at, password_hash, password_is_bootstrap, is_admin FROM users WHERE LOWER(email) = LOWER($1)
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (User, error) {
@@ -97,6 +100,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (User, error
 		&i.UpdatedAt,
 		&i.PasswordHash,
 		&i.PasswordIsBootstrap,
+		&i.IsAdmin,
 	)
 	return i, err
 }
@@ -119,7 +123,7 @@ func (q *Queries) GetUserPasswordHashByEmail(ctx context.Context, lower string) 
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, name, created_at, updated_at, password_hash, password_is_bootstrap FROM users ORDER BY email ASC
+SELECT id, email, name, created_at, updated_at, password_hash, password_is_bootstrap, is_admin FROM users ORDER BY email ASC
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
@@ -139,6 +143,7 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 			&i.UpdatedAt,
 			&i.PasswordHash,
 			&i.PasswordIsBootstrap,
+			&i.IsAdmin,
 		); err != nil {
 			return nil, err
 		}
@@ -148,6 +153,20 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const setUserAdmin = `-- name: SetUserAdmin :exec
+UPDATE users SET is_admin = $2, updated_at = NOW() WHERE id = $1
+`
+
+type SetUserAdminParams struct {
+	ID      pgtype.UUID `json:"id"`
+	IsAdmin bool        `json:"is_admin"`
+}
+
+func (q *Queries) SetUserAdmin(ctx context.Context, arg SetUserAdminParams) error {
+	_, err := q.db.Exec(ctx, setUserAdmin, arg.ID, arg.IsAdmin)
+	return err
 }
 
 const setUserPasswordHash = `-- name: SetUserPasswordHash :exec
@@ -175,7 +194,7 @@ SET email      = $2,
     name       = $3,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, email, name, created_at, updated_at, password_hash, password_is_bootstrap
+RETURNING id, email, name, created_at, updated_at, password_hash, password_is_bootstrap, is_admin
 `
 
 type UpdateUserParams struct {
@@ -195,6 +214,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.UpdatedAt,
 		&i.PasswordHash,
 		&i.PasswordIsBootstrap,
+		&i.IsAdmin,
 	)
 	return i, err
 }

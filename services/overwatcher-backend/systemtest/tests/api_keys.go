@@ -105,6 +105,12 @@ func TestAPIKeys(t *testing.T, router *gin.Engine, sessionToken string) {
 		assert.Equal(t, http.StatusForbidden, rr.Code)
 	})
 
+	t.Run("BearerCannotManageUsers", func(t *testing.T) {
+		body, _ := json.Marshal(dto.CreateUserRequest{Email: "backdoor@example.com", Password: "backdoor-pass"})
+		rr := doBearer(t, router, "POST", "/api/v1/users", body, rawKey)
+		assert.Equal(t, http.StatusForbidden, rr.Code)
+	})
+
 	t.Run("BearerCannotChangePassword", func(t *testing.T) {
 		body, _ := json.Marshal(dto.ChangePasswordRequest{OldPassword: "testpassword", NewPassword: "hijacked-pass"})
 		rr := doBearer(t, router, "PUT", "/api/v1/auth/password", body, rawKey)

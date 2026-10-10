@@ -29,6 +29,21 @@ export async function updateUser(
   });
 }
 
+export async function transferProjects(
+  fromUserId: string,
+  toUserId: string
+): Promise<void> {
+  const res = await apiFetch(`/api/v1/users/${fromUserId}/transfer-projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ to_user_id: toUserId }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+}
+
 export async function deleteUser(id: string): Promise<void> {
   const res = await apiFetch(`/api/v1/users/${id}`, { method: "DELETE" });
   if (!res.ok) {

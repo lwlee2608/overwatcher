@@ -3,6 +3,7 @@ export interface MeResponse {
   email: string;
   name: string;
   must_change_password: boolean;
+  is_admin: boolean;
 }
 
 export interface LoginRequest {

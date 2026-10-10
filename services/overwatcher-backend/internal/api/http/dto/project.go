@@ -46,6 +46,10 @@ type CreateProjectRequest struct {
 	Enabled     *bool  `json:"enabled"`
 }
 
+type TransferProjectsRequest struct {
+	ToUserID string `json:"to_user_id" binding:"required"`
+}
+
 type UpdateProjectRequest struct {
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description"`

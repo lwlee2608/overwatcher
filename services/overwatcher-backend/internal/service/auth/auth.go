@@ -39,6 +39,7 @@ type User struct {
 	Email               string
 	Name                string
 	PasswordIsBootstrap bool
+	IsAdmin             bool
 }
 
 type Service struct {
@@ -127,6 +128,7 @@ func (s *Service) GetUser(ctx context.Context, userID string) (*User, error) {
 		Email:               row.Email,
 		Name:                row.Name,
 		PasswordIsBootstrap: row.PasswordIsBootstrap,
+		IsAdmin:             row.IsAdmin,
 	}, nil
 }
 
@@ -164,10 +166,10 @@ func (s *Service) ChangePassword(ctx context.Context, userID, oldPassword, newPa
 	return s.q.DeleteSessionsForUser(ctx, uid)
 }
 
-// EnsureUserPassword upserts a user with the given email and sets the
-// password. Used by the env-var bootstrap on startup. Idempotent. Existing
-// sessions for the user are revoked when the hash changes so a rotated
-// bootstrap password kicks attackers (and the operator) out cleanly.
+// EnsureUserPassword upserts a user with the given email, makes it an admin
+// and sets the password. Used by the env-var bootstrap on startup. Idempotent.
+// Existing sessions for the user are revoked when the hash changes so a
+// rotated bootstrap password kicks attackers (and the operator) out cleanly.
 func (s *Service) EnsureUserPassword(ctx context.Context, cfg BootstrapConfig) error {
 	if len(cfg.Password) < MinPasswordLen {
 		return ErrPasswordTooShort
@@ -185,7 +187,13 @@ func (s *Service) EnsureUserPassword(ctx context.Context, cfg BootstrapConfig) e
 		if err != nil {
 			return err
 		}
-	} else if bcrypt.CompareHashAndPassword([]byte(row.PasswordHash), []byte(cfg.Password)) == nil {
+	}
+	if !row.IsAdmin {
+		if err := s.q.SetUserAdmin(ctx, sqlc.SetUserAdminParams{ID: row.ID, IsAdmin: true}); err != nil {
+			return err
+		}
+	}
+	if bcrypt.CompareHashAndPassword([]byte(row.PasswordHash), []byte(cfg.Password)) == nil {
 		// Hash already matches the desired password; nothing to do.
 		return nil
 	}
