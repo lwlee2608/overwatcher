@@ -15,7 +15,7 @@
 - **Skill rewrite in this plan** — yes, final phase; PR #67's curl-based skill changes must be present on the integration branch before Phase 5 (already merged there; merging #67 to `main` separately is not required)
 - **`service set` input** — `-f <file>` (YAML or JSON, `-` = stdin), same shape as the `PUT /projects/:id/services` body
 - **Code location** — `cmd/owctl` in the backend Go module; reuses `internal/api/http/dto` types so request/response shapes can't drift `research`
-- **Release pipeline** — `agent-release.yml` builds on `v*` tags via a `make release-agent` target; linux amd64/arm64 only today `research`
+- **Release pipeline** — `release.yml` builds on `v*` tags via a `make release-agent` target; linux amd64/arm64 only today `research`
 - **CLI framework** — cobra (subcommands, help, shell completion) instead of hand-rolled `flag` dispatch `agent`
 - **Layering** — `internal/client` is a typed REST client (no CLI concerns); `cmd/owctl` holds commands, flags, output only `agent`
 - **Project references** — commands accept a project name or ID; names resolve via `GET /projects` `agent`
@@ -83,7 +83,7 @@ A user can set up a whole project from the terminal when a free agent already ex
 `curl <coordinator>/cli.sh | sh` installs the `owctl` matching the coordinator's release.
 **Blocked by:** 3
 - [x] Add `release-owctl` target for linux/darwin × amd64/arm64 with SHA256SUMS (services/overwatcher-backend/Makefile)
-- [x] Publish owctl assets on `v*` tags (.github/workflows/agent-release.yml)
+- [x] Publish owctl assets on `v*` tags (.github/workflows/release.yml)
 - [x] Serve `/cli.sh` templated with the coordinator's release tag (internal/api/http/handler, router.go)
 - [x] Proxy `/cli.sh` on the web domain (services/overwatcher-frontend/nginx.conf)
 - [x] Document owctl install and login (README.md)

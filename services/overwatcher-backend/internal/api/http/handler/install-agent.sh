@@ -31,7 +31,7 @@
 #
 # Template variables (substituted by the coordinator before serving):
 #   {{COORDINATOR_URL}} — the URL agents should poll
-#   {{RELEASE_TAG}}     — GitHub release tag to install (e.g. "latest" or "agent-v0.3.0")
+#   {{RELEASE_TAG}}     — GitHub release tag to install (e.g. "latest" or "v0.3.0")
 
 set -euo pipefail
 

@@ -31,7 +31,7 @@ type Services struct {
 	APIKeyService   *apikey.Service
 	WebhookSecret   string
 	AppVersion      string
-	AgentReleaseTag string
+	ReleaseTag string
 	AgentPublicURL  string
 	CookieConfig    middleware.CookieConfig
 }
@@ -41,8 +41,8 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	engine.Use(middleware.ErrorHandler())
 
 	healthHandler := handler.NewHealthHandler()
-	versionHandler := handler.NewVersionHandler(srvs.AppVersion, srvs.AgentReleaseTag)
-	installHandler := handler.NewInstallHandler(srvs.AgentReleaseTag, srvs.AgentPublicURL)
+	versionHandler := handler.NewVersionHandler(srvs.AppVersion, srvs.ReleaseTag)
+	installHandler := handler.NewInstallHandler(srvs.ReleaseTag, srvs.AgentPublicURL)
 	webhookHandler := handler.NewWebhookHandler(srvs.WebhookService)
 	deployHandler := handler.NewDeployHandler(srvs.DispatchService, srvs.WebhookService, srvs.ProjectService)
 	agentHandler := handler.NewAgentHandler(srvs.AgentService, srvs.ProjectService, srvs.CloudResolver)
@@ -55,7 +55,7 @@ func SetupRoute(engine *gin.Engine, srvs *Services) {
 	engine.GET("/health", healthHandler.Check)
 	// Public: piped into bash before any credentials exist on the VM.
 	engine.GET("/install.sh", installHandler.Serve)
-	engine.GET("/cli.sh", handler.NewCLIHandler(srvs.AgentReleaseTag).Serve)
+	engine.GET("/cli.sh", handler.NewCLIHandler(srvs.ReleaseTag).Serve)
 
 	apis := engine.Group("/api/v1")
 	{

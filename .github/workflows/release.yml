@@ -1,4 +1,4 @@
-name: Agent Release
+name: Release
 
 # Triggered by pushing an annotated tag of the form `vX.Y.Z`. Builds
 # Linux agent and Linux/macOS owctl binaries with version stamped via ldflags,

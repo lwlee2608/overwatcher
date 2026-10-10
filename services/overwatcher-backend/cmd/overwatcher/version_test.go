@@ -2,7 +2,7 @@ package main
 
 import "testing"
 
-func TestResolveAgentReleaseTag(t *testing.T) {
+func TestResolveReleaseTag(t *testing.T) {
 	cases := []struct {
 		name       string
 		appVersion string
@@ -15,8 +15,8 @@ func TestResolveAgentReleaseTag(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := resolveAgentReleaseTag(tc.appVersion); got != tc.want {
-				t.Errorf("resolveAgentReleaseTag(%q) = %q, want %q",
+			if got := resolveReleaseTag(tc.appVersion); got != tc.want {
+				t.Errorf("resolveReleaseTag(%q) = %q, want %q",
 					tc.appVersion, got, tc.want)
 			}
 		})
