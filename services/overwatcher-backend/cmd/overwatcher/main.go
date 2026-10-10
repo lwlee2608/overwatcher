@@ -85,7 +85,7 @@ func main() {
 		APIKeyService:   apiKeySvc,
 		WebhookSecret:   config.GitHub.WebhookSecret,
 		AppVersion:      AppVersion,
-		AgentReleaseTag: resolveAgentReleaseTag(AppVersion),
+		ReleaseTag:      resolveReleaseTag(AppVersion),
 		AgentPublicURL:  config.Agent.PublicURL,
 		CookieConfig:    config.Auth.Cookie,
 	}
